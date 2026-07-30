@@ -11,30 +11,6 @@ jobs:
     name: API Lint & TypeCheck
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: thulir
-          POSTGRES_PASSWORD: thulir_pass
-          POSTGRES_DB: thulir_lims
-        options: >-
-          --health-cmd pg_isready -U thulir
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,7 +35,7 @@ jobs:
         run: npm run lint
         working-directory: apps/api
 
-      - name: TypeCheck & Build
+      - name: Build
         run: npm run build
         working-directory: apps/api
 
