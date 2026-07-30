@@ -10,14 +10,29 @@ thulir03-lims/
 │   ├── api/                    # NestJS REST API (TypeScript)
 │   │   ├── prisma/             # Database schema & migrations
 │   │   └── src/
+│   │       ├── auth/           # JWT auth, register, login, TOTP MFA
+│   │       ├── users/          # User management
+│   │       ├── roles/          # RBAC role & permission management
+│   │       ├── common/         # Guards (JwtAuth, Roles), decorators
 │   │       ├── prisma/         # Prisma database service
-│   │       ├── modules/        # Domain modules (future sprints)
 │   │       ├── main.ts         # Entry point
 │   │       └── app.module.ts   # Root module
 │   ├── web/                    # React + Vite + Tailwind CSS
 │   │   └── src/
-│   │       ├── App.tsx         # Main application
-│   │       └── index.css       # Theme & Tailwind setup
+│   │       ├── pages/
+│   │       │   ├── Login.tsx       # Sign-in page
+│   │       │   ├── Register.tsx    # Sign-up with org setup
+│   │       │   └── Dashboard.tsx   # Lab admin dashboard
+│   │       ├── components/
+│   │       │   └── ProtectedRoute.tsx  # Auth guard wrapper
+│   │       ├── lib/
+│   │       │   ├── api.ts       # Axios client with JWT + auto-refresh
+│   │       │   ├── auth.tsx     # AuthContext provider
+│   │       │   ├── useAuth.ts   # useAuth hook
+│   │       │   └── utils.ts     # Tailwind class merging
+│   │       ├── App.tsx          # Router + routes
+│   │       ├── main.tsx         # Entry with BrowserRouter
+│   │       └── index.css        # Tailwind v4 + clinical theme
 │   └── instrument-middleware/  # Python FastAPI (ASTM/HL7)
 │       ├── main.py             # FastAPI entry point
 │       └── requirements.txt    # Python dependencies
@@ -26,8 +41,10 @@ thulir03-lims/
 │   ├── Dockerfile.api
 │   ├── Dockerfile.web
 │   └── Dockerfile.middleware
-├── .github/workflows/
-│   └── ci.yml                  # GitHub Actions CI/CD
+├── .github/
+│   ├── workflows/
+│   │   └── ci.yml              # GitHub Actions CI/CD
+│   └── dependabot.yml          # Auto-security updates
 └── .env.example                # Environment variables template
 ```
 
@@ -35,9 +52,10 @@ thulir03-lims/
 
 | Layer              | Technology                                                  |
 |--------------------|-------------------------------------------------------------|
-| Frontend           | React 19 + TypeScript + Vite + Tailwind CSS                 |
-| Core API           | NestJS 11 (TypeScript), REST + OpenAPI 3                    |
+| Frontend           | React 19 + TypeScript + Vite 8 + Tailwind CSS 4             |
+| Core API           | NestJS 11 (TypeScript), REST + OpenAPI 3 + Swagger          |
 | Database           | PostgreSQL 16+ with Prisma ORM 7 + Row-Level Security       |
+| Auth               | JWT + refresh tokens, Passport, bcryptjs, TOTP MFA          |
 | Cache/Queue        | Redis + BullMQ (planned)                                    |
 | Object Storage     | S3-compatible (MinIO for dev)                               |
 | Instrument Middle  | Python FastAPI + hl7apy (ASTM E1394 / HL7 v2.x)             |
@@ -73,7 +91,7 @@ npm run dev
 ```
 Web app runs at **http://localhost:5173** (proxies `/api` to the API server)
 
-### 4. Start instrument middleware (optional)
+### 4. (Optional) Start instrument middleware
 ```bash
 cd apps/instrument-middleware
 python3 -m venv venv
@@ -82,6 +100,37 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 Middleware runs at **http://localhost:8000**
+
+## Auth Setup & Default Flow
+
+Sprint 2 implements JWT-based authentication with role-based access control (RBAC).
+
+### Registration (first-time setup)
+The first user registered becomes a **Lab Admin** with full system access.
+System roles are auto-created: `lab_admin`, `pathologist`, `technician`, `lab_manager`, `receptionist`.
+
+### Auth API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/auth/register` | Register new user + org |
+| `POST` | `/api/v1/auth/login` | Login with email + password |
+| `POST` | `/api/v1/auth/refresh` | Refresh expired JWT |
+| `GET` | `/api/v1/auth/profile` | Get current user profile |
+| `POST` | `/api/v1/auth/totp/generate` | Generate TOTP secret |
+| `POST` | `/api/v1/auth/totp/enable` | Enable TOTP MFA |
+
+### Frontend Routes
+
+| Path | Page | Auth Required |
+|------|------|---------------|
+| `/` | Landing page | No |
+| `/login` | Sign-in form | No |
+| `/register` | Registration form | No |
+| `/dashboard` | Lab admin dashboard | Yes (JWT required) |
+
+### Protected Routes
+Frontend uses `ProtectedRoute` component — unauthenticated users are redirected to `/login` with their intended destination preserved.
 
 ## Development Commands
 
@@ -115,14 +164,15 @@ Key environment variables (see `.env.example` for full list):
 | Phase | Scope | Status |
 |-------|-------|--------|
 | **Sprint 1** | Project scaffolding, monorepo, Docker, CI/CD | ✅ Complete |
-| **Sprint 2** | Auth & RBAC (JWT, TOTP MFA, role management) | ⬜ Next |
-| **Sprint 3** | Patients & Referrers CRUD | ⬜ |
+| **Sprint 2** | **Auth & RBAC** — JWT auth, TOTP MFA, role management, login/signup UI | ✅ **Complete** |
+| **Sprint 3** | Patients & Referrers CRUD | ⬜ Next |
 | **Sprint 4** | Configurable Test Catalog | ⬜ |
 | **Sprint 5** | Orders & Barcode Accessioning | ⬜ |
 | **Sprint 6** | Result Entry & Verification | ⬜ |
 | **Sprint 7** | PDF Report Generation | ⬜ |
 | **Sprint 8** | Basic Billing | ⬜ |
 | **Sprint 9** | Phase 1 UI/Hardening Pass | ⬜ |
+| **Sprint 10+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
 
 Full 24-sprint build plan available in the project brief.
 
