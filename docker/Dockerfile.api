@@ -1,0 +1,21 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+COPY prisma/ ./prisma/
+COPY prisma.config.ts ./
+RUN npm ci
+
+# Copy source
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+COPY src/ ./src/
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Expose and start
+EXPOSE 3001
+CMD ["npm", "run", "start:dev"]

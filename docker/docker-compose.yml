@@ -1,0 +1,110 @@
+# THULIR03 LIMS — Docker Compose
+# Sprint 1: Development environment
+
+services:
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: thulir-postgres
+    environment:
+      POSTGRES_USER: thulir
+      POSTGRES_PASSWORD: thulir_pass
+      POSTGRES_DB: thulir_lims
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U thulir -d thulir_lims"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: thulir-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO (S3-compatible object storage) ────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: thulir-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  # ─── Core API (NestJS) ───────────────────────────────────────────────────
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: ../../docker/Dockerfile.api
+    container_name: thulir-api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://thulir:thulir_pass@postgres:5432/thulir_lims
+      REDIS_URL: redis://redis:6379
+      API_PORT: 3001
+      API_HOST: 0.0.0.0
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── Web Frontend (React + Vite) ──────────────────────────────────────────
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: ../../docker/Dockerfile.web
+    container_name: thulir-web
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+  # ─── Instrument Middleware (FastAPI) ─────────────────────────────────────
+  instrument-middleware:
+    build:
+      context: ../apps/instrument-middleware
+      dockerfile: ../../docker/Dockerfile.middleware
+    container_name: thulir-middleware
+    environment:
+      INSTRUMENT_MIDDLEWARE_HOST: 0.0.0.0
+      INSTRUMENT_MIDDLEWARE_PORT: 8000
+      CORE_API_URL: http://api:3001
+      CORE_API_KEY: dev-instrument-api-key
+    ports:
+      - "8000:8000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

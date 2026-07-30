@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & TypeCheck
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: thulir
+          POSTGRES_PASSWORD: thulir_pass
+          POSTGRES_DB: thulir_lims
+        options: >-
+          --health-cmd pg_isready -U thulir
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci
+        working-directory: apps/api
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: apps/api
+
+      - name: Lint API
+        run: npm run lint
+        working-directory: apps/api
+
+      - name: TypeCheck API
+        run: npm run build
+        working-directory: apps/api
+
+      - name: Install Web dependencies
+        run: npm ci
+        working-directory: apps/web
+        if: always()
+
+      - name: Lint Web
+        run: npm run lint
+        working-directory: apps/web
+        if: always()
+
+      - name: TypeCheck Web
+        run: npx tsc -b
+        working-directory: apps/web
+        if: always()
+
+  test-api:
+    name: Test API
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: thulir
+          POSTGRES_PASSWORD: thulir_pass
+          POSTGRES_DB: thulir_lims_test
+        options: >-
+          --health-cmd pg_isready -U thulir
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/api
+
+      - name: Run tests
+        run: npm test
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://thulir:thulir_pass@localhost:5432/thulir_lims_test
