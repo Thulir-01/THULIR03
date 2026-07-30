@@ -1,0 +1,24 @@
+{
+  "name": "thulir03-lims",
+  "version": "0.1.0",
+  "private": true,
+  "description": "THULIR03 — Modern Laboratory Information Management System",
+  "scripts": {
+    "dev:api": "cd apps/api && npm run start:dev",
+    "dev:web": "cd apps/web && npm run dev",
+    "build:api": "cd apps/api && npm run build",
+    "build:web": "cd apps/web && npm run build",
+    "build": "npm run build:api && npm run build:web",
+    "test:api": "cd apps/api && npm run test",
+    "test:web": "cd apps/web && npm run test",
+    "test": "npm run test:api && npm run test:web",
+    "lint": "cd apps/api && npm run lint && cd ../web && npm run lint",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,js,json}\"",
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/docker-compose.yml down",
+    "docker:logs": "docker compose -f docker/docker-compose.yml logs -f"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.0"
+  }
+}

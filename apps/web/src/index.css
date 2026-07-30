@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #0a7c8c;
+  --color-primary-light: #0ea5b7;
+  --color-primary-dark: #065a66;
+
+  --color-normal: #16a34a;
+  --color-borderline: #d97706;
+  --color-critical: #dc2626;
+
+  --color-surface: #f8fafc;
+  --color-surface-elevated: #ffffff;
+  --color-border: #e2e8f0;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-surface);
+  color: var(--text-primary);
+}
+
+/* Utility: clinical color meaning — only for clinical status indicators */
+.text-normal { color: var(--color-normal); }
+.text-borderline { color: var(--color-borderline); }
+.text-critical { color: var(--color-critical); }
+.bg-normal { background-color: var(--color-normal); }
+.bg-borderline { background-color: var(--color-borderline); }
+.bg-critical { background-color: var(--color-critical); }
