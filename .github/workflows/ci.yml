@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-typecheck:
-    name: Lint & TypeCheck
+  api-lint-typecheck:
+    name: API Lint & TypeCheck
     runs-on: ubuntu-latest
 
     services:
@@ -37,6 +37,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -45,7 +47,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: apps/api/package-lock.json
 
-      - name: Install API dependencies
+      - name: Install dependencies
         run: npm ci
         working-directory: apps/api
 
@@ -53,33 +55,42 @@ jobs:
         run: npx prisma generate
         working-directory: apps/api
 
-      - name: Lint API
+      - name: Lint
         run: npm run lint
         working-directory: apps/api
 
-      - name: TypeCheck API
+      - name: TypeCheck & Build
         run: npm run build
         working-directory: apps/api
 
-      - name: Install Web dependencies
+  web-lint-typecheck:
+    name: Web Lint & TypeCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
         run: npm ci
         working-directory: apps/web
-        if: always()
 
-      - name: Lint Web
-        run: npm run lint
-        working-directory: apps/web
-        if: always()
-
-      - name: TypeCheck Web
+      - name: TypeCheck
         run: npx tsc -b
         working-directory: apps/web
-        if: always()
 
   test-api:
-    name: Test API
+    name: API Tests
     runs-on: ubuntu-latest
-    needs: lint-and-typecheck
+    needs: api-lint-typecheck
 
     services:
       postgres:
@@ -98,6 +109,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
