@@ -6,6 +6,11 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "jest"
+        versions: [">=26.0.0"]
+      - dependency-name: "typescript"
+        versions: [">=6.0.0"]
     groups:
       production-dependencies:
         dependency-type: "production"
@@ -24,6 +29,9 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=6.0.0"]
     groups:
       production-dependencies:
         dependency-type: "production"
