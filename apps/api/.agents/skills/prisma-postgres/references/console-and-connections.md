@@ -52,7 +52,8 @@ For direct PostgreSQL tools and drivers:
 Typical direct TCP format:
 
 ```env
-DATABASE_URL="postgres://identifier:key@db.prisma.io:5432/postgres?sslmode=require"
+# Replace with your actual connection string from Prisma Console
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
 ```
 
 Management API connection responses expose both `endpoints.direct` (`db.prisma.io:5432`) and `endpoints.pooled` (`pooled.db.prisma.io:5432`); prefer those fields over the deprecated flat `connectionString`. Connection secrets are shown once at creation (one-time view); store them immediately.
