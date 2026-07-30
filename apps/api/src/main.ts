@@ -54,4 +54,4 @@ async function bootstrap() {
   console.log(`📚 API docs at http://${host}:${port}/api/docs`);
 }
 
-bootstrap();
+void bootstrap();
