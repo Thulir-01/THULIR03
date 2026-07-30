@@ -128,9 +128,12 @@ model User {
 model Patient {
   id          String    @id @default(uuid()) @db.Uuid
   tenantId    String    @map("tenant_id") @db.Uuid
+  title       String?
   firstName   String    @map("first_name")
   lastName    String    @map("last_name")
   dateOfBirth DateTime? @map("date_of_birth")
+  ageYears    Int?      @map("age_years")
+  ageMonths   Int?      @map("age_months")
   gender      String?
   phone       String?
   email       String?
@@ -170,24 +173,73 @@ model DoctorReferrer {
 // ─── Orders ──────────────────────────────────────────────────────────────────
 
 model Order {
-  id              String    @id @default(uuid()) @db.Uuid
-  tenantId        String    @map("tenant_id") @db.Uuid
-  patientId       String    @map("patient_id") @db.Uuid
-  doctorReferrerId String?  @map("doctor_referrer_id") @db.Uuid
-  branchId        String?   @map("branch_id") @db.Uuid
-  orderNumber     String    @unique @map("order_number")
-  status          String    @default("pending")
-  priority        String    @default("routine")
-  notes           String?
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  deletedAt       DateTime? @map("deleted_at")
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  patientId        String    @map("patient_id") @db.Uuid
+  doctorReferrerId String?   @map("doctor_referrer_id") @db.Uuid
+  branchId         String?   @map("branch_id") @db.Uuid
+  orderNumber      String    @unique @map("order_number")
+  status           String    @default("pending")
+  priority         String    @default("routine")
+  category         String?
+  sidDate          DateTime? @map("sid_date")
+  refNo            String?   @map("ref_no")
+  source           String?
+  insuranceDetails String?   @map("insurance_details")
+  collectionBoy    String?   @map("collection_boy")
+  patientType      String?   @map("patient_type")
+  ward             String?
+  ipOpNo           String?   @map("ip_op_no")
+  bedNo            String?   @map("bed_no")
+  clinicalRemarks  String?   @map("clinical_remarks")
+  sampleCollectDt  DateTime? @map("sample_collect_date")
+  billAmount       Decimal?  @default(0) @map("bill_amount") @db.Decimal(10, 2)
+  otherCharges     Decimal?  @default(0) @map("other_charges") @db.Decimal(10, 2)
+  discountPercent  Decimal?  @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount   Decimal?  @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  discountAuth     String?   @map("discount_auth")
+  totalAmount      Decimal?  @default(0) @map("total_amount") @db.Decimal(10, 2)
+  amountPaid       Decimal?  @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  balanceAmount    Decimal?  @default(0) @map("balance_amount") @db.Decimal(10, 2)
+  paymentMode      String?   @map("payment_mode")
+  bankName         String?   @map("bank_name")
+  paymentRef       String?   @map("payment_ref")
+  paymentDate      DateTime? @map("payment_date")
+  paymentRemarks   String?   @map("payment_remarks")
+  deliveryMode     String?   @map("delivery_mode")
+  emergency        Boolean   @default(false)
+  finalReportDate  DateTime? @map("final_report_date")
+  billHf           Boolean   @default(false) @map("bill_hf")
+  consolidatedBill Boolean   @default(false) @map("consolidated_bill")
+  remarks          String?
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
 
   patient Patient              @relation(fields: [patientId], references: [id])
   doctor  DoctorReferrer?       @relation(fields: [doctorReferrerId], references: [id])
   branch  Branch?               @relation(fields: [branchId], references: [id])
+  tests   OrderTest[]
 
   @@map("orders")
+}
+
+model OrderTest {
+  id       String   @id @default(uuid()) @db.Uuid
+  orderId  String   @map("order_id") @db.Uuid
+  testCode String   @map("test_code")
+  testName String   @map("test_name")
+  rate     Decimal  @db.Decimal(10, 2)
+  status   String   @default("pending")
+  result   String?
+  unit     String?
+  refRange String?  @map("ref_range")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@unique([orderId, testCode])
+  @@map("order_tests")
 }
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────
