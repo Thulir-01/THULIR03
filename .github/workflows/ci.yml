@@ -79,7 +79,7 @@ jobs:
           POSTGRES_PASSWORD: thulir_pass
           POSTGRES_DB: thulir_lims_test
         options: >-
-          --health-cmd pg_isready -U thulir
+          --health-cmd "pg_isready -U thulir -d thulir_lims_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
