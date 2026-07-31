@@ -152,35 +152,175 @@ model Patient {
   @@map("patients")
 }
 
-model DoctorReferrer {
-  id           String    @id @default(uuid()) @db.Uuid
-  tenantId     String    @map("tenant_id") @db.Uuid
-  name         String
-  specialty    String?
-  phone        String?
-  email        String?
-  clinicName   String?   @map("clinic_name")
-  registration String?
-  commission   Decimal?  @default(0) @db.Decimal(10, 2)
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
+// ─── Parties: unified Master Data Management ───────────────────────────────
+// ONE shared `parties` table for everything common to every external master
+// type (doctors, hospitals, corporates, TPAs, reference labs, consultants) —
+// address/contact/GSTIN/bank/documents — plus a thin 1:1 extension table per
+// type (PartyDoctorDetail today; the other five types land in later sprints).
+// Referrers were migrated here from the legacy `doctors_referrers` table.
 
-  orders Order[]
+enum PartyType {
+  doctor
+  hospital
+  corporate
+  insurance_tpa
+  reference_lab
+  consultant
+}
+
+model Party {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  partyType          PartyType @map("party_type")
+  name               String
+  address            String?
+  gstin              String?
+  primaryContactName String?   @map("primary_contact_name")
+  primaryContactPhone String?  @map("primary_contact_phone")
+  primaryContactEmail String?  @map("primary_contact_email")
+  bankDetails        Json?     @map("bank_details")
+  documents          Json?
+  // active | inactive | blacklisted
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  doctorDetail   PartyDoctorDetail?
+  orders         Order[] // a party can be the referrer on many orders
+  referrerPrices ReferrerPrice[]
+
+  @@index([tenantId, partyType])
+  @@map("parties")
+}
+
+model PartyDoctorDetail {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  partyId            String   @map("party_id") @db.Uuid
+  medicalCouncilNo   String?  @map("medical_council_no")
+  specialization     String?
+  qualification      String?
+  commissionPercent  Decimal? @map("commission_percent") @db.Decimal(10, 2)
+  commissionSchedule String?  @map("commission_schedule")
+  clinicAffiliation  String?  @map("clinic_affiliation")
+  // Referrer pricing: "default" | "discount" | "custom" + optional flat %
+  pricingMode     String?  @default("default") @map("pricing_mode")
+  discountPercent Decimal? @map("discount_percent") @db.Decimal(5, 2)
+
+  party Party @relation(fields: [partyId], references: [id])
+
+  @@unique([partyId])
+  @@index([tenantId])
+  @@map("party_doctor_details")
+}
+
+// ─── Masters: Test Catalog ───────────────────────────────────────────────────
+// SENAITE-style AnalysisService (TestParameter) + AnalysisProfile (TestPackage),
+// plus per-referrer rate cards (ReferrerPrice) for Indian lab billing.
+
+model TestCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  parameters TestParameter[]
 
   @@index([tenantId])
-  @@map("doctors_referrers")
+  @@map("test_categories")
+}
+
+model TestParameter {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  code            String
+  name            String
+  categoryId      String   @map("category_id") @db.Uuid
+  sampleType      String?
+  unit            String?
+  methodology     String?
+  turnaroundHours Int?     @map("turnaround_hours")
+  defaultPrice    Decimal  @default(0) @map("default_price") @db.Decimal(10, 2)
+  isActive        Boolean  @default(true) @map("is_active")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  category       TestCategory      @relation(fields: [categoryId], references: [id])
+  packageItems   TestPackageItem[]
+  referrerPrices ReferrerPrice[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("test_parameters")
+}
+
+model TestPackage {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  code        String
+  name        String
+  description String?
+  // "sum"  -> price = sum of included parameters (resolved per referrer)
+  // "fixed"-> price = fixedPrice regardless of line items
+  pricingMode String   @default("sum") @map("pricing_mode")
+  fixedPrice  Decimal? @map("fixed_price") @db.Decimal(10, 2)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items          TestPackageItem[]
+  referrerPrices ReferrerPrice[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("test_packages")
+}
+
+model TestPackageItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  packageId   String   @map("package_id") @db.Uuid
+  parameterId String   @map("parameter_id") @db.Uuid
+
+  package   TestPackage   @relation(fields: [packageId], references: [id])
+  parameter TestParameter @relation(fields: [parameterId], references: [id])
+
+  @@unique([packageId, parameterId])
+  @@map("test_package_items")
+}
+
+model ReferrerPrice {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  partyId     String   @map("party_id") @db.Uuid // the referrer party
+  parameterId String?  @map("parameter_id") @db.Uuid // set for a parameter-level override
+  packageId   String?  @map("package_id") @db.Uuid   // set for a package-level override
+  price       Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  party     Party          @relation(fields: [partyId], references: [id])
+  parameter TestParameter? @relation(fields: [parameterId], references: [id])
+  package   TestPackage?   @relation(fields: [packageId], references: [id])
+
+  @@unique([partyId, parameterId])
+  @@unique([partyId, packageId])
+  @@index([tenantId])
+  @@map("referrer_prices")
 }
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
 
 model Order {
-  id               String    @id @default(uuid()) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  patientId        String    @map("patient_id") @db.Uuid
-  doctorReferrerId String?   @map("doctor_referrer_id") @db.Uuid
-  branchId         String?   @map("branch_id") @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  patientId       String    @map("patient_id") @db.Uuid
+  referrerPartyId String?   @map("referrer_party_id") @db.Uuid
+  branchId        String?   @map("branch_id") @db.Uuid
   orderNumber      String    @unique @map("order_number")
   status           String    @default("pending")
   priority         String    @default("routine")
@@ -220,11 +360,11 @@ model Order {
   updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  patient Patient              @relation(fields: [patientId], references: [id])
-  doctor  DoctorReferrer?       @relation(fields: [doctorReferrerId], references: [id])
-  branch  Branch?               @relation(fields: [branchId], references: [id])
-  tests   OrderTest[]
-  samples Sample[]
+  patient      Patient   @relation(fields: [patientId], references: [id])
+  referrerParty Party?   @relation(fields: [referrerPartyId], references: [id])
+  branch       Branch?   @relation(fields: [branchId], references: [id])
+  tests        OrderTest[]
+  samples      Sample[]
 
   @@index([tenantId])
   @@map("orders")

@@ -9,9 +9,76 @@ export interface CreateReferrerDto {
   clinicName?: string;
   registration?: string;
   commission?: number;
+  // Pricing: "default" | "discount" | "custom" + optional flat discount %
+  pricingMode?: string;
+  discountPercent?: number;
 }
 
 export type UpdateReferrerDto = Partial<CreateReferrerDto>;
+
+// A referrer is now a Party of type 'doctor' (Master Data Management
+// foundation) with a 1:1 PartyDoctorDetail extension. The response shape is
+// unchanged so the web layer and referrer-pricing screens keep working.
+export interface ReferrerRow {
+  id: string;
+  name: string;
+  specialty: string | null;
+  phone: string | null;
+  email: string | null;
+  clinicName: string | null;
+  registration: string | null;
+  commission: number | null;
+  pricingMode: string | null;
+  discountPercent: number | null;
+  isActive: boolean;
+  createdAt: Date;
+  _count?: { orders: number };
+}
+
+function toRow(party: {
+  id: string;
+  name: string;
+  status: string;
+  primaryContactPhone: string | null;
+  primaryContactEmail: string | null;
+  createdAt: Date;
+  _count?: { orders: number };
+  doctorDetail: {
+    specialization: string | null;
+    clinicAffiliation: string | null;
+    medicalCouncilNo: string | null;
+    commissionPercent: { toNumber?: () => number } | number | null;
+    pricingMode: string | null;
+    discountPercent: { toNumber?: () => number } | number | null;
+  } | null;
+}): ReferrerRow {
+  const d = party.doctorDetail;
+  const num = (
+    v: { toNumber?: () => number } | number | null | undefined,
+  ): number | null =>
+    v == null
+      ? null
+      : typeof v === 'number'
+        ? v
+        : v.toNumber
+          ? v.toNumber()
+          : Number(v);
+  return {
+    id: party.id,
+    name: party.name,
+    specialty: d?.specialization ?? null,
+    phone: party.primaryContactPhone ?? null,
+    email: party.primaryContactEmail ?? null,
+    clinicName: d?.clinicAffiliation ?? null,
+    registration: d?.medicalCouncilNo ?? null,
+    commission: num(d?.commissionPercent),
+    pricingMode: d?.pricingMode ?? 'default',
+    discountPercent: num(d?.discountPercent),
+    isActive: party.status === 'active',
+    createdAt: party.createdAt,
+    _count: party._count,
+  };
+}
 
 @Injectable()
 export class ReferrersService {
@@ -20,6 +87,7 @@ export class ReferrersService {
   async findAll(organizationId: string, query?: { search?: string }) {
     const where: Record<string, unknown> = {
       tenantId: organizationId,
+      partyType: 'doctor',
       deletedAt: null,
     };
 
@@ -27,75 +95,123 @@ export class ReferrersService {
       const s = query.search;
       where.OR = [
         { name: { contains: s, mode: 'insensitive' } },
-        { phone: { contains: s } },
-        { email: { contains: s, mode: 'insensitive' } },
-        { clinicName: { contains: s, mode: 'insensitive' } },
-        { specialty: { contains: s, mode: 'insensitive' } },
+        { primaryContactPhone: { contains: s } },
+        { primaryContactEmail: { contains: s, mode: 'insensitive' } },
       ];
     }
 
-    return this.prisma.client.doctorReferrer.findMany({
+    const rows = await this.prisma.client.party.findMany({
       where,
       include: {
+        doctorDetail: true,
         _count: { select: { orders: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+    return rows.map(toRow);
   }
 
   async findOne(id: string, organizationId: string) {
-    const referrer = await this.prisma.client.doctorReferrer.findFirst({
-      where: { id, tenantId: organizationId, deletedAt: null },
+    const party = await this.prisma.client.party.findFirst({
+      where: {
+        id,
+        tenantId: organizationId,
+        partyType: 'doctor',
+        deletedAt: null,
+      },
+      include: { doctorDetail: true },
     });
-    if (!referrer) throw new NotFoundException('Referrer not found');
-    return referrer;
+    if (!party) throw new NotFoundException('Referrer not found');
+    return toRow(party);
   }
 
   async create(organizationId: string, data: CreateReferrerDto) {
-    return this.prisma.client.doctorReferrer.create({
+    const party = await this.prisma.client.party.create({
       data: {
         tenantId: organizationId,
+        partyType: 'doctor',
         name: data.name,
-        specialty: data.specialty ?? null,
-        phone: data.phone ?? null,
-        email: data.email ?? null,
-        clinicName: data.clinicName ?? null,
-        registration: data.registration ?? null,
-        commission: data.commission ?? 0,
+        primaryContactPhone: data.phone ?? null,
+        primaryContactEmail: data.email ?? null,
+        doctorDetail: {
+          create: {
+            tenantId: organizationId,
+            specialization: data.specialty ?? null,
+            clinicAffiliation: data.clinicName ?? null,
+            medicalCouncilNo: data.registration ?? null,
+            commissionPercent: data.commission ?? 0,
+            pricingMode: data.pricingMode ?? 'default',
+            discountPercent: data.discountPercent ?? null,
+          },
+        },
       },
+      include: { doctorDetail: true },
     });
+    return toRow(party);
   }
 
   async update(id: string, organizationId: string, data: UpdateReferrerDto) {
-    const referrer = await this.prisma.client.doctorReferrer.findFirst({
-      where: { id, tenantId: organizationId, deletedAt: null },
+    const party = await this.prisma.client.party.findFirst({
+      where: {
+        id,
+        tenantId: organizationId,
+        partyType: 'doctor',
+        deletedAt: null,
+      },
     });
-    if (!referrer) throw new NotFoundException('Referrer not found');
+    if (!party) throw new NotFoundException('Referrer not found');
 
-    const updateData: Record<string, unknown> = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.specialty !== undefined) updateData.specialty = data.specialty;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.clinicName !== undefined) updateData.clinicName = data.clinicName;
+    const partyData: Record<string, unknown> = {};
+    if (data.name !== undefined) partyData.name = data.name;
+    if (data.phone !== undefined) partyData.primaryContactPhone = data.phone;
+    if (data.email !== undefined) partyData.primaryContactEmail = data.email;
+
+    const detailData: {
+      tenantId: string;
+      specialization?: string | null;
+      clinicAffiliation?: string | null;
+      medicalCouncilNo?: string | null;
+      commissionPercent?: number;
+      pricingMode?: string;
+      discountPercent?: number | null;
+    } = { tenantId: organizationId };
+    if (data.specialty !== undefined)
+      detailData.specialization = data.specialty;
+    if (data.clinicName !== undefined)
+      detailData.clinicAffiliation = data.clinicName;
     if (data.registration !== undefined)
-      updateData.registration = data.registration;
-    if (data.commission !== undefined) updateData.commission = data.commission;
+      detailData.medicalCouncilNo = data.registration;
+    if (data.commission !== undefined)
+      detailData.commissionPercent = data.commission;
+    if (data.pricingMode !== undefined)
+      detailData.pricingMode = data.pricingMode;
+    if (data.discountPercent !== undefined)
+      detailData.discountPercent = data.discountPercent;
 
-    return this.prisma.client.doctorReferrer.update({
+    const updated = await this.prisma.client.party.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...partyData,
+        doctorDetail: { upsert: { create: detailData, update: detailData } },
+      },
+      include: { doctorDetail: true },
     });
+    return toRow(updated);
   }
 
   async remove(id: string, organizationId: string) {
-    const referrer = await this.prisma.client.doctorReferrer.findFirst({
-      where: { id, tenantId: organizationId, deletedAt: null },
+    const party = await this.prisma.client.party.findFirst({
+      where: {
+        id,
+        tenantId: organizationId,
+        partyType: 'doctor',
+        deletedAt: null,
+      },
     });
-    if (!referrer) throw new NotFoundException('Referrer not found');
-    await this.prisma.client.doctorReferrer.update({
+    if (!party) throw new NotFoundException('Referrer not found');
+    await this.prisma.client.party.update({
       where: { id },
-      data: { deletedAt: new Date(), isActive: false },
+      data: { deletedAt: new Date(), status: 'inactive' },
     });
     return { message: 'Referrer deleted' };
   }

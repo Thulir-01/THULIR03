@@ -7,7 +7,10 @@ import {
 describe('applyTenantScoping', () => {
   it('scopes tenant models (case-insensitive model list)', () => {
     expect(TENANT_SCOPED_MODELS.has('patient')).toBe(true);
-    expect(TENANT_SCOPED_MODELS.has('doctorreferrer')).toBe(true);
+    // Referrers migrated into the parties foundation
+    expect(TENANT_SCOPED_MODELS.has('party')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('partydoctordetail')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('doctorreferrer')).toBe(false);
     expect(TENANT_SCOPED_MODELS.has('order')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('auditlog')).toBe(true);
     // Sprint 5.6: Sample + OrderTest are tenant-scoped too

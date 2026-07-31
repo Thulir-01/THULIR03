@@ -7,6 +7,7 @@ import {
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { findProfile } from './test-profiles';
+import { resolveEffectivePrice } from '../masters/price-resolver';
 
 export interface RegisterPatientOrderDto {
   patientId?: string;
@@ -139,7 +140,113 @@ export class OrdersService {
       .replace(/-/g, '')
       .slice(0, 8)
       .toUpperCase()}`;
-    const subTotal = tests.reduce((s, t) => s + t.rate, 0);
+    // Referrer pricing — resolve line-item prices server-side via the shared
+    // rule in masters/price-resolver.ts when the named referrer has a pricing
+    // mode. Falls back to client-supplied rates for walk-ins / default mode.
+    let referrerPricing: {
+      referrerId: string;
+      pricingMode: string | null;
+      discountPercent: number | null;
+    } | null = null;
+    if (data.referrer) {
+      const found = await this.prisma.client.party.findFirst({
+        where: {
+          tenantId,
+          partyType: 'doctor',
+          name: data.referrer,
+          deletedAt: null,
+        },
+        include: { doctorDetail: true },
+      });
+      if (found) {
+        referrerPricing = {
+          referrerId: found.id,
+          pricingMode: found.doctorDetail?.pricingMode ?? 'default',
+          discountPercent: found.doctorDetail?.discountPercent
+            ? Number(found.doctorDetail.discountPercent)
+            : null,
+        };
+      }
+    }
+    const parameterByCode = new Map<
+      string,
+      { id: string; defaultPrice: number }
+    >();
+    const packageByCode = new Map<
+      string,
+      { id: string; pricingMode: string; fixedPrice: number | null }
+    >();
+    const overrides = new Map<string, number>();
+    if (referrerPricing) {
+      const [params, pkgs, priceRows] = await Promise.all([
+        this.prisma.client.testParameter.findMany({
+          where: { tenantId, isActive: true },
+        }),
+        this.prisma.client.testPackage.findMany({
+          where: { tenantId, isActive: true },
+        }),
+        referrerPricing.pricingMode === 'custom'
+          ? this.prisma.client.referrerPrice.findMany({
+              where: {
+                partyId: referrerPricing.referrerId,
+                tenantId,
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+      for (const p of params) {
+        parameterByCode.set(p.code, {
+          id: p.id,
+          defaultPrice: Number(p.defaultPrice),
+        });
+      }
+      for (const p of pkgs) {
+        packageByCode.set(p.code, {
+          id: p.id,
+          pricingMode: p.pricingMode,
+          fixedPrice: p.fixedPrice ? Number(p.fixedPrice) : null,
+        });
+      }
+      for (const row of priceRows) {
+        if (row.parameterId) {
+          overrides.set(`param:${row.parameterId}`, Number(row.price));
+        }
+        if (row.packageId) {
+          overrides.set(`pkg:${row.packageId}`, Number(row.price));
+        }
+      }
+    }
+    const effectiveRates = new Map<string, number>();
+    for (const t of tests) {
+      const profile = findProfile(t.code);
+      const defaultPrice = profile?.rate ?? t.rate;
+      const pkg = packageByCode.get(t.code);
+      const fixedPrice =
+        pkg?.pricingMode === 'fixed' ? (pkg.fixedPrice ?? null) : null;
+      const overridePrice = pkg
+        ? (overrides.get(`pkg:${pkg.id}`) ?? null)
+        : (overrides.get(`param:${parameterByCode.get(t.code)?.id ?? ''}`) ??
+          null);
+      effectiveRates.set(
+        t.code,
+        resolveEffectivePrice({
+          code: t.code,
+          defaultPrice,
+          fixedPrice,
+          referrer: referrerPricing
+            ? {
+                pricingMode: referrerPricing.pricingMode,
+                discountPercent: referrerPricing.discountPercent,
+              }
+            : null,
+          overridePrice,
+        }),
+      );
+    }
+    const subTotal = tests.reduce(
+      (s, t) => s + (effectiveRates.get(t.code) ?? t.rate),
+      0,
+    );
     const discAmt = subTotal * ((data.discountPercent ?? 0) / 100);
     const totalAmt = subTotal + (data.otherCharges ?? 0) - discAmt;
     const balance = totalAmt - (data.amountPaid ?? 0);
@@ -178,6 +285,7 @@ export class OrdersService {
           data: {
             tenantId,
             patientId: patient.id,
+            referrerPartyId: referrerPricing?.referrerId ?? null,
             orderNumber,
             category: data.category ?? null,
             sidDate: data.sidDate ? new Date(data.sidDate) : null,
@@ -269,7 +377,7 @@ export class OrdersService {
               testCode: profile.code,
               testName: profile.name,
               isProfile: true,
-              rate: profile.rate,
+              rate: effectiveRates.get(profile.code) ?? profile.rate,
               status: 'pending',
               sortOrder: 0,
             });
@@ -299,7 +407,7 @@ export class OrdersService {
               testCode: t.code,
               testName: t.name,
               isProfile: false,
-              rate: t.rate,
+              rate: effectiveRates.get(t.code) ?? t.rate,
               status: 'pending',
               sortOrder: 0,
             });

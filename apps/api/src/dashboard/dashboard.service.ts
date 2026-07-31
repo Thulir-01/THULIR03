@@ -21,8 +21,8 @@ export class DashboardService {
       this.prisma.client.patient.count({
         where: { tenantId, deletedAt: null },
       }),
-      this.prisma.client.doctorReferrer.count({
-        where: { tenantId, deletedAt: null },
+      this.prisma.client.party.count({
+        where: { tenantId, partyType: 'doctor', deletedAt: null },
       }),
       this.prisma.client.order.count({
         where: { tenantId, deletedAt: null },

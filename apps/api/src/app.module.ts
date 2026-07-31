@@ -13,6 +13,7 @@ import { ReferrersModule } from './referrers/referrers.module';
 import { OrdersModule } from './orders/orders.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { MastersModule } from './masters/masters.module';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -39,6 +40,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     OrdersModule,
     AuditLogsModule,
     DashboardModule,
+    MastersModule,
   ],
   controllers: [AppController],
   providers: [

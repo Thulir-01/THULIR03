@@ -17,10 +17,15 @@ import { getCurrentTenantId } from '../common/tenant-context';
 /** Models whose rows are scoped to a tenant (lower-cased for safety). */
 export const TENANT_SCOPED_MODELS = new Set([
   'patient',
-  'doctorreferrer',
+  'party',
+  'partydoctordetail',
   'order',
   'sample',
   'ordertest',
+  'testcategory',
+  'testparameter',
+  'testpackage',
+  'referrerprice',
   'auditlog',
 ]);
 
