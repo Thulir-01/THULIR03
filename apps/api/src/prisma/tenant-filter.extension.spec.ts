@@ -10,10 +10,12 @@ describe('applyTenantScoping', () => {
     expect(TENANT_SCOPED_MODELS.has('doctorreferrer')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('order')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('auditlog')).toBe(true);
+    // Sprint 5.6: Sample + OrderTest are tenant-scoped too
+    expect(TENANT_SCOPED_MODELS.has('sample')).toBe(true);
+    expect(TENANT_SCOPED_MODELS.has('ordertest')).toBe(true);
     // Non-tenant models are never scoped
     expect(TENANT_SCOPED_MODELS.has('user')).toBe(false);
     expect(TENANT_SCOPED_MODELS.has('organization')).toBe(false);
-    expect(TENANT_SCOPED_MODELS.has('ordertest')).toBe(false);
   });
 
   it('injects tenantId into findMany where', () => {
