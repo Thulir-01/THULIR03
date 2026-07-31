@@ -244,6 +244,11 @@ model OrderTest {
   refLow       Decimal?  @map("ref_low") @db.Decimal(10, 2)
   refHigh      Decimal?  @map("ref_high") @db.Decimal(10, 2)
   sortOrder    Int?      @default(0) @map("sort_order")
+  // NABL e-signature reservation — populated when a pathologist verifies
+  // this result. Reserved now so go-live doesn't need a painful migration.
+  verifiedBy    String?   @map("verified_by") @db.Uuid
+  verifiedAt    DateTime? @map("verified_at")
+  signatureHash String?   @map("signature_hash")
 
   order        Order      @relation(fields: [orderId], references: [id])
   children     OrderTest[] @relation("TestToChildren")

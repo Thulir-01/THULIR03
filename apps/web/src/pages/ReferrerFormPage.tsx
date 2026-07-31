@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { ArrowLeft, Save, Loader2,  Stethoscope, Building2, Phone, Mail, Hash, DollarSign, Award, } from "lucide-react";
 import { createReferrer } from "../lib/api-client";
 

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { FlaskConical, LogIn, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 

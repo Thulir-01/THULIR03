@@ -1,5 +1,5 @@
 import "./index.css";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router";
 import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";

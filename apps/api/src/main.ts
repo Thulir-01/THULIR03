@@ -4,7 +4,28 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
+const WEAK_JWT_SECRETS = new Set([
+  'fallback-secret-change-in-production',
+  'dev-jwt-secret-change-in-production',
+  '',
+]);
+
+function assertSecureStartup(): void {
+  if (process.env.NODE_ENV !== 'production') return;
+
+  const secret = process.env.JWT_SECRET || '';
+  if (WEAK_JWT_SECRETS.has(secret) || secret.length < 32) {
+    throw new Error(
+      'Refusing to start in production: JWT_SECRET must be set to a strong ' +
+        'random value (>= 32 chars). Generate one with: openssl rand -hex 32',
+    );
+  }
+}
+
 async function bootstrap() {
+  // Fail fast before the app binds any port if a weak secret would ship.
+  assertSecureStartup();
+
   const app = await NestFactory.create(AppModule);
 
   // Security headers (helmet was installed but never wired)

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Search, Trash2, HelpCircle, User, X, Loader2, ChevronDown, Phone, Calendar, ArrowLeft } from "lucide-react";
 import { registerPatient, getPatients } from "../lib/api-client";
 

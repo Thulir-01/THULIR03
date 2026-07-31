@@ -233,14 +233,32 @@ Key environment variables (see `.env.example` for full list):
 | **Sprint 3** | **Patients, Referrers & Orders** — CRUD, registration flow (patient+tests+billing), patient search, orders list, dashboard live stats | ✅ **Complete** |
 | **Sprint 4** | **Test Results Entry** — profile sub-parameters, reference ranges, flag arrows (↑/↓), auto-complete | ✅ **Complete** |
 | **Sprint 4.5** | **Foundation Hardening** — Prisma tenant-isolation extension (auto-injects org id on every query), full audit trail (audit_logs on all writes), auth/TOTP + tenant-isolation tests, CI schema-drift check, compose auto-migrate | ✅ **Complete** |
-| **Sprint 5** | Invoice / Receipt print | ⬜ Next |
-| **Sprint 6** | PDF Report Generation | ⬜ |
+| **Sprint 5** | **Perf & Consistency** — registration wrapped in `$transaction` (no orphan patients), UUID-derived order numbers (no collisions), tenant_id indexes on patients/orders/referrers, bcrypt cost 10, dashboard COUNT endpoint | ✅ **Complete** |
+| **Sprint 5.1** | **Audit Fixes** — hot-reload dev script, unified web API client (silent token refresh), helmet headers, rate limiting (5/min login), JWT access/refresh type separation, pagination, user org index, dependency-vuln cleanup | ✅ **Complete** |
+| **Sprint 6** | Invoice / Receipt print | ⬜ Next |
+| **Sprint 7** | PDF Report Generation | ⬜ |
+| **Sprint 8** | Reports & Analytics | ⬜ |
+| **Sprint 9** | Configurable Test Catalog from UI | ⬜ |
+| **Sprint 10** | Phase 1 UI/Hardening Pass | ⬜ |
+| **Sprint 11+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
 | **Sprint 7** | Reports & Analytics | ⬜ |
 | **Sprint 8** | Configurable Test Catalog from UI | ⬜ |
 | **Sprint 9** | Phase 1 UI/Hardening Pass | ⬜ |
 | **Sprint 10+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
 
 Full 24-sprint build plan available in the project brief.
+
+## Go-Live Readiness (medical multi-tenant checklist)
+
+- **Encryption at rest** — confirm the production Postgres host (disk/volume) has encryption enabled; dev Docker volumes don't need it, prod does.
+- **Encryption in transit** — production `DATABASE_URL` must use `sslmode=require` (the dev/pooled URL is plaintext by design). Browser↔API should be HTTPS.
+- **DPDP Act 2023 (India)** — consent-capture + data-retention/erasure design decided before go-live. The schema keeps soft-delete (`deletedAt`) and audit rows, which support erasure requests with documented medical-record retention exceptions.
+- **Audit trail** — wired (Sprint 4.5): every clinical/financial write produces an `audit_logs` row via a global interceptor. New modules inherit it automatically.
+- **Backups** — automated, encrypted, with a tested restore process. Suggested retention: 30 daily + 12 monthly.
+- **Secrets** — the API refuses to boot in `NODE_ENV=production` with a weak/default `JWT_SECRET` (see `main.ts` `assertSecureStartup`). Generate with `openssl rand -hex 32`.
+- **NABL readiness** — result e-signature fields (`verifiedBy`, `verifiedAt`, `signatureHash`) are reserved on `order_tests` (migration `20260731101000_reserve_result_signature`). Critical-value alerting is future work.
+- **RLS note** — tenant isolation is enforced at the app layer by the Prisma tenant-filter extension (tested by the e2e suite). Postgres RLS is deliberately not enabled: Prisma 7 has no native RLS support and the pooled Supabase connection makes per-request `SET LOCAL` unreliable. Revisit when Prisma ships native RLS.
+- **Redis** — `docker-compose` provisions Redis for future background jobs (report generation, critical-value alerts); nothing consumes it yet, and rate limiting is in-memory via `@nestjs/throttler`.
 
 ## Design Principles
 

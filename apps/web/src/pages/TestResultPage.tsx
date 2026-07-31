@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import {
   Search, FlaskConical, Loader2, CheckCircle2, Clock,
   Save, Phone, Calendar, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Minus,
