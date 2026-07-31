@@ -224,14 +224,43 @@ model Order {
   doctor  DoctorReferrer?       @relation(fields: [doctorReferrerId], references: [id])
   branch  Branch?               @relation(fields: [branchId], references: [id])
   tests   OrderTest[]
+  samples Sample[]
 
   @@index([tenantId])
   @@map("orders")
 }
 
+// ─── Samples ─────────────────────────────────────────────────────────────────
+// A sample = one physical tube/specimen. One sample can carry multiple tests
+// (CBC + ESR + sugar from a single draw). Sample status lives HERE, not on
+// OrderTest, so one tube can never have two contradictory statuses.
+
+model Sample {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  orderId         String    @map("order_id") @db.Uuid
+  sampleNo        String    @unique @map("sample_no")
+  sampleCollectDt DateTime? @map("sample_collect_date")
+  collectedBy     String?   @map("collected_by")
+  status          String    @default("pending") // pending | received | processing | rejected | completed
+  rejectedReason  String?   @map("rejected_reason")
+  remarks         String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  order Order       @relation(fields: [orderId], references: [id])
+  tests OrderTest[]
+
+  @@index([tenantId])
+  @@index([orderId])
+  @@map("samples")
+}
+
 model OrderTest {
   id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
   orderId      String    @map("order_id") @db.Uuid
+  sampleId     String    @map("sample_id") @db.Uuid
   parentTestId String?   @map("parent_test_id") @db.Uuid
   testCode     String    @map("test_code")
   testName     String    @map("test_name")
@@ -249,12 +278,15 @@ model OrderTest {
   verifiedBy    String?   @map("verified_by") @db.Uuid
   verifiedAt    DateTime? @map("verified_at")
   signatureHash String?   @map("signature_hash")
+  notes         String?
 
   order        Order      @relation(fields: [orderId], references: [id])
+  sample       Sample     @relation(fields: [sampleId], references: [id])
   children     OrderTest[] @relation("TestToChildren")
   parent       OrderTest?  @relation("TestToChildren", fields: [parentTestId], references: [id])
 
   @@unique([orderId, testCode])
+  @@index([tenantId])
   @@map("order_tests")
 }
 

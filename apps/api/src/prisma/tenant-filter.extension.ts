@@ -19,6 +19,8 @@ export const TENANT_SCOPED_MODELS = new Set([
   'patient',
   'doctorreferrer',
   'order',
+  'sample',
+  'ordertest',
   'auditlog',
 ]);
 

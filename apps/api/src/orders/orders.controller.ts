@@ -88,6 +88,7 @@ export class OrdersController {
       unit?: string;
       refRange?: string;
       status?: string;
+      notes?: string;
     },
     @CurrentUser('organizationId') orgId: string,
   ) {

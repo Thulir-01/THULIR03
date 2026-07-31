@@ -147,97 +147,138 @@ export class OrdersService {
     // Single transaction: patient + order + order tests commit together.
     // If any step fails (network blip, crash), nothing is left behind —
     // no orphan patients, no orders without tests.
-    return this.prisma.client.$transaction(async (tx) => {
-      // 1. Patient
-      let patient: { id: string } | null = null;
-      if (data.patientId) {
-        patient = await tx.patient.findFirst({
-          where: { id: data.patientId, tenantId },
-        });
-        if (!patient) throw new NotFoundException('Patient not found');
-      } else {
-        patient = await tx.patient.create({
+    return this.prisma.client.$transaction(
+      async (tx) => {
+        // 1. Patient
+        let patient: { id: string } | null = null;
+        if (data.patientId) {
+          patient = await tx.patient.findFirst({
+            where: { id: data.patientId, tenantId },
+          });
+          if (!patient) throw new NotFoundException('Patient not found');
+        } else {
+          patient = await tx.patient.create({
+            data: {
+              tenantId,
+              title: data.title ?? null,
+              firstName: data.firstName ?? '',
+              lastName: data.lastName ?? '',
+              dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+              ageYears: data.ageYears ?? null,
+              ageMonths: data.ageMonths ?? null,
+              gender: data.gender ?? null,
+              phone: data.phone ?? null,
+              email: data.email ?? null,
+            },
+          });
+        }
+
+        // 2. Order
+        const order = await tx.order.create({
           data: {
             tenantId,
-            title: data.title ?? null,
-            firstName: data.firstName ?? '',
-            lastName: data.lastName ?? '',
-            dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-            ageYears: data.ageYears ?? null,
-            ageMonths: data.ageMonths ?? null,
-            gender: data.gender ?? null,
-            phone: data.phone ?? null,
-            email: data.email ?? null,
+            patientId: patient.id,
+            orderNumber,
+            category: data.category ?? null,
+            sidDate: data.sidDate ? new Date(data.sidDate) : null,
+            refNo: data.refNo ?? null,
+            source: data.source ?? null,
+            insuranceDetails: data.insurance ?? null,
+            collectionBoy: data.collectionBoy ?? null,
+            patientType: data.patientType ?? null,
+            ward: data.ward ?? null,
+            ipOpNo: data.ipOpNo ?? null,
+            bedNo: data.bedNo ?? null,
+            clinicalRemarks: data.clinicalRemarks ?? null,
+            sampleCollectDt: data.sampleCollectDate
+              ? new Date(data.sampleCollectDate)
+              : null,
+            billAmount: subTotal,
+            otherCharges: data.otherCharges ?? 0,
+            discountPercent: data.discountPercent ?? 0,
+            discountAmount: discAmt,
+            discountAuth: data.discountAuth ?? null,
+            totalAmount: totalAmt,
+            amountPaid: data.amountPaid ?? 0,
+            balanceAmount: balance,
+            paymentMode: data.paymentMode ?? null,
+            bankName: data.bankName ?? null,
+            paymentRef: data.paymentRef ?? null,
+            paymentDate: data.paymentDate ? new Date(data.paymentDate) : null,
+            paymentRemarks: data.paymentRemarks ?? null,
+            deliveryMode: data.deliveryMode ?? null,
+            emergency: data.emergency ?? false,
+            finalReportDate: data.finalReportDate
+              ? new Date(data.finalReportDate)
+              : null,
+            billHf: data.billHf ?? false,
+            consolidatedBill: data.consolidatedBill ?? false,
+            remarks: data.remarks ?? null,
           },
         });
-      }
 
-      // 2. Order
-      const order = await tx.order.create({
-        data: {
-          tenantId,
-          patientId: patient.id,
-          orderNumber,
-          category: data.category ?? null,
-          sidDate: data.sidDate ? new Date(data.sidDate) : null,
-          refNo: data.refNo ?? null,
-          source: data.source ?? null,
-          insuranceDetails: data.insurance ?? null,
-          collectionBoy: data.collectionBoy ?? null,
-          patientType: data.patientType ?? null,
-          ward: data.ward ?? null,
-          ipOpNo: data.ipOpNo ?? null,
-          bedNo: data.bedNo ?? null,
-          clinicalRemarks: data.clinicalRemarks ?? null,
-          sampleCollectDt: data.sampleCollectDate
-            ? new Date(data.sampleCollectDate)
-            : null,
-          billAmount: subTotal,
-          otherCharges: data.otherCharges ?? 0,
-          discountPercent: data.discountPercent ?? 0,
-          discountAmount: discAmt,
-          discountAuth: data.discountAuth ?? null,
-          totalAmount: totalAmt,
-          amountPaid: data.amountPaid ?? 0,
-          balanceAmount: balance,
-          paymentMode: data.paymentMode ?? null,
-          bankName: data.bankName ?? null,
-          paymentRef: data.paymentRef ?? null,
-          paymentDate: data.paymentDate ? new Date(data.paymentDate) : null,
-          paymentRemarks: data.paymentRemarks ?? null,
-          deliveryMode: data.deliveryMode ?? null,
-          emergency: data.emergency ?? false,
-          finalReportDate: data.finalReportDate
-            ? new Date(data.finalReportDate)
-            : null,
-          billHf: data.billHf ?? false,
-          consolidatedBill: data.consolidatedBill ?? false,
-          remarks: data.remarks ?? null,
-        },
-      });
+        // 3. Sample — one default tube per order; all tests hang off it.
+        // Sample status lives on the Sample row so one physical tube can
+        // never hold contradictory test statuses.
+        const sample = await tx.sample.create({
+          data: {
+            tenantId,
+            orderId: order.id,
+            sampleNo: `SPL-${randomUUID()
+              .replace(/-/g, '')
+              .slice(0, 8)
+              .toUpperCase()}`,
+            sampleCollectDt: order.sampleCollectDt,
+            status: 'pending',
+          },
+        });
 
-      // 3. Create order tests — expand profiles into sub-parameters
-      for (const t of tests) {
-        const profile = findProfile(t.code);
-        if (profile) {
-          // Create parent profile row
-          const parentTest = await tx.orderTest.create({
-            data: {
+        // 4. Create order tests — expand profiles into sub-parameters.
+        // Batched with createMany (3 round trips instead of one per
+        // parameter) so registration stays fast even for 13-parameter
+        // profiles like CBC.
+        type ParentSeed = {
+          tenantId: string;
+          orderId: string;
+          sampleId: string;
+          testCode: string;
+          testName: string;
+          isProfile: boolean;
+          rate: number;
+          status: string;
+          sortOrder: number;
+        };
+        type ChildSeed = ParentSeed & {
+          parentTestId: string;
+          unit?: string | null;
+          refRange?: string | null;
+          refLow?: number | null;
+          refHigh?: number | null;
+        };
+        const parentSeeds: ParentSeed[] = [];
+        const childSegments: ChildSeed[][] = [];
+        const singleSeeds: ParentSeed[] = [];
+
+        for (const t of tests) {
+          const profile = findProfile(t.code);
+          if (profile) {
+            parentSeeds.push({
+              tenantId,
               orderId: order.id,
+              sampleId: sample.id,
               testCode: profile.code,
               testName: profile.name,
               isProfile: true,
               rate: profile.rate,
               status: 'pending',
               sortOrder: 0,
-            },
-          });
-          // Create child parameters
-          for (const param of profile.parameters) {
-            await tx.orderTest.create({
-              data: {
+            });
+            childSegments.push(
+              profile.parameters.map((param) => ({
+                tenantId,
                 orderId: order.id,
-                parentTestId: parentTest.id,
+                sampleId: sample.id,
+                parentTestId: '', // filled in after parents return
                 testCode: param.code,
                 testName: param.name,
                 isProfile: false,
@@ -248,32 +289,51 @@ export class OrdersService {
                 refLow: param.refLow,
                 refHigh: param.refHigh,
                 sortOrder: param.sortOrder,
-              },
-            });
-          }
-        } else {
-          // Single test
-          await tx.orderTest.create({
-            data: {
+              })),
+            );
+          } else {
+            singleSeeds.push({
+              tenantId,
               orderId: order.id,
+              sampleId: sample.id,
               testCode: t.code,
               testName: t.name,
               isProfile: false,
               rate: t.rate,
               status: 'pending',
               sortOrder: 0,
-            },
-          });
+            });
+          }
         }
-      }
 
-      return {
-        message: 'Patient registered successfully',
-        patientId: patient.id,
-        orderId: order.id,
-        orderNumber,
-      };
-    });
+        if (parentSeeds.length > 0) {
+          const parents = await tx.orderTest.createManyAndReturn({
+            data: parentSeeds,
+          });
+          for (let i = 0; i < parents.length && i < childSegments.length; i++) {
+            const parentId = parents[i].id;
+            for (const child of childSegments[i]) {
+              child.parentTestId = parentId;
+            }
+          }
+        }
+        const allChildren = childSegments.flat();
+        if (allChildren.length > 0) {
+          await tx.orderTest.createMany({ data: allChildren });
+        }
+        if (singleSeeds.length > 0) {
+          await tx.orderTest.createMany({ data: singleSeeds });
+        }
+
+        return {
+          message: 'Patient registered successfully',
+          patientId: patient.id,
+          orderId: order.id,
+          orderNumber,
+        };
+      },
+      { timeout: 30000 },
+    );
   }
 
   async updateTestResult(
@@ -285,6 +345,7 @@ export class OrdersService {
       unit?: string;
       refRange?: string;
       status?: string;
+      notes?: string;
     },
   ) {
     const order = await this.prisma.client.order.findFirst({
@@ -313,44 +374,50 @@ export class OrdersService {
 
     // All writes (test update → order roll-up → parent roll-up) must commit
     // together — same transactional pattern as register().
-    return this.prisma.client.$transaction(async (tx) => {
-      const updated = await tx.orderTest.update({
-        where: { id: testId },
-        data: {
-          result: body.result ?? test.result,
-          unit: body.unit ?? test.unit,
-          refRange: body.refRange ?? test.refRange,
-          status: body.status ?? test.status,
-        },
-      });
-
-      // Check if ALL tests in the order are completed → update order status
-      const allTests = await tx.orderTest.findMany({
-        where: { orderId },
-      });
-      const allDone = allTests.every((t) => t.status === 'completed');
-      if (allDone) {
-        await tx.order.update({
-          where: { id: orderId },
-          data: { status: 'completed' },
+    return this.prisma.client.$transaction(
+      async (tx) => {
+        const updated = await tx.orderTest.update({
+          where: { id: testId },
+          data: {
+            result: body.result ?? test.result,
+            unit: body.unit ?? test.unit,
+            refRange: body.refRange ?? test.refRange,
+            status: body.status ?? test.status,
+            notes: body.notes ?? test.notes,
+          },
         });
-      }
 
-      // If this is a child test, update parent test status too
-      if (test.parentTestId) {
-        const siblings = await tx.orderTest.findMany({
-          where: { parentTestId: test.parentTestId },
+        // Check if ALL tests in the order are completed → update order status
+        const allTests = await tx.orderTest.findMany({
+          where: { orderId },
         });
-        const allSiblingsDone = siblings.every((t) => t.status === 'completed');
-        if (allSiblingsDone) {
-          await tx.orderTest.update({
-            where: { id: test.parentTestId },
+        const allDone = allTests.every((t) => t.status === 'completed');
+        if (allDone) {
+          await tx.order.update({
+            where: { id: orderId },
             data: { status: 'completed' },
           });
         }
-      }
 
-      return updated;
-    });
+        // If this is a child test, update parent test status too
+        if (test.parentTestId) {
+          const siblings = await tx.orderTest.findMany({
+            where: { parentTestId: test.parentTestId },
+          });
+          const allSiblingsDone = siblings.every(
+            (t) => t.status === 'completed',
+          );
+          if (allSiblingsDone) {
+            await tx.orderTest.update({
+              where: { id: test.parentTestId },
+              data: { status: 'completed' },
+            });
+          }
+        }
+
+        return updated;
+      },
+      { timeout: 30000 },
+    );
   }
 }
