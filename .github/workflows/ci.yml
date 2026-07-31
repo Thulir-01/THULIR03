@@ -121,7 +121,7 @@ jobs:
 
       - name: Check schema drift
         # Fails the build if the live DB schema diverges from schema.prisma
-        run: npx prisma migrate diff --from-schema-datasource --to-schema-datamodel prisma/schema.prisma --exit-code
+        run: npx prisma migrate diff --from-config-datasource --to-schema-datamodel prisma/schema.prisma --exit-code
         working-directory: apps/api
         env:
           DATABASE_URL: postgresql://thulir:thulir_pass@localhost:5432/thulir_lims_test
