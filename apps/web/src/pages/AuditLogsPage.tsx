@@ -79,19 +79,50 @@ export default function AuditLogsPage() {
       second: "2-digit",
     });
 
-  const renderPayload = (after: unknown) => {
-    if (after === null || after === undefined) return <span className="text-gray-300">—</span>;
-    let text: string;
-    try {
-      text = JSON.stringify(after, null, 2);
-    } catch {
-      text = String(after);
+  const renderPayload = (before: unknown, after: unknown) => {
+    const fmt = (v: unknown) => {
+      if (v === null || v === undefined) return "";
+      let text: string;
+      try {
+        text = JSON.stringify(v, null, 2);
+      } catch {
+        text = String(v);
+      }
+      if (text.length > 4000) text = `${text.slice(0, 4000)}\n… (truncated)`;
+      return text;
+    };
+
+    const beforeText = fmt(before);
+    const afterText = fmt(after);
+
+    if (!beforeText && !afterText) {
+      return <span className="text-gray-300">—</span>;
     }
-    if (text.length > 4000) text = `${text.slice(0, 4000)}\n… (truncated)`;
+
+    if (!beforeText) {
+      return (
+        <pre className="text-[11px] leading-relaxed text-gray-600 bg-gray-50 border border-gray-100 rounded-md p-2 overflow-auto max-h-52 font-mono whitespace-pre-wrap break-all">
+          {afterText}
+        </pre>
+      );
+    }
+
+    // Show what changed: before → after side by side.
     return (
-      <pre className="text-[11px] leading-relaxed text-gray-600 bg-gray-50 border border-gray-100 rounded-md p-2 overflow-auto max-h-52 font-mono whitespace-pre-wrap break-all">
-        {text}
-      </pre>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Before</p>
+          <pre className="text-[11px] leading-relaxed text-gray-500 bg-gray-50 border border-gray-100 rounded-md p-2 overflow-auto max-h-52 font-mono whitespace-pre-wrap break-all">
+            {beforeText}
+          </pre>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-600 mb-1">After</p>
+          <pre className="text-[11px] leading-relaxed text-gray-700 bg-teal-50/40 border border-teal-100 rounded-md p-2 overflow-auto max-h-52 font-mono whitespace-pre-wrap break-all">
+            {afterText || "—"}
+          </pre>
+        </div>
+      </div>
     );
   };
 
@@ -266,7 +297,7 @@ export default function AuditLogsPage() {
                       {expandedId === log.id && (
                         <tr>
                           <td colSpan={7} className="px-4 py-3 bg-gray-50/60 border-b border-gray-100">
-                            {renderPayload(log.after)}
+                            {renderPayload(log.before, log.after)}
                           </td>
                         </tr>
                       )}

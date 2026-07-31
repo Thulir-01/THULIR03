@@ -61,6 +61,7 @@ export class AuditLogsService {
       entityId: log.entityId,
       ipAddress: log.ipAddress,
       userAgent: log.userAgent,
+      before: log.before,
       after: log.after,
       createdAt: log.createdAt,
     }));

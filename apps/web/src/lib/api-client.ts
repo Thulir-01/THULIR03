@@ -317,6 +317,7 @@ export interface AuditLogEntry {
   entityId: string | null;
   ipAddress: string | null;
   userAgent: string | null;
+  before: unknown;
   after: unknown;
   createdAt: string;
 }

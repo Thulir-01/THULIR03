@@ -167,6 +167,58 @@ describe('Tenant Isolation (e2e)', () => {
     expect(orderIdA).toBeTruthy();
   });
 
+  it('completed results are edit-locked (409) and audit captures before+after', async () => {
+    // Resolve the order's first test id via the detail endpoint.
+    const order = await request(app.getHttpServer())
+      .get(`/api/v1/orders/${orderIdA}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    const tests = (order.body as { tests: { id: string }[] }).tests;
+    const testId = tests[0].id;
+    expect(testId).toBeTruthy();
+
+    // First entry — allowed, marks the test completed (the web app sends
+    // status: 'completed' whenever a result value is present).
+    await request(app.getHttpServer())
+      .patch(`/api/v1/orders/${orderIdA}/tests/${testId}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({
+        result: '95',
+        unit: 'mg/dL',
+        refRange: '70-110',
+        status: 'completed',
+      })
+      .expect(200);
+
+    // Re-editing a completed result — rejected with 409 (edit-lock).
+    await request(app.getHttpServer())
+      .patch(`/api/v1/orders/${orderIdA}/tests/${testId}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ result: '120' })
+      .expect(409);
+
+    // The PATCH audit row should carry a before-image (pre-edit value).
+    const deadline = Date.now() + 4_000;
+    let patchAudit: { before: unknown; after: unknown } | undefined;
+    while (Date.now() < deadline && !patchAudit) {
+      patchAudit = (await prisma.client.auditLog.findFirst({
+        where: {
+          tenantId: orgIdA,
+          entity: 'orders',
+          entityId: orderIdA,
+          action: 'PATCH',
+        },
+        select: { before: true, after: true },
+      })) as { before: unknown; after: unknown } | undefined;
+      if (!patchAudit) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    expect(patchAudit).toBeDefined();
+    expect(patchAudit?.before).toBeDefined();
+    expect(patchAudit?.after).toBeDefined();
+  }, 15_000);
+
   it('Tenant B cannot read Tenant A patient (404 — tenant scoping)', async () => {
     await request(app.getHttpServer())
       .get(`/api/v1/patients/${patientIdA}`)

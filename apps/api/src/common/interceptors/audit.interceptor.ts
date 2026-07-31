@@ -36,7 +36,10 @@ function sanitizeAfter(value: unknown, depth = 0): unknown {
 export class AuditInterceptor implements NestInterceptor {
   constructor(private prisma: PrismaService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  async intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Promise<Observable<unknown>> {
     if (context.getType() !== 'http') {
       return next.handle();
     }
@@ -71,6 +74,13 @@ export class AuditInterceptor implements NestInterceptor {
     const userAgent =
       (request.headers?.['user-agent'] as string | undefined) ?? null;
 
+    // Snapshot the pre-image of the record being mutated (PATCH/PUT/DELETE)
+    // so the audit trail captures "what did this value used to be" too.
+    const before =
+      method === 'PATCH' || method === 'PUT' || method === 'DELETE'
+        ? await this.fetchPreImage(entity, parts, request.params)
+        : undefined;
+
     return next.handle().pipe(
       map((body: unknown) => {
         // For creates the entity id is only known from the response payload.
@@ -97,6 +107,7 @@ export class AuditInterceptor implements NestInterceptor {
           action: method,
           entity,
           entityId,
+          before,
           after: sanitizeAfter(body),
           ipAddress,
           userAgent,
@@ -112,18 +123,29 @@ export class AuditInterceptor implements NestInterceptor {
     action: string;
     entity: string;
     entityId: string | null;
+    before: unknown;
     after: unknown;
     ipAddress: string | null;
     userAgent: string | null;
   }): Promise<void> {
     try {
-      let after: unknown = entry.after;
-      if (after !== undefined && after !== null) {
-        const serialized = JSON.stringify(after);
-        if (serialized.length > MAX_AFTER_BYTES) {
-          after = { truncated: true, bytes: serialized.length };
+      const toPlainJson = (value: unknown): unknown => {
+        if (value === undefined || value === null) return value;
+        try {
+          const serialized = JSON.stringify(value);
+          if (serialized.length > MAX_AFTER_BYTES) {
+            return { truncated: true, bytes: serialized.length };
+          }
+          // Round-trip through JSON so Prisma Decimal/Date instances and
+          // undefined fields become plain JSON values (Json columns reject
+          // class instances).
+          return JSON.parse(serialized);
+        } catch {
+          return { unserializable: true };
         }
-      }
+      };
+      const before = toPlainJson(entry.before);
+      const after = toPlainJson(entry.after);
       await this.prisma.client.auditLog.create({
         data: {
           tenantId: entry.tenantId,
@@ -131,7 +153,8 @@ export class AuditInterceptor implements NestInterceptor {
           action: entry.action,
           entity: entry.entity,
           entityId: entry.entityId,
-          after: after === null ? undefined : after,
+          before: before === null || before === undefined ? undefined : before,
+          after: after === null || after === undefined ? undefined : after,
           ipAddress: entry.ipAddress,
           userAgent: entry.userAgent,
         },
@@ -139,5 +162,43 @@ export class AuditInterceptor implements NestInterceptor {
     } catch {
       // Intentionally ignored — auditing must not break business requests.
     }
+  }
+
+  /**
+   * Fetches the pre-image of the record a write is about to mutate, so audit
+   * entries carry both `before` and `after`. Tenant-scoped models go through
+   * the extended client, so the tenant filter applies automatically.
+   */
+  private async fetchPreImage(
+    entity: string,
+    parts: string[],
+    params?: Record<string, string>,
+  ): Promise<unknown> {
+    if (!params) return undefined;
+    try {
+      if (entity === 'orders' && parts[4] === 'tests' && params.testId) {
+        return await this.prisma.client.orderTest.findFirst({
+          where: { id: params.testId },
+        });
+      }
+      if (entity === 'orders' && params.orderId) {
+        return await this.prisma.client.order.findFirst({
+          where: { id: params.orderId },
+        });
+      }
+      if (entity === 'patients' && params.id) {
+        return await this.prisma.client.patient.findFirst({
+          where: { id: params.id },
+        });
+      }
+      if (entity === 'referrers' && params.id) {
+        return await this.prisma.client.doctorReferrer.findFirst({
+          where: { id: params.id },
+        });
+      }
+    } catch {
+      // Pre-image fetch must never fail the request it audits.
+    }
+    return undefined;
   }
 }

@@ -1,5 +1,9 @@
 import { randomUUID } from 'crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { findProfile } from './test-profiles';
@@ -293,42 +297,60 @@ export class OrdersService {
     });
     if (!test) throw new NotFoundException('Test not found');
 
-    const updated = await this.prisma.client.orderTest.update({
-      where: { id: testId },
-      data: {
-        result: body.result ?? test.result,
-        unit: body.unit ?? test.unit,
-        refRange: body.refRange ?? test.refRange,
-        status: body.status ?? test.status,
-      },
-    });
-
-    // Check if ALL tests in the order are completed → update order status
-    const allTests = await this.prisma.client.orderTest.findMany({
-      where: { orderId },
-    });
-    const allDone = allTests.every((t) => t.status === 'completed');
-    if (allDone) {
-      await this.prisma.client.order.update({
-        where: { id: orderId },
-        data: { status: 'completed' },
-      });
+    // Edit-lock: once a result is completed it becomes immutable at the data
+    // layer. The full retract/verify workflow (Sprint 6) will provide the
+    // explicit way to reopen a result; until then, edits to a completed
+    // result are rejected so a verified value can never silently change.
+    const triesToEditValue =
+      body.result !== undefined ||
+      body.unit !== undefined ||
+      body.refRange !== undefined;
+    if (test.status === 'completed' && triesToEditValue) {
+      throw new ConflictException(
+        `Result for "${test.testName}" is completed and locked — retract it before amending`,
+      );
     }
 
-    // If this is a child test, update parent test status too
-    if (test.parentTestId) {
-      const siblings = await this.prisma.client.orderTest.findMany({
-        where: { parentTestId: test.parentTestId },
+    // All writes (test update → order roll-up → parent roll-up) must commit
+    // together — same transactional pattern as register().
+    return this.prisma.client.$transaction(async (tx) => {
+      const updated = await tx.orderTest.update({
+        where: { id: testId },
+        data: {
+          result: body.result ?? test.result,
+          unit: body.unit ?? test.unit,
+          refRange: body.refRange ?? test.refRange,
+          status: body.status ?? test.status,
+        },
       });
-      const allSiblingsDone = siblings.every((t) => t.status === 'completed');
-      if (allSiblingsDone) {
-        await this.prisma.client.orderTest.update({
-          where: { id: test.parentTestId },
+
+      // Check if ALL tests in the order are completed → update order status
+      const allTests = await tx.orderTest.findMany({
+        where: { orderId },
+      });
+      const allDone = allTests.every((t) => t.status === 'completed');
+      if (allDone) {
+        await tx.order.update({
+          where: { id: orderId },
           data: { status: 'completed' },
         });
       }
-    }
 
-    return updated;
+      // If this is a child test, update parent test status too
+      if (test.parentTestId) {
+        const siblings = await tx.orderTest.findMany({
+          where: { parentTestId: test.parentTestId },
+        });
+        const allSiblingsDone = siblings.every((t) => t.status === 'completed');
+        if (allSiblingsDone) {
+          await tx.orderTest.update({
+            where: { id: test.parentTestId },
+            data: { status: 'completed' },
+          });
+        }
+      }
+
+      return updated;
+    });
   }
 }
