@@ -5,7 +5,7 @@ Python FastAPI service for ASTM E1394 / HL7 v2.x instrument communication.
 
 import os
 import logging
-from fastapi import FastAPI, HTTPException, Security, Header
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
 
