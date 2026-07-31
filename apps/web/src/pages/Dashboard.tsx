@@ -70,7 +70,7 @@ export default function Dashboard() {
   const quickActions = [
     { icon: FilePlus2, label: "New Registration", desc: "Full-screen patient registration with billing", to: "/registration", primary: true },
     { icon: ClipboardList, label: "Orders", desc: "View all lab orders", to: "/orders" },
-    { icon: Beaker, label: "Result Entry", desc: "Enter test results", to: "#" },
+    { icon: Beaker, label: "Result Entry", desc: "Enter test results", to: "/results" },
     { icon: Users, label: "Patients", desc: "Manage patient records", to: "/patients" },
     { icon: Stethoscope, label: "Referrers", desc: "Manage referring doctors", to: "/referrers" },
   ];

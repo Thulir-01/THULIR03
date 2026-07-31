@@ -226,17 +226,24 @@ model Order {
 }
 
 model OrderTest {
-  id       String   @id @default(uuid()) @db.Uuid
-  orderId  String   @map("order_id") @db.Uuid
-  testCode String   @map("test_code")
-  testName String   @map("test_name")
-  rate     Decimal  @db.Decimal(10, 2)
-  status   String   @default("pending")
-  result   String?
-  unit     String?
-  refRange String?  @map("ref_range")
+  id           String    @id @default(uuid()) @db.Uuid
+  orderId      String    @map("order_id") @db.Uuid
+  parentTestId String?   @map("parent_test_id") @db.Uuid
+  testCode     String    @map("test_code")
+  testName     String    @map("test_name")
+  isProfile    Boolean   @default(false) @map("is_profile")
+  rate         Decimal   @db.Decimal(10, 2)
+  status       String    @default("pending")
+  result       String?
+  unit         String?
+  refRange     String?   @map("ref_range")
+  refLow       Decimal?  @map("ref_low") @db.Decimal(10, 2)
+  refHigh      Decimal?  @map("ref_high") @db.Decimal(10, 2)
+  sortOrder    Int?      @default(0) @map("sort_order")
 
-  order Order @relation(fields: [orderId], references: [id])
+  order        Order      @relation(fields: [orderId], references: [id])
+  children     OrderTest[] @relation("TestToChildren")
+  parent       OrderTest?  @relation("TestToChildren", fields: [parentTestId], references: [id])
 
   @@unique([orderId, testCode])
   @@map("order_tests")

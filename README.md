@@ -13,6 +13,10 @@ thulir03-lims/
 │   │       ├── auth/           # JWT auth, register, login, TOTP MFA
 │   │       ├── users/          # User management
 │   │       ├── roles/          # RBAC role & permission management
+│   │       ├── patients/       # Patient CRUD + search
+│   │       ├── referrers/      # Doctor/referrer CRUD
+│   │       ├── orders/         # Order registration, list/search, test results
+│   │       │   └── test-profiles.ts  # Profile defs (CBC, LFT, RFT, Lipid, Thyroid, Diabetes)
 │   │       ├── common/         # Guards (JwtAuth, Roles), decorators
 │   │       ├── prisma/         # Prisma database service
 │   │       ├── main.ts         # Entry point
@@ -20,19 +24,26 @@ thulir03-lims/
 │   ├── web/                    # React + Vite + Tailwind CSS
 │   │   └── src/
 │   │       ├── pages/
-│   │       │   ├── Login.tsx       # Sign-in page
-│   │       │   ├── Register.tsx    # Sign-up with org setup
-│   │       │   └── Dashboard.tsx   # Lab admin dashboard
+│   │       │   ├── LandingPage.tsx          # Public landing page
+│   │       │   ├── Login.tsx                # Sign-in page
+│   │       │   ├── Register.tsx             # Sign-up with org setup
+│   │       │   ├── Dashboard.tsx            # Lab dashboard (live stats + recent orders)
+│   │       │   ├── PatientRegistrationPage.tsx  # Full-screen registration (patient+tests+billing)
+│   │       │   ├── PatientFormPage.tsx      # Patient create/edit
+│   │       │   ├── PatientsPage.tsx         # Patient list + search
+│   │       │   ├── ReferrerFormPage.tsx     # Referrer create/edit
+│   │       │   ├── ReferrersPage.tsx        # Referrer list
+│   │       │   ├── OrdersPage.tsx           # Orders list with search & expand
+│   │       │   └── TestResultPage.tsx       # Result entry with flags (↑/↓) & profiles
 │   │       ├── components/
-│   │       │   └── ProtectedRoute.tsx  # Auth guard wrapper
+│   │       │   └── ProtectedRoute.tsx       # Auth guard wrapper
 │   │       ├── lib/
-│   │       │   ├── api.ts       # Axios client with JWT + auto-refresh
-│   │       │   ├── auth.tsx     # AuthContext provider
-│   │       │   ├── useAuth.ts   # useAuth hook
-│   │       │   └── utils.ts     # Tailwind class merging
-│   │       ├── App.tsx          # Router + routes
-│   │       ├── main.tsx         # Entry with BrowserRouter
-│   │       └── index.css        # Tailwind v4 + clinical theme
+│   │       │   ├── api-client.ts   # Axios client with JWT + API functions
+│   │       │   ├── auth.tsx        # AuthContext provider
+│   │       │   └── utils.ts        # Tailwind class merging
+│   │       ├── App.tsx             # Router + routes
+│   │       ├── main.tsx            # Entry with BrowserRouter
+│   │       └── index.css           # Tailwind v4 + clinical theme
 │   └── instrument-middleware/  # Python FastAPI (ASTM/HL7)
 │       ├── main.py             # FastAPI entry point
 │       └── requirements.txt    # Python dependencies
@@ -45,6 +56,7 @@ thulir03-lims/
 │   ├── workflows/
 │   │   └── ci.yml              # GitHub Actions CI/CD
 │   └── dependabot.yml          # Auto-security updates
+├── ecosystem.config.js         # PM2 config (API + Web)
 └── .env.example                # Environment variables template
 ```
 
@@ -59,6 +71,7 @@ thulir03-lims/
 | Cache/Queue        | Redis + BullMQ (planned)                                    |
 | Object Storage     | S3-compatible (MinIO for dev)                               |
 | Instrument Middle  | Python FastAPI + hl7apy (ASTM E1394 / HL7 v2.x)             |
+| Process Manager    | PM2 (auto-restart for API + Web)                            |
 | Deployment         | Docker Compose → Kubernetes-ready, GitHub Actions CI/CD     |
 
 ## Quick Start (Development)
@@ -91,7 +104,14 @@ npm run dev
 ```
 Web app runs at **http://localhost:5173** (proxies `/api` to the API server)
 
-### 4. (Optional) Start instrument middleware
+### 4. (Optional) Run both with PM2
+```bash
+npm install -g pm2
+pm2 start ecosystem.config.js   # starts thulir03-api + thulir03-web
+pm2 save                        # persist process list
+```
+
+### 5. (Optional) Start instrument middleware
 ```bash
 cd apps/instrument-middleware
 python3 -m venv venv
@@ -120,6 +140,21 @@ System roles are auto-created: `lab_admin`, `pathologist`, `technician`, `lab_ma
 | `POST` | `/api/v1/auth/totp/generate` | Generate TOTP secret |
 | `POST` | `/api/v1/auth/totp/enable` | Enable TOTP MFA |
 
+### Clinical API Endpoints (Sprint 3 + 4)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/patients` | List patients (searchable) |
+| `POST` | `/api/v1/patients` | Create patient |
+| `GET` | `/api/v1/patients/:id` | Get patient |
+| `PATCH` | `/api/v1/patients/:id` | Update patient |
+| `GET` | `/api/v1/referrers` | List referrers |
+| `POST` | `/api/v1/referrers` | Create referrer |
+| `POST` | `/api/v1/orders/register` | Register order — patient + tests + billing in 1 transaction (profiles auto-expand) |
+| `GET` | `/api/v1/orders` | List orders (search by order#, patient name, phone) |
+| `GET` | `/api/v1/orders/:id` | Get order detail with all test parameters |
+| `PATCH` | `/api/v1/orders/:orderId/tests/:testId` | Save test result (auto-completes parent profile + order) |
+
 ### Frontend Routes
 
 | Path | Page | Auth Required |
@@ -127,10 +162,29 @@ System roles are auto-created: `lab_admin`, `pathologist`, `technician`, `lab_ma
 | `/` | Landing page | No |
 | `/login` | Sign-in form | No |
 | `/register` | Registration form | No |
-| `/dashboard` | Lab admin dashboard | Yes (JWT required) |
+| `/dashboard` | Lab admin dashboard (live stats + recent orders) | Yes (JWT required) |
+| `/registration` | Patient registration — search, tests, billing | Yes |
+| `/patients` | Patient list | Yes |
+| `/orders` | Orders list | Yes |
+| `/results` | Test result entry with flags | Yes |
+| `/referrers` | Referrer list | Yes |
 
 ### Protected Routes
 Frontend uses `ProtectedRoute` component — unauthenticated users are redirected to `/login` with their intended destination preserved.
+
+## Feature Highlights
+
+### Test Profiles (Sprint 4)
+Profiles auto-expand into individual parameters on registration:
+- **CBC** (13 params): HB, RBC, PCV, MCV, MCH, MCHC, WBC, PLT, NEUT, LYMPH, MONO, EOS, BASO
+- **LFT** (9), **RFT** (6), **Lipid** (6), **Thyroid** (3), **Diabetes** (3)
+- Each parameter carries unit + reference range (refLow/refHigh)
+
+### Flag Arrows in Result Entry
+- Result **above** refHigh → 🔺 HIGH flag (↑)
+- Result **below** refLow → 🔻 LOW flag (↓)
+- In range → no flag
+- Parent profile auto-completes when all children are saved; order auto-completes when all tests are done
 
 ## Development Commands
 
@@ -165,12 +219,12 @@ Key environment variables (see `.env.example` for full list):
 |-------|-------|--------|
 | **Sprint 1** | Project scaffolding, monorepo, Docker, CI/CD | ✅ Complete |
 | **Sprint 2** | **Auth & RBAC** — JWT auth, TOTP MFA, role management, login/signup UI | ✅ **Complete** |
-| **Sprint 3** | Patients & Referrers CRUD | ⬜ Next |
-| **Sprint 4** | Configurable Test Catalog | ⬜ |
-| **Sprint 5** | Orders & Barcode Accessioning | ⬜ |
-| **Sprint 6** | Result Entry & Verification | ⬜ |
-| **Sprint 7** | PDF Report Generation | ⬜ |
-| **Sprint 8** | Basic Billing | ⬜ |
+| **Sprint 3** | **Patients, Referrers & Orders** — CRUD, registration flow (patient+tests+billing), patient search, orders list, dashboard live stats | ✅ **Complete** |
+| **Sprint 4** | **Test Results Entry** — profile sub-parameters, reference ranges, flag arrows (↑/↓), auto-complete | ✅ **Complete** |
+| **Sprint 5** | Invoice / Receipt print | ⬜ Next |
+| **Sprint 6** | PDF Report Generation | ⬜ |
+| **Sprint 7** | Reports & Analytics | ⬜ |
+| **Sprint 8** | Configurable Test Catalog from UI | ⬜ |
 | **Sprint 9** | Phase 1 UI/Hardening Pass | ⬜ |
 | **Sprint 10+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
 

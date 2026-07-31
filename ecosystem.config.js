@@ -1,0 +1,41 @@
+module.exports = {
+  apps: [
+    {
+      name: 'thulir03-api',
+      cwd: './apps/api',
+      script: 'dist/src/main.js',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      env: {
+        NODE_ENV: 'production',
+        API_PORT: 3001,
+        API_HOST: '0.0.0.0',
+        DATABASE_URL: process.env.DATABASE_URL,
+        JWT_SECRET: process.env.JWT_SECRET,
+      },
+      error_file: '/tmp/thulir03-api-error.log',
+      out_file: '/tmp/thulir03-api-out.log',
+      merge_logs: true,
+      time: true,
+    },
+    {
+      name: 'thulir03-web',
+      cwd: './apps/web',
+      script: 'node_modules/.bin/vite',
+      args: '--host 0.0.0.0 --port 5173',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      env: {
+        NODE_ENV: 'development',
+      },
+      error_file: '/tmp/thulir03-web-error.log',
+      out_file: '/tmp/thulir03-web-out.log',
+      merge_logs: true,
+      time: true,
+    },
+  ],
+};

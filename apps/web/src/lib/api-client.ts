@@ -5,7 +5,6 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach JWT from localStorage
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
@@ -14,7 +13,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// On 401, redirect to login
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -206,7 +204,23 @@ export async function registerPatient(data: RegisterOrderData) {
   return res.data as { message: string; patientId: string; orderId: string; orderNumber: string };
 }
 
-// ─── Orders ────────────────────────────────────────────────────
+// ─── Orders (list + detail) ────────────────────────────────────────
+
+export interface TestChild {
+  id: string;
+  testCode: string;
+  testName: string;
+  isProfile: boolean;
+  rate: string;
+  status: string;
+  result: string | null;
+  unit: string | null;
+  refRange: string | null;
+  refLow: number | null;
+  refHigh: number | null;
+  sortOrder: number | null;
+  children?: TestChild[];
+}
 
 export interface OrderListItem {
   id: string;
@@ -238,7 +252,38 @@ export interface OrderListItem {
     testName: string;
     rate: string;
     status: string;
+    children?: TestChild[];
   }>;
+}
+
+export interface OrderDetail {
+  id: string;
+  orderNumber: string;
+  status: string;
+  priority: string;
+  category: string | null;
+  source: string | null;
+  billAmount: string | null;
+  otherCharges: string | null;
+  discountPercent: string | null;
+  totalAmount: string | null;
+  amountPaid: string | null;
+  balanceAmount: string | null;
+  paymentMode: string | null;
+  deliveryMode: string | null;
+  emergency: boolean;
+  clinicalRemarks: string | null;
+  createdAt: string;
+  patient: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    title: string | null;
+    phone: string | null;
+    gender: string | null;
+    dateOfBirth: string | null;
+  };
+  tests: TestChild[];
 }
 
 export async function getOrders(search?: string) {
@@ -246,6 +291,21 @@ export async function getOrders(search?: string) {
     params: search ? { search } : {},
   });
   return data as OrderListItem[];
+}
+
+export async function getOrder(id: string) {
+  const { data } = await api.get(`/orders/${id}`);
+  return data as OrderDetail;
+}
+
+export async function updateTestResult(orderId: string, testId: string, body: {
+  result?: string;
+  unit?: string;
+  refRange?: string;
+  status?: string;
+}) {
+  const { data } = await api.patch(`/orders/${orderId}/tests/${testId}`, body);
+  return data;
 }
 
 // ─── Dashboard Stats ──────────────────────────────────────────────

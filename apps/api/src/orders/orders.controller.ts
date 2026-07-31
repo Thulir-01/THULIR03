@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService, type RegisterPatientOrderDto } from './orders.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -23,13 +23,35 @@ export class OrdersController {
     return this.ordersService.findAll(orgId, search);
   }
 
+  @Get(':id')
+  @Roles('lab_admin', 'receptionist', 'technician')
+  @ApiOperation({ summary: 'Get single order with full test details including profile children' })
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.ordersService.findOne(orgId, id);
+  }
+
   @Post('register')
   @Roles('lab_admin', 'receptionist')
-  @ApiOperation({ summary: 'Full patient registration: patient + tests + billing in one call' })
+  @ApiOperation({ summary: 'Full patient registration: patient + tests (profiles expanded) + billing' })
   register(
     @Body() body: RegisterPatientOrderDto,
     @CurrentUser('organizationId') orgId: string,
   ) {
     return this.ordersService.register(orgId, body);
+  }
+
+  @Patch(':orderId/tests/:testId')
+  @Roles('lab_admin', 'technician')
+  @ApiOperation({ summary: 'Update individual test result (auto-computes flag based on refLow/refHigh)' })
+  updateResult(
+    @Param('orderId') orderId: string,
+    @Param('testId') testId: string,
+    @Body() body: { result?: string; unit?: string; refRange?: string; status?: string },
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.ordersService.updateTestResult(orgId, orderId, testId, body);
   }
 }

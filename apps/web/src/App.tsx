@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import PatientRegistrationPage from "./pages/PatientRegistrationPage";
 import OrdersPage from "./pages/OrdersPage";
+import TestResultPage from "./pages/TestResultPage";
 import Dashboard from "./pages/Dashboard";
 import PatientsPage from "./pages/PatientsPage";
 import PatientFormPage from "./pages/PatientFormPage";
@@ -73,6 +74,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <OrdersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/results"
+          element={
+            <ProtectedRoute>
+              <TestResultPage />
             </ProtectedRoute>
           }
         />
