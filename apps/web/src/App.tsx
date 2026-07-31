@@ -13,6 +13,7 @@ import PatientsPage from "./pages/PatientsPage";
 import PatientFormPage from "./pages/PatientFormPage";
 import ReferrersPage from "./pages/ReferrersPage";
 import ReferrerFormPage from "./pages/ReferrerFormPage";
+import AuditLogsPage from "./pages/AuditLogsPage";
 
 export default function App() {
   return (
@@ -82,6 +83,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <TestResultPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit"
+          element={
+            <ProtectedRoute>
+              <AuditLogsPage />
             </ProtectedRoute>
           }
         />

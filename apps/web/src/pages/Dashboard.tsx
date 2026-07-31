@@ -12,6 +12,7 @@ import {
   Phone,
   Calendar,
   ArrowRight,
+  History,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 import { getOrders, getPatients, type OrderListItem } from "../lib/api-client";
@@ -73,6 +74,7 @@ export default function Dashboard() {
     { icon: Beaker, label: "Result Entry", desc: "Enter test results", to: "/results" },
     { icon: Users, label: "Patients", desc: "Manage patient records", to: "/patients" },
     { icon: Stethoscope, label: "Referrers", desc: "Manage referring doctors", to: "/referrers" },
+    { icon: History, label: "Audit Trail", desc: "Browse all activity logs", to: "/audit" },
   ];
 
   // Add missing import for Stethoscope

@@ -10,6 +10,7 @@ import { RolesModule } from './roles/roles.module';
 import { PatientsModule } from './patients/patients.module';
 import { ReferrersModule } from './referrers/referrers.module';
 import { OrdersModule } from './orders/orders.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -26,6 +27,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     PatientsModule,
     ReferrersModule,
     OrdersModule,
+    AuditLogsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -323,3 +323,28 @@ export async function getDashboardStats(_orgId: string) {
     recentReferrers: referrers.slice(0, 5),
   };
 }
+
+// ─── Audit Logs ──────────────────────────────────────────────────
+
+export interface AuditLogEntry {
+  id: string;
+  tenantId: string | null;
+  actorId: string | null;
+  actorName: string | null;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  after: unknown;
+  createdAt: string;
+}
+
+export async function getAuditLogs(params?: {
+  action?: string;
+  entity?: string;
+  limit?: number;
+}) {
+  const { data } = await api.get("/audit-logs", { params });
+  return data as AuditLogEntry[];
+}
