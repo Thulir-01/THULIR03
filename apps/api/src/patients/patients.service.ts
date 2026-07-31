@@ -14,7 +14,7 @@ export interface CreatePatientDto {
   patientId?: string;
 }
 
-export interface UpdatePatientDto extends Partial<CreatePatientDto> {}
+export type UpdatePatientDto = Partial<CreatePatientDto>;
 
 @Injectable()
 export class PatientsService {
@@ -90,12 +90,15 @@ export class PatientsService {
     if (data.firstName !== undefined) updateData.firstName = data.firstName;
     if (data.lastName !== undefined) updateData.lastName = data.lastName;
     if (data.dateOfBirth !== undefined)
-      updateData.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
+      updateData.dateOfBirth = data.dateOfBirth
+        ? new Date(data.dateOfBirth)
+        : null;
     if (data.gender !== undefined) updateData.gender = data.gender;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.address !== undefined) updateData.address = data.address;
-    if (data.abhaAddress !== undefined) updateData.abhaAddress = data.abhaAddress;
+    if (data.abhaAddress !== undefined)
+      updateData.abhaAddress = data.abhaAddress;
     if (data.abhaNumber !== undefined) updateData.abhaNumber = data.abhaNumber;
     if (data.patientId !== undefined) updateData.patientId = data.patientId;
 

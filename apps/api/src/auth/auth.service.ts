@@ -156,7 +156,9 @@ export class AuthService {
   }
 
   async generateTotpSecret(userId: string) {
-    const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+    });
     if (!user) throw new BadRequestException('User not found');
 
     const secret = speakeasy.generateSecret({
@@ -187,7 +189,9 @@ export class AuthService {
   }
 
   async verifyTotp(userId: string, token: string) {
-    const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+    });
     if (!user?.totpSecret) {
       throw new BadRequestException('TOTP not configured');
     }

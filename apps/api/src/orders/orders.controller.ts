@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService, type RegisterPatientOrderDto } from './orders.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -25,7 +34,10 @@ export class OrdersController {
 
   @Get(':id')
   @Roles('lab_admin', 'receptionist', 'technician')
-  @ApiOperation({ summary: 'Get single order with full test details including profile children' })
+  @ApiOperation({
+    summary:
+      'Get single order with full test details including profile children',
+  })
   findOne(
     @Param('id') id: string,
     @CurrentUser('organizationId') orgId: string,
@@ -35,7 +47,10 @@ export class OrdersController {
 
   @Post('register')
   @Roles('lab_admin', 'receptionist')
-  @ApiOperation({ summary: 'Full patient registration: patient + tests (profiles expanded) + billing' })
+  @ApiOperation({
+    summary:
+      'Full patient registration: patient + tests (profiles expanded) + billing',
+  })
   register(
     @Body() body: RegisterPatientOrderDto,
     @CurrentUser('organizationId') orgId: string,
@@ -45,11 +60,20 @@ export class OrdersController {
 
   @Patch(':orderId/tests/:testId')
   @Roles('lab_admin', 'technician')
-  @ApiOperation({ summary: 'Update individual test result (auto-computes flag based on refLow/refHigh)' })
+  @ApiOperation({
+    summary:
+      'Update individual test result (auto-computes flag based on refLow/refHigh)',
+  })
   updateResult(
     @Param('orderId') orderId: string,
     @Param('testId') testId: string,
-    @Body() body: { result?: string; unit?: string; refRange?: string; status?: string },
+    @Body()
+    body: {
+      result?: string;
+      unit?: string;
+      refRange?: string;
+      status?: string;
+    },
     @CurrentUser('organizationId') orgId: string,
   ) {
     return this.ordersService.updateTestResult(orgId, orderId, testId, body);

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { findProfile, isProfile } from './test-profiles';
+import { findProfile } from './test-profiles';
 
 export interface RegisterPatientOrderDto {
   patientId?: string;
@@ -50,7 +51,7 @@ export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(tenantId: string, search?: string) {
-    const where: any = { tenantId, deletedAt: null };
+    const where: Prisma.OrderWhereInput = { tenantId, deletedAt: null };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
@@ -64,10 +65,23 @@ export class OrdersService {
       where,
       include: {
         patient: {
-          select: { id: true, firstName: true, lastName: true, phone: true, gender: true, dateOfBirth: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            gender: true,
+            dateOfBirth: true,
+          },
         },
         tests: {
-          select: { id: true, testCode: true, testName: true, rate: true, status: true },
+          select: {
+            id: true,
+            testCode: true,
+            testName: true,
+            rate: true,
+            status: true,
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -80,7 +94,15 @@ export class OrdersService {
       where: { id: orderId, tenantId, deletedAt: null },
       include: {
         patient: {
-          select: { id: true, firstName: true, lastName: true, title: true, phone: true, gender: true, dateOfBirth: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            title: true,
+            phone: true,
+            gender: true,
+            dateOfBirth: true,
+          },
         },
         tests: {
           where: { parentTestId: null },
@@ -101,9 +123,11 @@ export class OrdersService {
     const { tests, ...data } = dto;
 
     // 1. Patient
-    let patient: any;
+    let patient: { id: string } | null = null;
     if (data.patientId) {
-      patient = await this.prisma.client.patient.findFirst({ where: { id: data.patientId, tenantId } });
+      patient = await this.prisma.client.patient.findFirst({
+        where: { id: data.patientId, tenantId },
+      });
       if (!patient) throw new NotFoundException('Patient not found');
     } else {
       patient = await this.prisma.client.patient.create({
@@ -145,7 +169,9 @@ export class OrdersService {
         ipOpNo: data.ipOpNo ?? null,
         bedNo: data.bedNo ?? null,
         clinicalRemarks: data.clinicalRemarks ?? null,
-        sampleCollectDt: data.sampleCollectDate ? new Date(data.sampleCollectDate) : null,
+        sampleCollectDt: data.sampleCollectDate
+          ? new Date(data.sampleCollectDate)
+          : null,
         billAmount: subTotal,
         otherCharges: data.otherCharges ?? 0,
         discountPercent: data.discountPercent ?? 0,
@@ -161,7 +187,9 @@ export class OrdersService {
         paymentRemarks: data.paymentRemarks ?? null,
         deliveryMode: data.deliveryMode ?? null,
         emergency: data.emergency ?? false,
-        finalReportDate: data.finalReportDate ? new Date(data.finalReportDate) : null,
+        finalReportDate: data.finalReportDate
+          ? new Date(data.finalReportDate)
+          : null,
         billHf: data.billHf ?? false,
         consolidatedBill: data.consolidatedBill ?? false,
         remarks: data.remarks ?? null,
@@ -227,11 +255,25 @@ export class OrdersService {
     };
   }
 
-  async updateTestResult(tenantId: string, orderId: string, testId: string, body: { result?: string; unit?: string; refRange?: string; status?: string }) {
-    const order = await this.prisma.client.order.findFirst({ where: { id: orderId, tenantId } });
+  async updateTestResult(
+    tenantId: string,
+    orderId: string,
+    testId: string,
+    body: {
+      result?: string;
+      unit?: string;
+      refRange?: string;
+      status?: string;
+    },
+  ) {
+    const order = await this.prisma.client.order.findFirst({
+      where: { id: orderId, tenantId },
+    });
     if (!order) throw new NotFoundException('Order not found');
 
-    const test = await this.prisma.client.orderTest.findFirst({ where: { id: testId, orderId } });
+    const test = await this.prisma.client.orderTest.findFirst({
+      where: { id: testId, orderId },
+    });
     if (!test) throw new NotFoundException('Test not found');
 
     const updated = await this.prisma.client.orderTest.update({
@@ -245,18 +287,28 @@ export class OrdersService {
     });
 
     // Check if ALL tests in the order are completed → update order status
-    const allTests = await this.prisma.client.orderTest.findMany({ where: { orderId } });
-    const allDone = allTests.every(t => t.status === 'completed');
+    const allTests = await this.prisma.client.orderTest.findMany({
+      where: { orderId },
+    });
+    const allDone = allTests.every((t) => t.status === 'completed');
     if (allDone) {
-      await this.prisma.client.order.update({ where: { id: orderId }, data: { status: 'completed' } });
+      await this.prisma.client.order.update({
+        where: { id: orderId },
+        data: { status: 'completed' },
+      });
     }
 
     // If this is a child test, update parent test status too
     if (test.parentTestId) {
-      const siblings = await this.prisma.client.orderTest.findMany({ where: { parentTestId: test.parentTestId } });
-      const allSiblingsDone = siblings.every(t => t.status === 'completed');
+      const siblings = await this.prisma.client.orderTest.findMany({
+        where: { parentTestId: test.parentTestId },
+      });
+      const allSiblingsDone = siblings.every((t) => t.status === 'completed');
       if (allSiblingsDone) {
-        await this.prisma.client.orderTest.update({ where: { id: test.parentTestId }, data: { status: 'completed' } });
+        await this.prisma.client.orderTest.update({
+          where: { id: test.parentTestId },
+          data: { status: 'completed' },
+        });
       }
     }
 

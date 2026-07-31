@@ -57,7 +57,9 @@ export class RolesService {
     if (!role) throw new NotFoundException('Role not found');
     if (role.isSystem) throw new Error('System roles cannot be deleted');
 
-    await this.prisma.client.rolePermission.deleteMany({ where: { roleId: id } });
+    await this.prisma.client.rolePermission.deleteMany({
+      where: { roleId: id },
+    });
     return this.prisma.client.role.delete({ where: { id } });
   }
 
@@ -70,7 +72,9 @@ export class RolesService {
   }
 
   async setRolePermissions(roleId: string, permissionIds: string[]) {
-    const role = await this.prisma.client.role.findUnique({ where: { id: roleId } });
+    const role = await this.prisma.client.role.findUnique({
+      where: { id: roleId },
+    });
     if (!role) throw new NotFoundException('Role not found');
 
     // Remove existing permissions

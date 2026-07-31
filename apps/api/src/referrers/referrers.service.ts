@@ -11,7 +11,7 @@ export interface CreateReferrerDto {
   commission?: number;
 }
 
-export interface UpdateReferrerDto extends Partial<CreateReferrerDto> {}
+export type UpdateReferrerDto = Partial<CreateReferrerDto>;
 
 @Injectable()
 export class ReferrersService {
@@ -78,7 +78,8 @@ export class ReferrersService {
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.clinicName !== undefined) updateData.clinicName = data.clinicName;
-    if (data.registration !== undefined) updateData.registration = data.registration;
+    if (data.registration !== undefined)
+      updateData.registration = data.registration;
     if (data.commission !== undefined) updateData.commission = data.commission;
 
     return this.prisma.client.doctorReferrer.update({
