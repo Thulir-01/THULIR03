@@ -127,7 +127,7 @@ export default function AuditLogsPage() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gray-100 flex flex-col">
+    <div className="h-full w-full overflow-hidden bg-gray-100 flex flex-col">
       {/* TOP BAR */}
       <div className="bg-gradient-to-r from-teal-700 to-teal-600 text-white px-4 py-2.5 flex items-center justify-between shrink-0 shadow-sm">
         <div className="flex items-center gap-4">

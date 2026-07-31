@@ -116,7 +116,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const contentPad = collapsed ? "md:pl-14" : "md:pl-50";
 
   return (
-    <div className="min-h-screen bg-surface-100">
+    <div className="h-screen w-screen overflow-hidden bg-surface-100 flex flex-col">
       {/* ─── Icon Rail ─── */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 hidden md:flex flex-col border-r border-line-200 bg-surface-0 transition-[width] duration-180 ease-precise ${railWidth}`}
@@ -254,7 +254,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Content */}
-      <main className={`${contentPad} pt-0`}>{children}</main>
+      <main className={`${contentPad} flex-1 min-h-0 overflow-hidden pt-0`}>{children}</main>
 
       {/* ─── Command Palette ─── */}
       {paletteOpen && (
