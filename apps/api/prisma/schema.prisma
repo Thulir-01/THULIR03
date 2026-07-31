@@ -120,6 +120,7 @@ model User {
   branch       Branch?      @relation(fields: [branchId], references: [id])
   role         Role?        @relation(fields: [roleId], references: [id])
 
+  @@index([organizationId])
   @@map("users")
 }
 

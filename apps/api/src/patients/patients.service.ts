@@ -20,7 +20,10 @@ export type UpdatePatientDto = Partial<CreatePatientDto>;
 export class PatientsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(organizationId: string, query?: { search?: string }) {
+  async findAll(
+    organizationId: string,
+    query?: { search?: string; limit?: number; offset?: number },
+  ) {
     const where: Record<string, unknown> = {
       tenantId: organizationId,
       deletedAt: null,
@@ -44,6 +47,8 @@ export class PatientsService {
         _count: { select: { orders: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: Math.min(query?.limit ?? 100, 500),
+      skip: Math.max(query?.offset ?? 0, 0),
     });
   }
 

@@ -19,7 +19,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     email: string;
     role: string;
     organizationId: string;
+    type?: string;
   }) {
+    // Only access tokens may be used as bearer credentials.
+    if (payload.type && payload.type !== 'access') {
+      throw new UnauthorizedException('Invalid token type');
+    }
     const user = await this.prisma.client.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, email: true, isActive: true, roleId: true },

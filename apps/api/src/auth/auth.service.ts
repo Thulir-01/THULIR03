@@ -17,6 +17,7 @@ interface TokenPayload {
   email: string;
   role: string;
   organizationId: string;
+  type: 'access' | 'refresh';
 }
 
 @Injectable()
@@ -210,14 +211,23 @@ export class AuthService {
     role: string,
     organizationId: string,
   ) {
-    const payload: TokenPayload = { sub: userId, email, role, organizationId };
+    // Distinct token types: an access token can never be replayed against
+    // /auth/refresh (and a refresh token can never be used as a bearer token).
+    const base: Omit<TokenPayload, 'type'> = {
+      sub: userId,
+      email,
+      role,
+      organizationId,
+    };
 
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: '15m',
-    });
-    const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
-    });
+    const accessToken = this.jwtService.sign(
+      { ...base, type: 'access' as const },
+      { expiresIn: '15m' },
+    );
+    const refreshToken = this.jwtService.sign(
+      { ...base, type: 'refresh' as const },
+      { expiresIn: '7d' },
+    );
 
     return { accessToken, refreshToken, user: { id: userId, email, role } };
   }
@@ -225,6 +235,9 @@ export class AuthService {
   async refreshToken(token: string) {
     try {
       const payload = this.jwtService.verify<TokenPayload>(token);
+      if (payload.type !== 'refresh') {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
       const user = await this.prisma.client.user.findUnique({
         where: { id: payload.sub },
         include: { role: true },

@@ -51,7 +51,12 @@ export interface RegisterPatientOrderDto {
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string, search?: string) {
+  async findAll(
+    tenantId: string,
+    search?: string,
+    limit?: number,
+    offset?: number,
+  ) {
     const where: Prisma.OrderWhereInput = { tenantId, deletedAt: null };
     if (search) {
       where.OR = [
@@ -86,7 +91,8 @@ export class OrdersService {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: Math.min(limit ?? 50, 200),
+      skip: Math.max(offset ?? 0, 0),
     });
   }
 

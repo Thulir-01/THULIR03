@@ -8,7 +8,12 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { OrdersService, type RegisterPatientOrderDto } from './orders.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -25,11 +30,21 @@ export class OrdersController {
   @Get()
   @Roles('lab_admin', 'receptionist', 'technician')
   @ApiOperation({ summary: 'List all orders with patient and test details' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
   findAll(
     @Query('search') search: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('offset') offset: string | undefined,
     @CurrentUser('organizationId') orgId: string,
   ) {
-    return this.ordersService.findAll(orgId, search);
+    return this.ordersService.findAll(
+      orgId,
+      search,
+      limit ? Number(limit) : undefined,
+      offset ? Number(offset) : undefined,
+    );
   }
 
   @Get(':id')

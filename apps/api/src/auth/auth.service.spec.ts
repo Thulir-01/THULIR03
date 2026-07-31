@@ -167,7 +167,7 @@ describe('AuthService', () => {
     });
 
     it('rejects a refresh token for a deactivated user', async () => {
-      jwtVerify.mockReturnValue({ sub: 'u1' });
+      jwtVerify.mockReturnValue({ sub: 'u1', type: 'refresh' });
       userFindUnique.mockResolvedValue({ id: 'u1', isActive: false });
       await expect(service.refreshToken('token')).rejects.toThrow(
         UnauthorizedException,
@@ -175,7 +175,11 @@ describe('AuthService', () => {
     });
 
     it('issues a fresh token pair for a valid refresh token', async () => {
-      jwtVerify.mockReturnValue({ sub: 'u1', email: 'a@lab.com' });
+      jwtVerify.mockReturnValue({
+        sub: 'u1',
+        email: 'a@lab.com',
+        type: 'refresh',
+      });
       userFindUnique.mockResolvedValue({
         id: 'u1',
         isActive: true,

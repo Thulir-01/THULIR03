@@ -36,11 +36,19 @@ export class PatientsController {
   @Roles('lab_admin', 'lab_manager', 'technician', 'receptionist')
   @ApiOperation({ summary: 'List all patients with optional search' })
   @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
   findAll(
     @CurrentUser('organizationId') orgId: string,
     @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
-    return this.patientsService.findAll(orgId, { search });
+    return this.patientsService.findAll(orgId, {
+      search,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 
   @Get(':id')
