@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -122,137 +123,147 @@ export class OrdersService {
   async register(tenantId: string, dto: RegisterPatientOrderDto) {
     const { tests, ...data } = dto;
 
-    // 1. Patient
-    let patient: { id: string } | null = null;
-    if (data.patientId) {
-      patient = await this.prisma.client.patient.findFirst({
-        where: { id: data.patientId, tenantId },
-      });
-      if (!patient) throw new NotFoundException('Patient not found');
-    } else {
-      patient = await this.prisma.client.patient.create({
-        data: {
-          tenantId,
-          title: data.title ?? null,
-          firstName: data.firstName ?? '',
-          lastName: data.lastName ?? '',
-          dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-          ageYears: data.ageYears ?? null,
-          ageMonths: data.ageMonths ?? null,
-          gender: data.gender ?? null,
-          phone: data.phone ?? null,
-          email: data.email ?? null,
-        },
-      });
-    }
-
-    // 2. Order
-    const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
+    // Collision-safe order number: UUID-derived (8 hex chars) instead of
+    // Date.now(), so two submissions in the same millisecond can't clash.
+    const orderNumber = `ORD-${randomUUID()
+      .replace(/-/g, '')
+      .slice(0, 8)
+      .toUpperCase()}`;
     const subTotal = tests.reduce((s, t) => s + t.rate, 0);
     const discAmt = subTotal * ((data.discountPercent ?? 0) / 100);
     const totalAmt = subTotal + (data.otherCharges ?? 0) - discAmt;
     const balance = totalAmt - (data.amountPaid ?? 0);
 
-    const order = await this.prisma.client.order.create({
-      data: {
-        tenantId,
-        patientId: patient.id,
-        orderNumber,
-        category: data.category ?? null,
-        sidDate: data.sidDate ? new Date(data.sidDate) : null,
-        refNo: data.refNo ?? null,
-        source: data.source ?? null,
-        insuranceDetails: data.insurance ?? null,
-        collectionBoy: data.collectionBoy ?? null,
-        patientType: data.patientType ?? null,
-        ward: data.ward ?? null,
-        ipOpNo: data.ipOpNo ?? null,
-        bedNo: data.bedNo ?? null,
-        clinicalRemarks: data.clinicalRemarks ?? null,
-        sampleCollectDt: data.sampleCollectDate
-          ? new Date(data.sampleCollectDate)
-          : null,
-        billAmount: subTotal,
-        otherCharges: data.otherCharges ?? 0,
-        discountPercent: data.discountPercent ?? 0,
-        discountAmount: discAmt,
-        discountAuth: data.discountAuth ?? null,
-        totalAmount: totalAmt,
-        amountPaid: data.amountPaid ?? 0,
-        balanceAmount: balance,
-        paymentMode: data.paymentMode ?? null,
-        bankName: data.bankName ?? null,
-        paymentRef: data.paymentRef ?? null,
-        paymentDate: data.paymentDate ? new Date(data.paymentDate) : null,
-        paymentRemarks: data.paymentRemarks ?? null,
-        deliveryMode: data.deliveryMode ?? null,
-        emergency: data.emergency ?? false,
-        finalReportDate: data.finalReportDate
-          ? new Date(data.finalReportDate)
-          : null,
-        billHf: data.billHf ?? false,
-        consolidatedBill: data.consolidatedBill ?? false,
-        remarks: data.remarks ?? null,
-      },
-    });
-
-    // 3. Create order tests — expand profiles into sub-parameters
-    for (const t of tests) {
-      const profile = findProfile(t.code);
-      if (profile) {
-        // Create parent profile row
-        const parentTest = await this.prisma.client.orderTest.create({
-          data: {
-            orderId: order.id,
-            testCode: profile.code,
-            testName: profile.name,
-            isProfile: true,
-            rate: profile.rate,
-            status: 'pending',
-            sortOrder: 0,
-          },
+    // Single transaction: patient + order + order tests commit together.
+    // If any step fails (network blip, crash), nothing is left behind —
+    // no orphan patients, no orders without tests.
+    return this.prisma.client.$transaction(async (tx) => {
+      // 1. Patient
+      let patient: { id: string } | null = null;
+      if (data.patientId) {
+        patient = await tx.patient.findFirst({
+          where: { id: data.patientId, tenantId },
         });
-        // Create child parameters
-        for (const param of profile.parameters) {
-          await this.prisma.client.orderTest.create({
-            data: {
-              orderId: order.id,
-              parentTestId: parentTest.id,
-              testCode: param.code,
-              testName: param.name,
-              isProfile: false,
-              rate: 0,
-              status: 'pending',
-              unit: param.unit,
-              refRange: param.refRange,
-              refLow: param.refLow,
-              refHigh: param.refHigh,
-              sortOrder: param.sortOrder,
-            },
-          });
-        }
+        if (!patient) throw new NotFoundException('Patient not found');
       } else {
-        // Single test
-        await this.prisma.client.orderTest.create({
+        patient = await tx.patient.create({
           data: {
-            orderId: order.id,
-            testCode: t.code,
-            testName: t.name,
-            isProfile: false,
-            rate: t.rate,
-            status: 'pending',
-            sortOrder: 0,
+            tenantId,
+            title: data.title ?? null,
+            firstName: data.firstName ?? '',
+            lastName: data.lastName ?? '',
+            dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+            ageYears: data.ageYears ?? null,
+            ageMonths: data.ageMonths ?? null,
+            gender: data.gender ?? null,
+            phone: data.phone ?? null,
+            email: data.email ?? null,
           },
         });
       }
-    }
 
-    return {
-      message: 'Patient registered successfully',
-      patientId: patient.id,
-      orderId: order.id,
-      orderNumber,
-    };
+      // 2. Order
+      const order = await tx.order.create({
+        data: {
+          tenantId,
+          patientId: patient.id,
+          orderNumber,
+          category: data.category ?? null,
+          sidDate: data.sidDate ? new Date(data.sidDate) : null,
+          refNo: data.refNo ?? null,
+          source: data.source ?? null,
+          insuranceDetails: data.insurance ?? null,
+          collectionBoy: data.collectionBoy ?? null,
+          patientType: data.patientType ?? null,
+          ward: data.ward ?? null,
+          ipOpNo: data.ipOpNo ?? null,
+          bedNo: data.bedNo ?? null,
+          clinicalRemarks: data.clinicalRemarks ?? null,
+          sampleCollectDt: data.sampleCollectDate
+            ? new Date(data.sampleCollectDate)
+            : null,
+          billAmount: subTotal,
+          otherCharges: data.otherCharges ?? 0,
+          discountPercent: data.discountPercent ?? 0,
+          discountAmount: discAmt,
+          discountAuth: data.discountAuth ?? null,
+          totalAmount: totalAmt,
+          amountPaid: data.amountPaid ?? 0,
+          balanceAmount: balance,
+          paymentMode: data.paymentMode ?? null,
+          bankName: data.bankName ?? null,
+          paymentRef: data.paymentRef ?? null,
+          paymentDate: data.paymentDate ? new Date(data.paymentDate) : null,
+          paymentRemarks: data.paymentRemarks ?? null,
+          deliveryMode: data.deliveryMode ?? null,
+          emergency: data.emergency ?? false,
+          finalReportDate: data.finalReportDate
+            ? new Date(data.finalReportDate)
+            : null,
+          billHf: data.billHf ?? false,
+          consolidatedBill: data.consolidatedBill ?? false,
+          remarks: data.remarks ?? null,
+        },
+      });
+
+      // 3. Create order tests — expand profiles into sub-parameters
+      for (const t of tests) {
+        const profile = findProfile(t.code);
+        if (profile) {
+          // Create parent profile row
+          const parentTest = await tx.orderTest.create({
+            data: {
+              orderId: order.id,
+              testCode: profile.code,
+              testName: profile.name,
+              isProfile: true,
+              rate: profile.rate,
+              status: 'pending',
+              sortOrder: 0,
+            },
+          });
+          // Create child parameters
+          for (const param of profile.parameters) {
+            await tx.orderTest.create({
+              data: {
+                orderId: order.id,
+                parentTestId: parentTest.id,
+                testCode: param.code,
+                testName: param.name,
+                isProfile: false,
+                rate: 0,
+                status: 'pending',
+                unit: param.unit,
+                refRange: param.refRange,
+                refLow: param.refLow,
+                refHigh: param.refHigh,
+                sortOrder: param.sortOrder,
+              },
+            });
+          }
+        } else {
+          // Single test
+          await tx.orderTest.create({
+            data: {
+              orderId: order.id,
+              testCode: t.code,
+              testName: t.name,
+              isProfile: false,
+              rate: t.rate,
+              status: 'pending',
+              sortOrder: 0,
+            },
+          });
+        }
+      }
+
+      return {
+        message: 'Patient registered successfully',
+        patientId: patient.id,
+        orderId: order.id,
+        orderNumber,
+      };
+    });
   }
 
   async updateTestResult(

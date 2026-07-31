@@ -147,6 +147,7 @@ model Patient {
 
   orders Order[]
 
+  @@index([tenantId])
   @@map("patients")
 }
 
@@ -167,6 +168,7 @@ model DoctorReferrer {
 
   orders Order[]
 
+  @@index([tenantId])
   @@map("doctors_referrers")
 }
 
@@ -222,6 +224,7 @@ model Order {
   branch  Branch?               @relation(fields: [branchId], references: [id])
   tests   OrderTest[]
 
+  @@index([tenantId])
   @@map("orders")
 }
 

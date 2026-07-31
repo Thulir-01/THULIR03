@@ -34,7 +34,7 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await bcrypt.hash(dto.password, 10);
 
     let org = await this.prisma.client.organization.findFirst({
       where: { slug: dto.organizationSlug || 'default' },

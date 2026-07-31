@@ -310,18 +310,22 @@ export async function updateTestResult(orderId: string, testId: string, body: {
 
 // ─── Dashboard Stats ──────────────────────────────────────────────
 
-export async function getDashboardStats(_orgId: string) {
-  const [patients, referrers, _profile] = await Promise.all([
-    getPatients(),
-    getReferrers(),
-    getProfile(),
-  ]);
-  return {
-    totalPatients: patients.length,
-    totalReferrers: referrers.length,
-    recentPatients: patients.slice(0, 5),
-    recentReferrers: referrers.slice(0, 5),
-  };
+export interface DashboardStats {
+  totalPatients: number;
+  totalReferrers: number;
+  totalOrders: number;
+  pendingTests: number;
+  todayRevenue: number;
+  recentOrders: OrderListItem[];
+}
+
+/**
+ * Server-side COUNT queries — no full patient/referrer fetches.
+ * The backend runs COUNT(...) + aggregate instead of loading every row.
+ */
+export async function getDashboardStats() {
+  const { data } = await api.get('/dashboard/stats');
+  return data as DashboardStats;
 }
 
 // ─── Audit Logs ──────────────────────────────────────────────────

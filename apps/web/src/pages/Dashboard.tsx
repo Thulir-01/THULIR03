@@ -15,28 +15,22 @@ import {
   History,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
-import { getOrders, getPatients, type OrderListItem } from "../lib/api-client";
+import { getDashboardStats, type DashboardStats, type OrderListItem } from "../lib/api-client";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<OrderListItem[]>([]);
-  const [allOrders, setAllOrders] = useState<OrderListItem[]>([]);
-  const [patientCount, setPatientCount] = useState(0);
   const [ordersLoading, setOrdersLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      getOrders(),
-      getPatients(),
-    ]).then(([orders, patients]) => {
-      setAllOrders(orders);
-      setRecentOrders(orders.slice(0, 5));
-      setPatientCount(patients.length);
+    getDashboardStats().then((data) => {
+      setStats(data);
+      setRecentOrders(data.recentOrders);
     }).catch(() => {
-      setAllOrders([]);
+      setStats(null);
       setRecentOrders([]);
-      setPatientCount(0);
     }).finally(() => setOrdersLoading(false));
   }, []);
 
@@ -54,14 +48,13 @@ export default function Dashboard() {
       ? "Technician"
       : user?.role;
 
-  // Compute real stats from API data
-  const totalOrders = allOrders.length;
-  const pendingTests = allOrders.reduce((s, o) => s + o.tests.filter(t => t.status === "pending").length, 0);
-  const todayRevenue = allOrders
-    .filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString())
-    .reduce((s, o) => s + (parseFloat(o.totalAmount || "0")), 0);
+  // Server-computed COUNT stats — one lightweight request, no full fetches.
+  const totalOrders = stats?.totalOrders ?? 0;
+  const pendingTests = stats?.pendingTests ?? 0;
+  const todayRevenue = stats?.todayRevenue ?? 0;
+  const patientCount = stats?.totalPatients ?? 0;
 
-  const stats = [
+  const statsCards = [
     { label: "Total Orders", value: String(totalOrders), color: "text-teal-600", bg: "bg-teal-50", icon: ClipboardList },
     { label: "Total Patients", value: String(patientCount), color: "text-blue-600", bg: "bg-blue-50", icon: Users },
     { label: "Pending Tests", value: String(pendingTests), color: "text-amber-600", bg: "bg-amber-50", icon: Beaker },
@@ -124,7 +117,7 @@ export default function Dashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat) => (
+          {statsCards.map((stat) => (
             <div
               key={stat.label}
               className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-sm transition-shadow"
