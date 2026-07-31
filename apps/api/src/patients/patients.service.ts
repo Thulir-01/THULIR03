@@ -38,7 +38,7 @@ export class PatientsService {
       ];
     }
 
-    return this.prisma.patient.findMany({
+    return this.prisma.client.patient.findMany({
       where,
       include: {
         _count: { select: { orders: true } },
@@ -48,7 +48,7 @@ export class PatientsService {
   }
 
   async findOne(id: string, organizationId: string) {
-    const patient = await this.prisma.patient.findFirst({
+    const patient = await this.prisma.client.patient.findFirst({
       where: { id, tenantId: organizationId, deletedAt: null },
       include: {
         orders: {
@@ -63,7 +63,7 @@ export class PatientsService {
   }
 
   async create(organizationId: string, data: CreatePatientDto) {
-    return this.prisma.patient.create({
+    return this.prisma.client.patient.create({
       data: {
         tenantId: organizationId,
         firstName: data.firstName,
@@ -81,7 +81,7 @@ export class PatientsService {
   }
 
   async update(id: string, organizationId: string, data: UpdatePatientDto) {
-    const patient = await this.prisma.patient.findFirst({
+    const patient = await this.prisma.client.patient.findFirst({
       where: { id, tenantId: organizationId, deletedAt: null },
     });
     if (!patient) throw new NotFoundException('Patient not found');
@@ -99,18 +99,18 @@ export class PatientsService {
     if (data.abhaNumber !== undefined) updateData.abhaNumber = data.abhaNumber;
     if (data.patientId !== undefined) updateData.patientId = data.patientId;
 
-    return this.prisma.patient.update({
+    return this.prisma.client.patient.update({
       where: { id },
       data: updateData,
     });
   }
 
   async remove(id: string, organizationId: string) {
-    const patient = await this.prisma.patient.findFirst({
+    const patient = await this.prisma.client.patient.findFirst({
       where: { id, tenantId: organizationId, deletedAt: null },
     });
     if (!patient) throw new NotFoundException('Patient not found');
-    await this.prisma.patient.update({
+    await this.prisma.client.patient.update({
       where: { id },
       data: { deletedAt: new Date() },
     });

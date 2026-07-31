@@ -60,7 +60,7 @@ export class OrdersService {
         { refNo: { contains: search, mode: 'insensitive' } },
       ];
     }
-    return this.prisma.order.findMany({
+    return this.prisma.client.order.findMany({
       where,
       include: {
         patient: {
@@ -76,7 +76,7 @@ export class OrdersService {
   }
 
   async findOne(tenantId: string, orderId: string) {
-    const order = await this.prisma.order.findFirst({
+    const order = await this.prisma.client.order.findFirst({
       where: { id: orderId, tenantId, deletedAt: null },
       include: {
         patient: {
@@ -103,10 +103,10 @@ export class OrdersService {
     // 1. Patient
     let patient: any;
     if (data.patientId) {
-      patient = await this.prisma.patient.findFirst({ where: { id: data.patientId, tenantId } });
+      patient = await this.prisma.client.patient.findFirst({ where: { id: data.patientId, tenantId } });
       if (!patient) throw new NotFoundException('Patient not found');
     } else {
-      patient = await this.prisma.patient.create({
+      patient = await this.prisma.client.patient.create({
         data: {
           tenantId,
           title: data.title ?? null,
@@ -129,7 +129,7 @@ export class OrdersService {
     const totalAmt = subTotal + (data.otherCharges ?? 0) - discAmt;
     const balance = totalAmt - (data.amountPaid ?? 0);
 
-    const order = await this.prisma.order.create({
+    const order = await this.prisma.client.order.create({
       data: {
         tenantId,
         patientId: patient.id,
@@ -173,7 +173,7 @@ export class OrdersService {
       const profile = findProfile(t.code);
       if (profile) {
         // Create parent profile row
-        const parentTest = await this.prisma.orderTest.create({
+        const parentTest = await this.prisma.client.orderTest.create({
           data: {
             orderId: order.id,
             testCode: profile.code,
@@ -186,7 +186,7 @@ export class OrdersService {
         });
         // Create child parameters
         for (const param of profile.parameters) {
-          await this.prisma.orderTest.create({
+          await this.prisma.client.orderTest.create({
             data: {
               orderId: order.id,
               parentTestId: parentTest.id,
@@ -205,7 +205,7 @@ export class OrdersService {
         }
       } else {
         // Single test
-        await this.prisma.orderTest.create({
+        await this.prisma.client.orderTest.create({
           data: {
             orderId: order.id,
             testCode: t.code,
@@ -228,13 +228,13 @@ export class OrdersService {
   }
 
   async updateTestResult(tenantId: string, orderId: string, testId: string, body: { result?: string; unit?: string; refRange?: string; status?: string }) {
-    const order = await this.prisma.order.findFirst({ where: { id: orderId, tenantId } });
+    const order = await this.prisma.client.order.findFirst({ where: { id: orderId, tenantId } });
     if (!order) throw new NotFoundException('Order not found');
 
-    const test = await this.prisma.orderTest.findFirst({ where: { id: testId, orderId } });
+    const test = await this.prisma.client.orderTest.findFirst({ where: { id: testId, orderId } });
     if (!test) throw new NotFoundException('Test not found');
 
-    const updated = await this.prisma.orderTest.update({
+    const updated = await this.prisma.client.orderTest.update({
       where: { id: testId },
       data: {
         result: body.result ?? test.result,
@@ -245,18 +245,18 @@ export class OrdersService {
     });
 
     // Check if ALL tests in the order are completed → update order status
-    const allTests = await this.prisma.orderTest.findMany({ where: { orderId } });
+    const allTests = await this.prisma.client.orderTest.findMany({ where: { orderId } });
     const allDone = allTests.every(t => t.status === 'completed');
     if (allDone) {
-      await this.prisma.order.update({ where: { id: orderId }, data: { status: 'completed' } });
+      await this.prisma.client.order.update({ where: { id: orderId }, data: { status: 'completed' } });
     }
 
     // If this is a child test, update parent test status too
     if (test.parentTestId) {
-      const siblings = await this.prisma.orderTest.findMany({ where: { parentTestId: test.parentTestId } });
+      const siblings = await this.prisma.client.orderTest.findMany({ where: { parentTestId: test.parentTestId } });
       const allSiblingsDone = siblings.every(t => t.status === 'completed');
       if (allSiblingsDone) {
-        await this.prisma.orderTest.update({ where: { id: test.parentTestId }, data: { status: 'completed' } });
+        await this.prisma.client.orderTest.update({ where: { id: test.parentTestId }, data: { status: 'completed' } });
       }
     }
 

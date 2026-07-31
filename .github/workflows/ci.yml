@@ -107,8 +107,31 @@ jobs:
         run: npm ci
         working-directory: apps/api
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: apps/api
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://thulir:thulir_pass@localhost:5432/thulir_lims_test
+
+      - name: Check schema drift
+        # Fails the build if the live DB schema diverges from schema.prisma
+        run: npx prisma migrate diff --from-schema-datasource --to-schema-datamodel prisma/schema.prisma --exit-code
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://thulir:thulir_pass@localhost:5432/thulir_lims_test
+
       - name: Run tests
         run: npm test
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://thulir:thulir_pass@localhost:5432/thulir_lims_test
+
+      - name: Run e2e tenant isolation tests
+        run: npm run test:e2e
         working-directory: apps/api
         env:
           DATABASE_URL: postgresql://thulir:thulir_pass@localhost:5432/thulir_lims_test

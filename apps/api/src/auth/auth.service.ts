@@ -27,7 +27,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({
+    const existing = await this.prisma.client.user.findUnique({
       where: { email: dto.email },
     });
     if (existing) {
@@ -36,11 +36,11 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    let org = await this.prisma.organization.findFirst({
+    let org = await this.prisma.client.organization.findFirst({
       where: { slug: dto.organizationSlug || 'default' },
     });
     if (!org) {
-      org = await this.prisma.organization.create({
+      org = await this.prisma.client.organization.create({
         data: {
           name: dto.organizationName || 'Default Lab',
           slug: dto.organizationSlug || 'default',
@@ -48,11 +48,11 @@ export class AuthService {
       });
     }
 
-    let role = await this.prisma.role.findFirst({
+    let role = await this.prisma.client.role.findFirst({
       where: { slug: 'lab_admin' },
     });
     if (!role) {
-      role = await this.prisma.role.create({
+      role = await this.prisma.client.role.create({
         data: {
           name: 'Lab Admin',
           slug: 'lab_admin',
@@ -60,7 +60,7 @@ export class AuthService {
           isSystem: true,
         },
       });
-      await this.prisma.role.createMany({
+      await this.prisma.client.role.createMany({
         data: [
           {
             name: 'Pathologist',
@@ -90,7 +90,7 @@ export class AuthService {
       });
     }
 
-    const user = await this.prisma.user.create({
+    const user = await this.prisma.client.user.create({
       data: {
         email: dto.email,
         passwordHash,
@@ -107,7 +107,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.client.user.findUnique({
       where: { email: dto.email },
       include: { role: true, organization: true },
     });
@@ -123,7 +123,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    await this.prisma.user.update({
+    await this.prisma.client.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
@@ -137,7 +137,7 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
-    return this.prisma.user.findUnique({
+    return this.prisma.client.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -156,7 +156,7 @@ export class AuthService {
   }
 
   async generateTotpSecret(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
     const secret = speakeasy.generateSecret({
@@ -179,7 +179,7 @@ export class AuthService {
     if (!verified) {
       throw new BadRequestException('Invalid TOTP token');
     }
-    await this.prisma.user.update({
+    await this.prisma.client.user.update({
       where: { id: userId },
       data: { totpSecret: secret, totpEnabled: true },
     });
@@ -187,7 +187,7 @@ export class AuthService {
   }
 
   async verifyTotp(userId: string, token: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.client.user.findUnique({ where: { id: userId } });
     if (!user?.totpSecret) {
       throw new BadRequestException('TOTP not configured');
     }
@@ -221,7 +221,7 @@ export class AuthService {
   async refreshToken(token: string) {
     try {
       const payload = this.jwtService.verify<TokenPayload>(token);
-      const user = await this.prisma.user.findUnique({
+      const user = await this.prisma.client.user.findUnique({
         where: { id: payload.sub },
         include: { role: true },
       });

@@ -17,8 +17,9 @@ thulir03-lims/
 │   │       ├── referrers/      # Doctor/referrer CRUD
 │   │       ├── orders/         # Order registration, list/search, test results
 │   │       │   └── test-profiles.ts  # Profile defs (CBC, LFT, RFT, Lipid, Thyroid, Diabetes)
-│   │       ├── common/         # Guards (JwtAuth, Roles), decorators
-│   │       ├── prisma/         # Prisma database service
+│   │       ├── common/         # Guards (JwtAuth, Roles), interceptors, decorators
+│   │       │   └── interceptors/     # TenantInterceptor + AuditInterceptor (global)
+│   │       ├── prisma/         # Prisma service + tenant-filter extension
 │   │       ├── main.ts         # Entry point
 │   │       └── app.module.ts   # Root module
 │   ├── web/                    # React + Vite + Tailwind CSS
@@ -48,13 +49,13 @@ thulir03-lims/
 │       ├── main.py             # FastAPI entry point
 │       └── requirements.txt    # Python dependencies
 ├── docker/
-│   ├── docker-compose.yml      # Development environment
+│   ├── docker-compose.yml      # Development environment (db-migrate auto-runs Prisma migrations)
 │   ├── Dockerfile.api
 │   ├── Dockerfile.web
 │   └── Dockerfile.middleware
 ├── .github/
 │   ├── workflows/
-│   │   └── ci.yml              # GitHub Actions CI/CD
+│   │   └── ci.yml              # GitHub Actions CI/CD (lint, typecheck, migrate deploy, schema-drift check, tests)
 │   └── dependabot.yml          # Auto-security updates
 ├── ecosystem.config.js         # PM2 config (API + Web)
 └── .env.example                # Environment variables template
@@ -66,7 +67,7 @@ thulir03-lims/
 |--------------------|-------------------------------------------------------------|
 | Frontend           | React 19 + TypeScript + Vite 8 + Tailwind CSS 4             |
 | Core API           | NestJS 11 (TypeScript), REST + OpenAPI 3 + Swagger          |
-| Database           | PostgreSQL 16+ with Prisma ORM 7 + Row-Level Security       |
+| Database           | PostgreSQL 16+ with Prisma ORM 7 + app-layer tenant isolation |
 | Auth               | JWT + refresh tokens, Passport, bcryptjs, TOTP MFA          |
 | Cache/Queue        | Redis + BullMQ (planned)                                    |
 | Object Storage     | S3-compatible (MinIO for dev)                               |
@@ -84,6 +85,8 @@ thulir03-lims/
 ### 1. Start infrastructure
 ```bash
 docker compose -f docker/docker-compose.yml up -d postgres redis minio
+# The db-migrate service applies Prisma migrations automatically once Postgres is healthy.
+# The API service waits for db-migrate to complete successfully before starting.
 ```
 
 ### 2. Set up the API
@@ -91,7 +94,7 @@ docker compose -f docker/docker-compose.yml up -d postgres redis minio
 cd apps/api
 npm ci
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy   # or rely on the compose db-migrate service
 npm run start:dev
 ```
 API runs at **http://localhost:3001** — Swagger docs at **http://localhost:3001/api/docs**
@@ -186,6 +189,14 @@ Profiles auto-expand into individual parameters on registration:
 - In range → no flag
 - Parent profile auto-completes when all children are saved; order auto-completes when all tests are done
 
+### Tenant Isolation (Sprint 4.5)
+- A **Prisma client extension** (`tenant-filter.extension.ts`) auto-injects the authenticated organization's id (`tenantId`) into **every** query on tenant-scoped models (`Patient`, `DoctorReferrer`, `Order`, `AuditLog`) — reads are scoped, writes are forced to the context org, and a caller-supplied `tenantId` is always overridden, so isolation cannot be bypassed by a service bug.
+- The per-request context comes from `TenantInterceptor` (global), which wraps each authenticated request in an `AsyncLocalStorage` scope.
+
+### Full Audit Trail (Sprint 4.5)
+- `AuditLogInterceptor` (global) writes an `audit_logs` row for every `POST`/`PATCH`/`PUT`/`DELETE` on clinical endpoints: actor, action, entity, entity id, sanitized response payload, IP + user agent.
+- Audit writes are fire-and-forget — a failed audit never fails the business request.
+
 ## Development Commands
 
 ```bash
@@ -197,7 +208,7 @@ npm run test         # Run all tests
 npm run lint         # Lint all apps
 
 # Docker
-npm run docker:up    # Start all containers
+npm run docker:up    # Start all containers (db-migrate applies migrations first)
 npm run docker:down  # Stop all containers
 ```
 
@@ -221,6 +232,7 @@ Key environment variables (see `.env.example` for full list):
 | **Sprint 2** | **Auth & RBAC** — JWT auth, TOTP MFA, role management, login/signup UI | ✅ **Complete** |
 | **Sprint 3** | **Patients, Referrers & Orders** — CRUD, registration flow (patient+tests+billing), patient search, orders list, dashboard live stats | ✅ **Complete** |
 | **Sprint 4** | **Test Results Entry** — profile sub-parameters, reference ranges, flag arrows (↑/↓), auto-complete | ✅ **Complete** |
+| **Sprint 4.5** | **Foundation Hardening** — Prisma tenant-isolation extension (auto-injects org id on every query), full audit trail (audit_logs on all writes), auth/TOTP + tenant-isolation tests, CI schema-drift check, compose auto-migrate | ✅ **Complete** |
 | **Sprint 5** | Invoice / Receipt print | ⬜ Next |
 | **Sprint 6** | PDF Report Generation | ⬜ |
 | **Sprint 7** | Reports & Analytics | ⬜ |
@@ -235,7 +247,7 @@ Full 24-sprint build plan available in the project brief.
 - **State machine integrity** — All sample/result transitions enforced server-side
 - **Immutable records** — Verified results cannot be edited; amendments create linked records
 - **Configuration-first** — Test catalogs, workflows, roles, pricing configurable from UI, no deploys
-- **Multi-tenant by default** — Pooled database + Postgres Row-Level Security
+- **Multi-tenant by default** — App-layer tenant isolation enforced by a Prisma client extension that auto-injects the authenticated organization's id (`tenantId`) into every query, so services cannot accidentally read or write another tenant's data. Postgres Row-Level Security is deliberately **not** enabled (Prisma 7 has no native RLS support) and is reserved for a future hardening pass
 - **Full audit trail** — Every write to clinical/financial data creates an audit log entry
 - **Clinical UX** — Colour reserved for clinical meaning only; progressive disclosure; role-specific dashboards
 

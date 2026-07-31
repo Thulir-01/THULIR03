@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -9,6 +10,8 @@ import { RolesModule } from './roles/roles.module';
 import { PatientsModule } from './patients/patients.module';
 import { ReferrersModule } from './referrers/referrers.module';
 import { OrdersModule } from './orders/orders.module';
+import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
@@ -25,6 +28,12 @@ import { OrdersModule } from './orders/orders.module';
     OrdersModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // TenantInterceptor must stay outermost so the audit interceptor and all
+    // handlers execute inside the request's tenant (organization) context.
+    { provide: APP_INTERCEPTOR, useClass: TenantInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+  ],
 })
 export class AppModule {}

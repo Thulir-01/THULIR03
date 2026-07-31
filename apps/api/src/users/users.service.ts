@@ -17,7 +17,7 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(organizationId: string) {
-    return this.prisma.user.findMany({
+    return this.prisma.client.user.findMany({
       where: { organizationId, deletedAt: null },
       select: {
         id: true,
@@ -37,7 +37,7 @@ export class UsersService {
   }
 
   async findOne(id: string, organizationId: string) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.client.user.findFirst({
       where: { id, organizationId, deletedAt: null },
       select: {
         id: true,
@@ -58,7 +58,7 @@ export class UsersService {
   }
 
   async update(id: string, organizationId: string, data: UpdateUserDto) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.client.user.findFirst({
       where: { id, organizationId, deletedAt: null },
     });
     if (!user) throw new NotFoundException('User not found');
@@ -74,7 +74,7 @@ export class UsersService {
       updateData.passwordHash = await bcrypt.hash(data.password, 12);
     }
 
-    return this.prisma.user.update({
+    return this.prisma.client.user.update({
       where: { id },
       data: updateData,
       select: {
@@ -90,11 +90,11 @@ export class UsersService {
   }
 
   async remove(id: string, organizationId: string) {
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.client.user.findFirst({
       where: { id, organizationId, deletedAt: null },
     });
     if (!user) throw new NotFoundException('User not found');
-    await this.prisma.user.update({
+    await this.prisma.client.user.update({
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
     });

@@ -20,6 +20,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # ─── DB Migrations (one-shot, auto-runs on `docker compose up`) ──────────
+  db-migrate:
+    image: node:22-alpine
+    container_name: thulir-db-migrate
+    working_dir: /workspace
+    volumes:
+      - ../apps/api:/workspace
+    command: sh -c "npx -y prisma@7.9.1 migrate deploy"
+    environment:
+      DATABASE_URL: postgresql://thulir:thulir_pass@postgres:5432/thulir_lims
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # ─── Redis ───────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -74,6 +88,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
 
   # ─── Web Frontend (React + Vite) ──────────────────────────────────────────
   web:

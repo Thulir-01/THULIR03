@@ -34,7 +34,7 @@ export class ReferrersService {
       ];
     }
 
-    return this.prisma.doctorReferrer.findMany({
+    return this.prisma.client.doctorReferrer.findMany({
       where,
       include: {
         _count: { select: { orders: true } },
@@ -44,7 +44,7 @@ export class ReferrersService {
   }
 
   async findOne(id: string, organizationId: string) {
-    const referrer = await this.prisma.doctorReferrer.findFirst({
+    const referrer = await this.prisma.client.doctorReferrer.findFirst({
       where: { id, tenantId: organizationId, deletedAt: null },
     });
     if (!referrer) throw new NotFoundException('Referrer not found');
@@ -52,7 +52,7 @@ export class ReferrersService {
   }
 
   async create(organizationId: string, data: CreateReferrerDto) {
-    return this.prisma.doctorReferrer.create({
+    return this.prisma.client.doctorReferrer.create({
       data: {
         tenantId: organizationId,
         name: data.name,
@@ -67,7 +67,7 @@ export class ReferrersService {
   }
 
   async update(id: string, organizationId: string, data: UpdateReferrerDto) {
-    const referrer = await this.prisma.doctorReferrer.findFirst({
+    const referrer = await this.prisma.client.doctorReferrer.findFirst({
       where: { id, tenantId: organizationId, deletedAt: null },
     });
     if (!referrer) throw new NotFoundException('Referrer not found');
@@ -81,18 +81,18 @@ export class ReferrersService {
     if (data.registration !== undefined) updateData.registration = data.registration;
     if (data.commission !== undefined) updateData.commission = data.commission;
 
-    return this.prisma.doctorReferrer.update({
+    return this.prisma.client.doctorReferrer.update({
       where: { id },
       data: updateData,
     });
   }
 
   async remove(id: string, organizationId: string) {
-    const referrer = await this.prisma.doctorReferrer.findFirst({
+    const referrer = await this.prisma.client.doctorReferrer.findFirst({
       where: { id, tenantId: organizationId, deletedAt: null },
     });
     if (!referrer) throw new NotFoundException('Referrer not found');
-    await this.prisma.doctorReferrer.update({
+    await this.prisma.client.doctorReferrer.update({
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
     });
