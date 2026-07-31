@@ -82,8 +82,8 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-grid-pattern opacity-50" />
 
         {/* Decorative Blobs */}
-        <div className="absolute top-1/4 -left-32 w-96 h-96 bg-teal-200/20 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-1/4 -right-32 w-[30rem] h-[30rem] bg-cyan-200/20 rounded-full blur-3xl animate-float-delayed" />
+        <div className="absolute top-1/4 -left-32 w-96 h-96 bg-accent-100/40 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 -right-32 w-[30rem] h-[30rem] bg-accent-500/10 rounded-full blur-3xl" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
           <div className="max-w-4xl mx-auto text-center">
@@ -101,7 +101,7 @@ export default function LandingPage() {
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fade-in">
               <span className="text-gray-900">Modernize Your</span>
               <br />
-              <span className="gradient-text-deep">Diagnostic Lab</span>
+              <span className="text-accent-700">Diagnostic Lab</span>
             </h1>
 
             {/* Subtext */}
@@ -252,7 +252,7 @@ function StatsSection() {
                 <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 flex items-center justify-center group-hover:from-teal-100 group-hover:to-cyan-100 transition-colors">
                   <Icon className="w-6 h-6 text-teal-600" />
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 gradient-text-deep">
+                <div className="text-2xl sm:text-3xl font-bold text-accent-700 mb-1">
                   {stat.value}
                 </div>
                 <div className="text-sm text-gray-500 font-medium">
@@ -336,7 +336,7 @@ function FeaturesSection() {
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
             Purpose-built for{" "}
-            <span className="gradient-text-deep">Diagnostic Labs</span>
+            <span className="text-accent-700">Diagnostic Labs</span>
           </h2>
           <p className="text-lg text-gray-500 leading-relaxed">
             From sample collection to final report delivery — every feature designed
@@ -421,7 +421,7 @@ function HowItWorksSection() {
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
             From Sample to Report in{" "}
-            <span className="gradient-text-deep">4 Simple Steps</span>
+            <span className="text-accent-700">4 Simple Steps</span>
           </h2>
           <p className="text-lg text-gray-500 leading-relaxed">
             Streamlined laboratory workflow designed for Indian diagnostic labs

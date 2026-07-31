@@ -1,0 +1,322 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { NavLink, useNavigate } from "react-router";
+import {
+  LayoutDashboard,
+  FilePlus2,
+  ClipboardList,
+  Beaker,
+  Users,
+  Stethoscope,
+  History,
+  LogOut,
+  Search,
+  FlaskConical,
+  ChevronsLeft,
+  ChevronsRight,
+  CornerDownLeft,
+  User,
+  Plus,
+} from "lucide-react";
+import { useAuth } from "../lib/useAuth";
+
+const NAV_ITEMS = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/registration", label: "Registration", icon: FilePlus2 },
+  { to: "/orders", label: "Orders", icon: ClipboardList },
+  { to: "/results", label: "Result Entry", icon: Beaker },
+  { to: "/patients", label: "Patients", icon: Users },
+  { to: "/referrers", label: "Referrers", icon: Stethoscope },
+  { to: "/audit", label: "Audit Trail", icon: History },
+];
+
+const QUICK_ACTIONS = [
+  { to: "/patients/new", label: "Add Patient", icon: Plus },
+  { to: "/referrers/new", label: "Add Referrer", icon: Plus },
+];
+
+function roleLabel(role?: string) {
+  if (role === "lab_admin") return "Lab Admin";
+  if (role === "pathologist") return "Pathologist";
+  if (role === "technician") return "Technician";
+  return role;
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("thulir-rail") === "open" ? false : true
+  );
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const paletteItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const all = [
+      ...NAV_ITEMS.map((n) => ({ ...n, group: "Navigate" })),
+      ...QUICK_ACTIONS.map((a) => ({ ...a, group: "Actions" })),
+    ];
+    if (!q) return all;
+    return all.filter(
+      (i) => i.label.toLowerCase().includes(q) || i.to.toLowerCase().includes(q)
+    );
+  }, [query]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (paletteOpen) {
+      setQuery("");
+      setCursor(0);
+      setTimeout(() => inputRef.current?.focus(), 20);
+    }
+  }, [paletteOpen]);
+
+  const go = (to: string) => {
+    setPaletteOpen(false);
+    navigate(to);
+  };
+
+  const onPaletteKey = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCursor((c) => Math.min(c + 1, paletteItems.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCursor((c) => Math.max(c - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const item = paletteItems[cursor];
+      if (item) go(item.to);
+    } else if (e.key === "Escape") {
+      setPaletteOpen(false);
+    }
+  };
+
+  const toggleRail = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem("thulir-rail", next ? "collapsed" : "open");
+      return next;
+    });
+  };
+
+  const railWidth = collapsed ? "w-14" : "w-50";
+  const contentPad = collapsed ? "md:pl-14" : "md:pl-50";
+
+  return (
+    <div className="min-h-screen bg-surface-100">
+      {/* ─── Icon Rail ─── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 hidden md:flex flex-col border-r border-line-200 bg-surface-0 transition-[width] duration-180 ease-precise ${railWidth}`}
+      >
+        {/* Brand */}
+        <div
+          className={`flex h-14 items-center gap-2.5 border-b border-line-200 px-3 shrink-0 ${
+            collapsed ? "justify-center px-0" : ""
+          }`}
+        >
+          <div className="size-8 shrink-0 rounded-md bg-accent-700 text-surface-0 flex items-center justify-center">
+            <FlaskConical className="size-4" />
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="text-[13px] font-semibold text-ink-950 leading-tight tracking-wide">
+                THULIR03
+              </div>
+              <div className="text-[9px] uppercase tracking-[0.14em] text-ink-400">
+                Lab LIMS
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              title={item.label}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 rounded-sm px-2.5 py-2 text-[13px] font-medium transition-colors duration-fast ${
+                  collapsed ? "justify-center px-0" : ""
+                } ${
+                  isActive
+                    ? "bg-accent-100 text-accent-700"
+                    : "text-ink-600 hover:bg-surface-100 hover:text-ink-950"
+                }`
+              }
+            >
+              <item.icon className="size-4.5 shrink-0" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Bottom: palette trigger + user */}
+        <div className="border-t border-line-200 p-2 space-y-1 shrink-0">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            title="Command palette (Ctrl+K)"
+            className={`flex w-full items-center gap-3 rounded-sm px-2.5 py-2 text-[13px] text-ink-600 hover:bg-surface-100 hover:text-ink-950 transition-colors duration-fast ${
+              collapsed ? "justify-center px-0" : ""
+            }`}
+          >
+            <Search className="size-4.5 shrink-0" />
+            {!collapsed && (
+              <span className="flex-1 text-left truncate">Search…</span>
+            )}
+            {!collapsed && (
+              <kbd className="rounded-sm border border-line-200 bg-surface-100 px-1.5 py-0.5 text-[10px] text-ink-400">
+                ⌘K
+              </kbd>
+            )}
+          </button>
+
+          <div
+            className={`flex items-center gap-2.5 rounded-sm px-2.5 py-2 ${
+              collapsed ? "justify-center px-0" : ""
+            }`}
+          >
+            <div className="size-7 shrink-0 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center">
+              <User className="size-3.5" />
+            </div>
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium text-ink-950 truncate">
+                  {user?.firstName} {user?.lastName}
+                </div>
+                <div className="text-[10px] text-ink-400 truncate">
+                  {roleLabel(user?.role)}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+              title="Sign out"
+              className={`text-ink-400 hover:text-status-critical transition-colors duration-fast ${
+                collapsed ? "" : "hidden"
+              }`}
+            >
+              <LogOut className="size-4" />
+            </button>
+          </div>
+
+          {/* Rail toggle */}
+          <button
+            onClick={toggleRail}
+            title={collapsed ? "Expand rail" : "Collapse rail"}
+            className="flex w-full items-center justify-center gap-2 rounded-sm py-1.5 text-ink-400 hover:bg-surface-100 hover:text-ink-600 transition-colors duration-fast"
+          >
+            {collapsed ? (
+              <ChevronsRight className="size-4" />
+            ) : (
+              <>
+                <ChevronsLeft className="size-4" />
+                <span className="text-[10px] uppercase tracking-wider">Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile top bar */}
+      <div className="md:hidden sticky top-0 z-40 flex h-14 items-center justify-between border-b border-line-200 bg-surface-0 px-4">
+        <div className="flex items-center gap-2.5">
+          <div className="size-8 rounded-md bg-accent-700 text-surface-0 flex items-center justify-center">
+            <FlaskConical className="size-4" />
+          </div>
+          <span className="text-[13px] font-semibold text-ink-950 tracking-wide">
+            THULIR03
+          </span>
+        </div>
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="flex items-center gap-1.5 rounded-sm border border-line-200 px-2.5 py-1.5 text-xs text-ink-600"
+        >
+          <Search className="size-3.5" /> Search
+        </button>
+      </div>
+
+      {/* Content */}
+      <main className={`${contentPad} pt-0`}>{children}</main>
+
+      {/* ─── Command Palette ─── */}
+      {paletteOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-ink-950/30 px-4 pt-[12vh]"
+          onClick={() => setPaletteOpen(false)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-md border border-line-200 bg-surface-0 shadow-overlay"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 border-b border-line-200 px-3.5">
+              <Search className="size-4 shrink-0 text-ink-400" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setCursor(0);
+                }}
+                onKeyDown={onPaletteKey}
+                placeholder="Jump to page or action…"
+                className="h-11 w-full bg-transparent text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none"
+              />
+              <kbd className="rounded-sm border border-line-200 bg-surface-100 px-1.5 py-0.5 text-[10px] text-ink-400">
+                ESC
+              </kbd>
+            </div>
+            <div className="max-h-72 overflow-y-auto py-1.5">
+              {paletteItems.length === 0 && (
+                <div className="px-4 py-6 text-center text-sm text-ink-400">
+                  No matches for “{query}”
+                </div>
+              )}
+              {paletteItems.map((item, i) => (
+                <button
+                  key={item.to}
+                  onClick={() => go(item.to)}
+                  onMouseEnter={() => setCursor(i)}
+                  className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors duration-fast ${
+                    i === cursor
+                      ? "bg-accent-100 text-accent-700"
+                      : "text-ink-600"
+                  }`}
+                >
+                  <item.icon className="size-4 shrink-0" />
+                  <span className="flex-1 truncate">{item.label}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-ink-400">
+                    {item.group}
+                  </span>
+                  {i === cursor && (
+                    <CornerDownLeft className="size-3.5 text-ink-400" />
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-line-200 px-3.5 py-2 text-[11px] text-ink-400">
+              ↑↓ to navigate · ↵ to open
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

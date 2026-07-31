@@ -1,25 +1,120 @@
 @import "tailwindcss";
 
-:root {
-  --color-primary: #0a7c8c;
-  --color-primary-light: #0ea5b7;
-  --color-primary-dark: #065a66;
-  --color-primary-glow: rgba(10, 124, 140, 0.15);
+/* ─────────────────────────────────────────────────────────────
+   THULIR03 Design System — tokens
+   Warm graphite neutrals · deep petrol accent · clinical status
+   Color encodes clinical/status meaning only — never decoration.
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  /* Neutrals — warm graphite, not blue-tinted gray */
+  --color-ink-950: #15181a;
+  --color-ink-600: #4b5359;
+  --color-ink-400: #838b90;
+  --color-line-300: #c7cdd0;
+  --color-line-200: #e1e5e7;
+  --color-surface-100: #f4f6f6;
+  --color-surface-0: #ffffff;
 
-  --color-accent: #0891b2;
-  --color-accent-light: #22d3ee;
+  /* Accent — deep petrol, desaturated on purpose */
+  --color-accent-700: #0e4f52;
+  --color-accent-500: #16716f;
+  --color-accent-100: #e4f0ef;
 
-  --color-normal: #16a34a;
-  --color-borderline: #d97706;
-  --color-critical: #dc2626;
+  /* Clinical semantics — conventional, never decorative */
+  --color-status-normal: #1b8a5a;
+  --color-status-borderline: #c97a11;
+  --color-status-critical: #c43d3d;
+  --color-status-pending: #838b90;
 
-  --color-surface: #f0f5f9;
-  --color-surface-elevated: #ffffff;
-  --color-border: #e2e8f0;
+  /* Type */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  /* Radius — two tiers only, precise not bubbly */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
+
+  /* Elevation — minimal, no glow */
+  --shadow-raised: 0 1px 2px rgba(20, 23, 26, 0.06), 0 1px 1px rgba(20, 23, 26, 0.04);
+  --shadow-overlay: 0 8px 24px rgba(20, 23, 26, 0.12);
+
+  /* Motion — direct-response only */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  --ease-precise: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ── Remap default Tailwind scales to the design palette ──
+     Warm gray scale (maps gray-* to warm graphite) */
+  --color-gray-50: #f4f6f6;
+  --color-gray-100: #e9ecec;
+  --color-gray-200: #e1e5e7;
+  --color-gray-300: #c7cdd0;
+  --color-gray-400: #838b90;
+  --color-gray-500: #5c656b;
+  --color-gray-600: #4b5359;
+  --color-gray-700: #33393e;
+  --color-gray-800: #22272b;
+  --color-gray-900: #15181a;
+
+  /* Petrol accent (maps teal + cyan scales to deep petrol) */
+  --color-teal-50: #e4f0ef;
+  --color-teal-100: #cfdfdf;
+  --color-teal-200: #a3c7c6;
+  --color-teal-300: #6fa5a4;
+  --color-teal-400: #3c8282;
+  --color-teal-500: #16716f;
+  --color-teal-600: #0e4f52; /* primary buttons = accent-700 */
+  --color-teal-700: #0b3d40; /* hover */
+  --color-teal-800: #082d2f;
+  --color-teal-900: #062124;
+  --color-cyan-50: #e4f0ef;
+  --color-cyan-100: #cfdfdf;
+  --color-cyan-200: #a3c7c6;
+  --color-cyan-300: #6fa5a4;
+  --color-cyan-400: #3c8282;
+  --color-cyan-500: #16716f;
+  --color-cyan-600: #16716f; /* gradient partner = accent-500 */
+  --color-cyan-700: #0e4f52;
+  --color-cyan-800: #0b3d40;
+  --color-cyan-900: #082d2f;
+
+  /* Clinical green/amber/red — desaturated from stoplight */
+  --color-green-50: #e9f4ee;
+  --color-green-100: #d3e9dd;
+  --color-green-200: #a6d3bb;
+  --color-green-300: #70b894;
+  --color-green-500: #1b8a5a;
+  --color-green-600: #15724b;
+  --color-green-700: #11603f;
+  --color-green-800: #0d4d33;
+  --color-amber-50: #faf1e2;
+  --color-amber-100: #f5e3c5;
+  --color-amber-200: #ebc78b;
+  --color-amber-500: #c97a11;
+  --color-amber-600: #b06c0e;
+  --color-amber-700: #945c0c;
+  --color-red-50: #f9eaea;
+  --color-red-100: #f3d5d5;
+  --color-red-200: #e7abab;
+  --color-red-500: #c43d3d;
+  --color-red-600: #ac3333;
+  --color-red-700: #902b2b;
+
+  /* Blue/indigo — reserved for action badges only */
+  --color-blue-50: #e8f0f4;
+  --color-blue-100: #d1e1e9;
+  --color-blue-200: #a3c3d3;
+  --color-blue-500: #2c6e87;
+  --color-blue-600: #1f5c72;
+  --color-blue-700: #1a4e61;
+  --color-indigo-50: #eceef5;
+  --color-indigo-100: #d9dceb;
+  --color-indigo-500: #5a5fa8;
+  --color-indigo-600: #4a4f8a;
+  --color-indigo-700: #3f4478;
 }
 
 *, *::before, *::after {
@@ -27,7 +122,7 @@
 }
 
 html {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
@@ -35,137 +130,71 @@ html {
 
 body {
   margin: 0;
-  background-color: var(--color-surface);
-  color: var(--text-primary);
+  background-color: var(--color-surface-100);
+  color: var(--color-ink-950);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
 }
 
-/* Animated gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Data face — every ID, order number, date, timestamp, lab value */
+.data-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
-.gradient-text-deep {
-  background: linear-gradient(135deg, #0a7c8c 0%, #0891b2 40%, #06b6d4 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Field labels & table headers — compact, uppercase, tracked */
+.field-label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-600);
 }
 
-/* Glow effects */
-.glow-teal {
-  box-shadow: 0 0 40px rgba(10, 124, 140, 0.15), 0 0 80px rgba(10, 124, 140, 0.05);
+/* Clinical status — semantic only */
+.text-normal { color: var(--color-status-normal); }
+.text-borderline { color: var(--color-status-borderline); }
+.text-critical { color: var(--color-status-critical); }
+.bg-normal { background-color: var(--color-status-normal); }
+.bg-borderline { background-color: var(--color-status-borderline); }
+.bg-critical { background-color: var(--color-status-critical); }
+
+/* Status chip — small, quiet, semantic */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
 
-.glow-teal-sm {
-  box-shadow: 0 0 20px rgba(10, 124, 140, 0.1);
-}
-
-/* Clinical badge pulse */
-.badge-pulse {
-  animation: badgePulse 3s ease-in-out infinite;
-}
-
-@keyframes badgePulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-/* Floating animation for decorative elements */
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-12px); }
-}
-
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-.animate-float-delayed {
-  animation: float 6s ease-in-out 2s infinite;
-}
-
-/* Fade in up animation */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in {
-  animation: fadeInUp 0.7s ease-out forwards;
-}
-
-.animate-fade-in-delayed {
-  opacity: 0;
-  animation: fadeInUp 0.7s ease-out 0.2s forwards;
-}
-
-.animate-fade-in-delayed-2 {
-  opacity: 0;
-  animation: fadeInUp 0.7s ease-out 0.4s forwards;
-}
-
-/* Stats counter entrance */
-@keyframes scaleIn {
-  from { transform: scale(0.8); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.animate-scale-in {
-  animation: scaleIn 0.5s ease-out forwards;
-}
-
-/* Shimmer effect for cards */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-/* Feature card hover */
-.feature-card {
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(10, 124, 140, 0.1);
-}
-
-.feature-card:hover .feature-icon {
-  transform: scale(1.1) rotate(-3deg);
-}
-
-.feature-icon {
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Grid pattern background */
+/* Grid pattern background — quiet structural texture */
 .bg-grid-pattern {
-  background-image: 
-    linear-gradient(rgba(10, 124, 140, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(10, 124, 140, 0.03) 1px, transparent 1px);
+  background-image:
+    linear-gradient(rgba(14, 79, 82, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 79, 82, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
-/* Gradient backgrounds */
+/* Marketing surfaces — petrol-tinted, calm */
 .bg-gradient-hero {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 30%, #ccfbf1 70%, #f0fdf4 100%);
+  background: linear-gradient(135deg, #f4f6f6 0%, #e4f0ef 40%, #d9e9e8 70%, #f4f6f6 100%);
 }
 
 .bg-gradient-features {
-  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f4f6f6 100%);
 }
 
 .bg-gradient-cta {
-  background: linear-gradient(135deg, #0a7c8c 0%, #0891b2 50%, #0d9488 100%);
+  background: linear-gradient(135deg, #0e4f52 0%, #16716f 60%, #0e4f52 100%);
 }
 
 /* Step connector line */
@@ -180,14 +209,41 @@ body {
   left: 2rem;
   width: 2px;
   height: calc(100% - 2.5rem);
-  background: linear-gradient(180deg, var(--color-primary) 0%, transparent 100%);
+  background: linear-gradient(180deg, var(--color-accent-500) 0%, transparent 100%);
   opacity: 0.3;
 }
 
-/* Clinical status: only for clinical indicators */
-.text-normal { color: var(--color-normal); }
-.text-borderline { color: var(--color-borderline); }
-.text-critical { color: var(--color-critical); }
-.bg-normal { background-color: var(--color-normal); }
-.bg-borderline { background-color: var(--color-borderline); }
-.bg-critical { background-color: var(--color-critical); }
+/* Feature card hover — restrained, direct-response only */
+.feature-card {
+  transition: transform var(--duration-base) var(--ease-precise),
+    box-shadow var(--duration-base) var(--ease-precise);
+}
+
+.feature-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-raised);
+}
+
+.feature-icon {
+  transition: transform var(--duration-base) var(--ease-precise);
+}
+
+/* One-time entrance for marketing surfaces — not ambient, not looping */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.5s var(--ease-precise) forwards;
+}
+
+.animate-fade-in-delayed {
+  opacity: 0;
+  animation: fadeInUp 0.5s var(--ease-precise) 0.15s forwards;
+}
+
+.animate-fade-in-delayed-2 {
+  opacity: 0;
+  animation: fadeInUp 0.5s var(--ease-precise) 0.3s forwards;
+}

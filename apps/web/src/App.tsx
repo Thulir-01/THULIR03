@@ -2,6 +2,7 @@ import "./index.css";
 import { Routes, Route } from "react-router";
 import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AppShell from "./components/AppShell";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -15,6 +16,8 @@ import ReferrersPage from "./pages/ReferrersPage";
 import ReferrerFormPage from "./pages/ReferrerFormPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 
+const shell = (page: React.ReactNode) => <AppShell>{page}</AppShell>;
+
 export default function App() {
   return (
     <AuthProvider>
@@ -24,75 +27,39 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route
           path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<Dashboard />)}</ProtectedRoute>}
         />
         <Route
           path="/patients"
-          element={
-            <ProtectedRoute>
-              <PatientsPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<PatientsPage />)}</ProtectedRoute>}
         />
         <Route
           path="/patients/new"
-          element={
-            <ProtectedRoute>
-              <PatientFormPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<PatientFormPage />)}</ProtectedRoute>}
         />
         <Route
           path="/referrers"
-          element={
-            <ProtectedRoute>
-              <ReferrersPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<ReferrersPage />)}</ProtectedRoute>}
         />
         <Route
           path="/referrers/new"
-          element={
-            <ProtectedRoute>
-              <ReferrerFormPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<ReferrerFormPage />)}</ProtectedRoute>}
         />
         <Route
           path="/registration"
-          element={
-            <ProtectedRoute>
-              <PatientRegistrationPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<PatientRegistrationPage />)}</ProtectedRoute>}
         />
         <Route
           path="/orders"
-          element={
-            <ProtectedRoute>
-              <OrdersPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<OrdersPage />)}</ProtectedRoute>}
         />
         <Route
           path="/results"
-          element={
-            <ProtectedRoute>
-              <TestResultPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<TestResultPage />)}</ProtectedRoute>}
         />
         <Route
           path="/audit"
-          element={
-            <ProtectedRoute>
-              <AuditLogsPage />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute>{shell(<AuditLogsPage />)}</ProtectedRoute>}
         />
       </Routes>
     </AuthProvider>
