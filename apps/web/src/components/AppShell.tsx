@@ -16,6 +16,7 @@ import {
   CornerDownLeft,
   User,
   Plus,
+  Settings2,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -33,6 +34,14 @@ const QUICK_ACTIONS = [
   { to: "/patients/new", label: "Add Patient", icon: Plus },
   { to: "/referrers/new", label: "Add Referrer", icon: Plus },
 ];
+
+// Masters screens — one consolidated panel with tabs; only shown to
+// lab admin / manager / pathologist roles
+const MASTERS_ITEMS = [
+  { to: "/masters", label: "Masters", icon: Settings2 },
+];
+
+const MASTER_ROLES = new Set(["lab_admin", "lab_manager", "pathologist"]);
 
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
@@ -52,17 +61,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const canManageMasters = MASTER_ROLES.has(user?.role ?? "");
+
+  const navItems = canManageMasters
+    ? [...NAV_ITEMS, ...MASTERS_ITEMS]
+    : NAV_ITEMS;
+
   const paletteItems = useMemo(() => {
     const q = query.trim().toLowerCase();
     const all = [
-      ...NAV_ITEMS.map((n) => ({ ...n, group: "Navigate" })),
+      ...navItems.map((n) => ({ ...n, group: "Navigate" })),
       ...QUICK_ACTIONS.map((a) => ({ ...a, group: "Actions" })),
     ];
     if (!q) return all;
     return all.filter(
       (i) => i.label.toLowerCase().includes(q) || i.to.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, navItems]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -144,7 +159,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -163,6 +178,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               {!collapsed && <span className="truncate">{item.label}</span>}
             </NavLink>
           ))}
+
+          {canManageMasters && !collapsed && (
+            <div className="mt-4 mb-1 px-2.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">
+              Masters
+            </div>
+          )}
         </nav>
 
         {/* Bottom: palette trigger + user */}

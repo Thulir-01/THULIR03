@@ -15,6 +15,8 @@ export default function ReferrerFormPage() {
     clinicName: "",
     registration: "",
     commission: "",
+    pricingMode: "default",
+    discountPercent: "",
   });
 
   const handleChange = (field: string, value: string) => {
@@ -38,6 +40,11 @@ export default function ReferrerFormPage() {
         clinicName: form.clinicName || undefined,
         registration: form.registration || undefined,
         commission: form.commission ? parseFloat(form.commission) : undefined,
+        pricingMode: form.pricingMode,
+        discountPercent:
+          form.pricingMode === "discount" && form.discountPercent
+            ? parseFloat(form.discountPercent)
+            : undefined,
       });
       navigate("/referrers");
     } catch {
@@ -186,6 +193,36 @@ export default function ReferrerFormPage() {
                   value={form.commission}
                   onChange={(e) => handleChange("commission", e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 transition-all"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Pricing Mode
+                </label>
+                <select
+                  value={form.pricingMode}
+                  onChange={(e) => handleChange("pricingMode", e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 transition-all"
+                >
+                  <option value="default">Default (walk-in price)</option>
+                  <option value="discount">Discount %</option>
+                  <option value="custom">Custom price list</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Discount (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="100"
+                  value={form.discountPercent}
+                  onChange={(e) => handleChange("discountPercent", e.target.value)}
+                  disabled={form.pricingMode !== "discount"}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 transition-all disabled:bg-gray-50 disabled:text-gray-400"
                   placeholder="0"
                 />
               </div>

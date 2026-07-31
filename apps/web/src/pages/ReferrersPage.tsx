@@ -184,10 +184,10 @@ export default function ReferrersPage() {
                   )}
                   <div className="flex items-center gap-2 ml-auto">
                     <button
-                      onClick={() => navigate(`/referrers/${referrer.id}/edit`)}
-                      className="text-xs text-gray-400 hover:text-teal-600 font-medium transition-colors"
+                      onClick={() => navigate(`/referrers/${referrer.id}/pricing`)}
+                      className="text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors"
                     >
-                      Edit
+                      Pricing
                     </button>
                     <button
                       onClick={() => handleDelete(referrer.id, referrer.name)}

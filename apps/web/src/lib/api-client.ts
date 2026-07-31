@@ -89,6 +89,8 @@ export interface Referrer {
   clinicName: string | null;
   registration: string | null;
   commission: number | null;
+  pricingMode: string | null;
+  discountPercent: number | null;
   isActive: boolean;
   createdAt: string;
   _count?: { orders: number };
@@ -102,6 +104,8 @@ export interface CreateReferrerData {
   clinicName?: string;
   registration?: string;
   commission?: number;
+  pricingMode?: string;
+  discountPercent?: number | null;
 }
 
 export async function getReferrers(search?: string) {
@@ -331,4 +335,156 @@ export async function getAuditLogs(params?: {
 }) {
   const { data } = await api.get("/audit-logs", { params });
   return data as AuditLogEntry[];
+}
+
+// ─── Masters: Test Catalog & Referrer Pricing ─────────────────
+
+export interface TestCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  _count?: { parameters: number };
+}
+
+export interface TestParameter {
+  id: string;
+  code: string;
+  name: string;
+  categoryId: string;
+  sampleType: string | null;
+  unit: string | null;
+  methodology: string | null;
+  turnaroundHours: number | null;
+  defaultPrice: number;
+  isActive: boolean;
+  sortOrder: number;
+  category?: { id: string; name: string };
+}
+
+export interface TestPackageItem {
+  id: string;
+  packageId: string;
+  parameterId: string;
+  parameter?: TestParameter;
+}
+
+export interface TestPackage {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  pricingMode: "sum" | "fixed";
+  fixedPrice: number | null;
+  isActive: boolean;
+  items: TestPackageItem[];
+  _count?: { referrerPrices: number };
+}
+
+export interface ReferrerPriceItem {
+  id: string;
+  referrerId: string;
+  parameterId: string | null;
+  packageId: string | null;
+  price: number;
+  parameter?: { id: string; code: string; name: string; defaultPrice: number };
+  package?: { id: string; code: string; name: string; pricingMode: string; fixedPrice: number | null };
+}
+
+export interface PricePreviewItem {
+  id: string;
+  code: string;
+  name: string;
+  kind: "parameter" | "package";
+  defaultPrice: number;
+  resolvedPrice: number;
+  mode: string;
+}
+
+export async function getMastersCategories() {
+  const { data } = await api.get("/masters/categories");
+  return data as TestCategory[];
+}
+
+export async function createMastersCategory(body: { name: string; sortOrder?: number }) {
+  const { data } = await api.post("/masters/categories", body);
+  return data as TestCategory;
+}
+
+export async function updateMastersCategory(id: string, body: Partial<{ name: string; sortOrder: number; isActive: boolean }>) {
+  const { data } = await api.patch(`/masters/categories/${id}`, body);
+  return data as TestCategory;
+}
+
+export async function getMastersParameters(params?: { categoryId?: string; search?: string; isActive?: string }) {
+  const { data } = await api.get("/masters/parameters", { params });
+  return data as TestParameter[];
+}
+
+export async function getMastersParameter(id: string) {
+  const { data } = await api.get(`/masters/parameters/${id}`);
+  return data as TestParameter;
+}
+
+export async function createMastersParameter(body: Record<string, unknown>) {
+  const { data } = await api.post("/masters/parameters", body);
+  return data as TestParameter;
+}
+
+export async function updateMastersParameter(id: string, body: Record<string, unknown>) {
+  const { data } = await api.patch(`/masters/parameters/${id}`, body);
+  return data as TestParameter;
+}
+
+export async function deleteMastersParameter(id: string) {
+  const { data } = await api.delete(`/masters/parameters/${id}`);
+  return data;
+}
+
+export async function getMastersPackages(search?: string) {
+  const { data } = await api.get("/masters/packages", { params: search ? { search } : {} });
+  return data as TestPackage[];
+}
+
+export async function getMastersPackage(id: string) {
+  const { data } = await api.get(`/masters/packages/${id}`);
+  return data as TestPackage;
+}
+
+export async function createMastersPackage(body: Record<string, unknown>) {
+  const { data } = await api.post("/masters/packages", body);
+  return data as TestPackage;
+}
+
+export async function updateMastersPackage(id: string, body: Record<string, unknown>) {
+  const { data } = await api.patch(`/masters/packages/${id}`, body);
+  return data as TestPackage;
+}
+
+export async function deleteMastersPackage(id: string) {
+  const { data } = await api.delete(`/masters/packages/${id}`);
+  return data;
+}
+
+export async function getReferrerPrices(referrerId: string) {
+  const { data } = await api.get(`/masters/referrers/${referrerId}/prices`);
+  return data as ReferrerPriceItem[];
+}
+
+export async function saveReferrerPrices(referrerId: string, rows: Array<{ parameterId?: string; packageId?: string; price: number }>) {
+  const { data } = await api.put(`/masters/referrers/${referrerId}/prices`, rows);
+  return data as ReferrerPriceItem[];
+}
+
+export async function deleteReferrerPrice(referrerId: string, id: string) {
+  const { data } = await api.delete(`/masters/referrers/${referrerId}/prices/${id}`);
+  return data;
+}
+
+export async function getPricePreview(params?: { referrerId?: string; parameterIds?: string; packageIds?: string }) {
+  const { data } = await api.get("/masters/price-preview", { params });
+  return data as {
+    referrer: { id: string; pricingMode: string | null; discountPercent: number | null } | null;
+    items: PricePreviewItem[];
+  };
 }

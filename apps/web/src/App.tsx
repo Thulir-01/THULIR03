@@ -14,6 +14,8 @@ import PatientsPage from "./pages/PatientsPage";
 import PatientFormPage from "./pages/PatientFormPage";
 import ReferrersPage from "./pages/ReferrersPage";
 import ReferrerFormPage from "./pages/ReferrerFormPage";
+import ReferrerPricingPage from "./pages/ReferrerPricingPage";
+import MastersPage from "./pages/MastersPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 
 const shell = (page: React.ReactNode) => <AppShell>{page}</AppShell>;
@@ -44,6 +46,22 @@ export default function App() {
         <Route
           path="/referrers/new"
           element={<ProtectedRoute>{shell(<ReferrerFormPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/referrers/:id/pricing"
+          element={<ProtectedRoute>{shell(<ReferrerPricingPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/masters"
+          element={<ProtectedRoute>{shell(<MastersPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/masters/parameters"
+          element={<ProtectedRoute>{shell(<MastersPage initialTab="parameters" />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/masters/packages"
+          element={<ProtectedRoute>{shell(<MastersPage initialTab="packages" />)}</ProtectedRoute>}
         />
         <Route
           path="/registration"
