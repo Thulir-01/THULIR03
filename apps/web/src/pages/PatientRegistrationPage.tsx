@@ -345,7 +345,23 @@ export default function PatientRegistrationPage() {
       alert(`Patient Registered Successfully!\nOrder: ${res.orderNumber}`);
       onClear();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Registration failed. Please try again.";
+      let msg = "Registration failed. Please try again.";
+      if (err instanceof Error) {
+        const anyErr = err as { response?: { data?: { message?: string | string[] }; status?: number } };
+        const apiMsg = anyErr.response?.data?.message;
+        const status = anyErr.response?.status;
+        if (Array.isArray(apiMsg)) {
+          msg = apiMsg.join(", ");
+        } else if (typeof apiMsg === "string") {
+          msg = apiMsg;
+        } else if (status !== undefined && status >= 500) {
+          msg = "Server error — please try again in a moment.";
+        } else if (!anyErr.response) {
+          msg = "Can't reach the server — please check your connection and try again.";
+        } else {
+          msg = err.message;
+        }
+      }
       setError(msg);
     } finally {
       setSaving(false);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import {
   Search, FlaskConical, Loader2, CheckCircle2, Clock,
@@ -15,7 +15,7 @@ function getFlag(result: string, refLow: number | null, refHigh: number | null):
   return null;
 }
 
-type ResultMap = Record<string, { result: string; unit: string; refRange: string }>;
+type ResultMap = Record<string, { result: string; unit: string; refRange: string; notes: string }>;
 
 function collectTestsRecursive(tests: TestChild[]): TestChild[] {
   const all: TestChild[] = [];
@@ -55,6 +55,26 @@ export default function TestResultPage() {
   const [results, setResults] = useState<ResultMap>({});
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
+  // Ref registry for Result inputs so Tab can jump straight to the next
+  // test's Result box (fast data-entry flow).
+  const resultRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Visible, editable result rows in display order (profile children only
+  // when the package is expanded; profile headers have no result box).
+  const visibleResultTests = useMemo(() => {
+    const list: TestChild[] = [];
+    const walk = (tests: TestChild[]) => {
+      for (const t of tests) {
+        if (t.isProfile && t.children?.length) {
+          if (expandedProfiles.has(t.id)) walk(t.children);
+        } else {
+          list.push(t);
+        }
+      }
+    };
+    if (orderDetail) walk(orderDetail.tests);
+    return list;
+  }, [orderDetail, expandedProfiles]);
 
   useEffect(() => { fetchOrders(); }, []);
 
@@ -86,7 +106,7 @@ export default function TestResultPage() {
       const r: ResultMap = {};
       const collect = (tests: TestChild[]) => {
         tests.forEach((t) => {
-          r[t.id] = { result: t.result || "", unit: t.unit || "", refRange: t.refRange || "" };
+          r[t.id] = { result: t.result || "", unit: t.unit || "", refRange: t.refRange || "", notes: t.notes || "" };
           if (t.children?.length) collect(t.children);
         });
       };
@@ -95,26 +115,6 @@ export default function TestResultPage() {
     } catch {
       setSelectedOrderId(null);
       setOrderDetail(null);
-    }
-  };
-
-  const saveResult = async (testId: string) => {
-    setSaving(testId);
-    try {
-      const data = results[testId];
-      if (!data || !orderDetail) return;
-      await updateTestResult(orderDetail.id, testId, {
-        result: data.result || undefined,
-        unit: data.unit || undefined,
-        refRange: data.refRange || undefined,
-        status: data.result ? "completed" : "pending",
-      });
-      const detail = await getOrder(orderDetail.id);
-      setOrderDetail(detail);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSaving(null);
     }
   };
 
@@ -129,9 +129,8 @@ export default function TestResultPage() {
         if (!data) continue;
         await updateTestResult(orderDetail.id, test.id, {
           result: data.result || undefined,
-          unit: data.unit || undefined,
-          refRange: data.refRange || undefined,
           status: data.result ? "completed" : "pending",
+          notes: data.notes || undefined,
         });
       } catch {
         // continue
@@ -158,115 +157,135 @@ export default function TestResultPage() {
   const allTestCount = orderDetail ? countTotal(orderDetail.tests) : 0;
   const completedCount = allTestCount - pendingCount;
 
+  // Box classes — one height everywhere; pr-7 keeps room for the flag overlay.
+  const boxCls = (isCompleted: boolean) =>
+    isCompleted
+      ? "w-full h-9 pl-3 pr-7 border rounded-md text-[13px] bg-green-50 border-green-200 text-green-800 font-medium cursor-default"
+      : "w-full h-9 pl-3 pr-7 border rounded-md text-[13px] bg-white border-gray-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 transition-colors";
+  const plainBoxCls = (isCompleted: boolean) =>
+    isCompleted
+      ? "w-full h-9 px-3 border rounded-md text-[13px] bg-green-50 border-green-200 text-green-800 font-medium cursor-default"
+      : "w-full h-9 px-3 border rounded-md text-[13px] bg-white border-gray-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200 transition-colors";
+
   const renderTestRow = (test: TestChild, depth: number = 0) => {
-    const r = results[test.id] || { result: "", unit: "", refRange: "" };
+    const r = results[test.id] || { result: "", unit: "", refRange: "", notes: "" };
     const isCompleted = test.status === "completed";
-    const isSaving = saving === test.id;
     const isProfile = test.isProfile && test.children && test.children.length > 0;
     const isExpanded = expandedProfiles.has(test.id);
     const flag = getFlag(r.result || test.result || "", test.refLow, test.refHigh);
 
-    return (
-      <tbody key={test.id} className="divide-y divide-gray-50">
-        {isProfile && (
-          <tr className="bg-teal-50/50 hover:bg-teal-50/80 transition-colors cursor-pointer" onClick={() => toggleProfile(test.id)}>
-            <td className="px-4 py-2.5" colSpan={6}>
+    // Profile package: a real grid row (same 6 columns) with an expander.
+    if (isProfile) {
+      return (
+        <Fragment key={test.id}>
+          <tr
+            onClick={() => toggleProfile(test.id)}
+            className={`cursor-pointer border-b border-gray-100 transition-colors ${isExpanded ? "bg-teal-50/70 hover:bg-teal-50/90" : "bg-teal-50/40 hover:bg-teal-50/70"}`}
+          >
+            <td className="px-3 py-2">
               <div className="flex items-center gap-2">
-                {isExpanded ? <ChevronUp className="w-4 h-4 text-teal-500" /> : <ChevronDown className="w-4 h-4 text-teal-500" />}
-                <FlaskConical className="w-4 h-4 text-teal-600" />
-                <span className="font-semibold text-sm text-gray-800">{test.testName} ({test.testCode})</span>
-                <span className="text-xs text-gray-400">— {test.children!.length} parameters</span>
-                <span className="ml-auto text-xs font-medium">
+                {isExpanded ? <ChevronUp className="w-4 h-4 text-teal-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-teal-500 shrink-0" />}
+                <FlaskConical className="w-4 h-4 text-teal-600 shrink-0" />
+                <span className="font-semibold text-sm text-gray-800 truncate">{test.testName} ({test.testCode})</span>
+                <span className="text-[11px] text-gray-400 shrink-0 ml-1">
                   {test.children!.filter((c) => c.status === "completed").length}/{test.children!.length} done
                 </span>
               </div>
             </td>
+            <td className="px-2 py-2" />
+            <td className="px-2 py-2" />
+            <td className="px-2 py-2" />
+            <td className="px-2 py-2" />
+            <td className="px-2 py-2 text-center">
+              <span className="text-[11px] font-medium text-teal-600">{test.children!.length} params</span>
+            </td>
           </tr>
-        )}
-        {isProfile && isExpanded && test.children!.map((child) => renderTestRow(child, depth + 1))}
-        {!isProfile && (
-          <tr className={`hover:bg-gray-50/50 transition-colors ${isCompleted ? "bg-green-50/30" : ""}`}>
-            <td className="px-4 py-2.5 pl-4">
-              <div className="flex items-center gap-2">
-                {depth > 0 && <div className="w-4 h-px bg-gray-300 mr-1 shrink-0" />}
-                <FlaskConical className={`w-3.5 h-3.5 shrink-0 ${isCompleted ? "text-green-500" : "text-teal-500"}`} />
-                <div>
-                  <div className={`text-sm ${isCompleted ? "text-green-800" : "text-gray-800"} ${depth > 0 ? "font-normal" : "font-medium"}`}>
-                    {test.testName}
-                  </div>
-                  <div className="text-[10px] text-gray-400 font-mono">{test.testCode}</div>
+          {isExpanded && test.children!.map((child) => renderTestRow(child, depth + 1))}
+        </Fragment>
+      );
+    }
+
+    // Standalone test / profile child: 6 cells exactly matching the header.
+    return (
+      <Fragment key={test.id}>
+        <tr className={`border-b border-gray-100 transition-colors hover:bg-gray-50/50 ${isCompleted ? "bg-green-50/30" : ""}`}>
+          <td className="px-3 py-1.5">
+            <div className="flex items-center gap-2">
+              {depth > 0 && <div className="w-4 h-px bg-gray-300 mr-0.5 shrink-0" />}
+              <FlaskConical className={`w-3.5 h-3.5 shrink-0 ${isCompleted ? "text-green-500" : "text-teal-500"}`} />
+              <div className="min-w-0">
+                <div className={`text-sm leading-tight truncate ${isCompleted ? "text-green-800" : "text-gray-800"} ${depth > 0 ? "font-normal" : "font-medium"}`}>
+                  {test.testName}
                 </div>
+                <div className="text-[10px] text-gray-400 font-mono">{test.testCode}</div>
               </div>
-            </td>
-            <td className="px-3 py-2.5">
-              <div className="flex items-center gap-1.5">
-                <input type="text"
-                  value={r.result}
-                  onChange={(e) => setResults(prev => ({ ...prev, [test.id]: { ...prev[test.id], result: e.target.value } }))}
-                  placeholder={isCompleted ? test.result || "—" : "Result"}
-                  className={`w-full h-7 px-2 border rounded text-sm transition-colors ${
-                    isCompleted
-                      ? "bg-green-50 border-green-200 text-green-800 font-medium cursor-default"
-                      : "bg-white border-gray-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
-                  }`}
-                  readOnly={isCompleted}
-                />
-                {flag && <span className={`shrink-0 ${flag.color}`} title={flag.title}>{flag.icon}</span>}
-                {!flag && isCompleted && <span className="shrink-0 text-green-400"><Minus className="w-3.5 h-3.5" /></span>}
-              </div>
-            </td>
-            <td className="px-3 py-2.5">
-              <input type="text"
-                value={r.unit}
-                onChange={(e) => setResults(prev => ({ ...prev, [test.id]: { ...prev[test.id], unit: e.target.value } }))}
-                placeholder={isCompleted ? test.unit || "—" : "Unit"}
-                className={`w-full h-7 px-2 border rounded text-sm transition-colors ${
-                  isCompleted
-                    ? "bg-green-50 border-green-200 text-green-800 cursor-default"
-                    : "bg-white border-gray-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
-                }`}
+            </div>
+          </td>
+          <td className="px-2 py-1.5">
+            <div className="relative">
+              <input
+                type="text"
+                value={r.result}
+                onChange={(e) => setResults(prev => ({ ...prev, [test.id]: { ...prev[test.id], result: e.target.value } }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Tab") {
+                    e.preventDefault();
+                    const idx = visibleResultTests.findIndex((t) => t.id === test.id);
+                    const next = e.shiftKey ? visibleResultTests[idx - 1] : visibleResultTests[idx + 1];
+                    if (next) resultRefs.current[next.id]?.focus();
+                  }
+                }}
+                ref={(el) => { if (el) resultRefs.current[test.id] = el; else delete resultRefs.current[test.id]; }}
+                placeholder={isCompleted ? test.result || "—" : "Type result…"}
+                className={boxCls(isCompleted)}
                 readOnly={isCompleted}
               />
-            </td>
-            <td className="px-3 py-2.5">
-              <input type="text"
-                value={r.refRange}
-                onChange={(e) => setResults(prev => ({ ...prev, [test.id]: { ...prev[test.id], refRange: e.target.value } }))}
-                placeholder={isCompleted ? test.refRange || "—" : "Range"}
-                className={`w-full h-7 px-2 border rounded text-sm transition-colors ${
-                  isCompleted
-                    ? "bg-green-50 border-green-200 text-green-800 cursor-default"
-                    : "bg-white border-gray-300 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200"
-                }`}
-                readOnly={isCompleted}
-              />
-            </td>
-            <td className="px-3 py-2.5 text-center">
-              {isCompleted ? (
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-green-600">
-                  <CheckCircle2 className="w-3 h-3" /> Done
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-600">
-                  <Clock className="w-3 h-3" /> Pending
-                </span>
-              )}
-            </td>
-            <td className="px-3 py-2.5 text-center">
-              {isCompleted ? (
-                <span className="text-[11px] text-green-500">Saved</span>
-              ) : (
-                <button onClick={() => saveResult(test.id)}
-                  disabled={isSaving || !r.result}
-                  className="h-7 px-2.5 bg-teal-600 text-white rounded text-[11px] font-semibold hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 mx-auto">
-                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                  Save
-                </button>
-              )}
-            </td>
-          </tr>
-        )}
-      </tbody>
+              <span
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${flag ? flag.color : isCompleted ? "text-green-400" : "text-gray-200"}`}
+                title={flag?.title}
+              >
+                {flag ? flag.icon : isCompleted ? <Minus className="w-3.5 h-3.5" /> : null}
+              </span>
+            </div>
+          </td>
+          <td className="px-2 py-1.5">
+            <div
+              className="w-full h-9 px-3 border rounded-md text-[13px] bg-gray-50 border-gray-200 text-gray-500 flex items-center truncate"
+              title={test.unit || undefined}
+            >
+              {test.unit || "—"}
+            </div>
+          </td>
+          <td className="px-2 py-1.5">
+            <div
+              className="w-full h-9 px-3 border rounded-md text-[13px] bg-gray-50 border-gray-200 text-gray-500 flex items-center truncate"
+              title={test.refRange || undefined}
+            >
+              {test.refRange || "—"}
+            </div>
+          </td>
+          <td className="px-2 py-1.5">
+            <input
+              type="text"
+              value={r.notes}
+              onChange={(e) => setResults(prev => ({ ...prev, [test.id]: { ...prev[test.id], notes: e.target.value } }))}
+              placeholder="Notes…"
+              className={plainBoxCls(false)}
+            />
+          </td>
+          <td className="px-2 py-1.5 text-center">
+            {isCompleted ? (
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-green-600">
+                <CheckCircle2 className="w-3 h-3" /> Done
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-600">
+                <Clock className="w-3 h-3" /> Pending
+              </span>
+            )}
+          </td>
+        </tr>
+      </Fragment>
     );
   };
 
@@ -395,18 +414,28 @@ export default function TestResultPage() {
                   )}
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-fixed">
+                    <colgroup>
+                      <col className="w-[30%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[13%]" />
+                      <col className="w-[17%]" />
+                      <col className="w-[10%]" />
+                    </colgroup>
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-gray-50/95 border-b border-gray-200">
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider">Test</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider w-28">Result ⚑</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider w-20">Unit</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider w-28">Ref Range</th>
-                        <th className="text-center px-4 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider w-14">Status</th>
-                        <th className="text-center px-4 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider w-20">Action</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider">Test</th>
+                        <th className="text-left px-2 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider">Result ⚑</th>
+                        <th className="text-left px-2 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider">Unit</th>
+                        <th className="text-left px-2 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider">Ref Range</th>
+                        <th className="text-left px-2 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider">Notes</th>
+                        <th className="text-center px-2 py-2.5 font-medium text-gray-500 text-[11px] uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
-                    {orderDetail.tests.map((test) => renderTestRow(test))}
+                    <tbody className="divide-y divide-gray-50">
+                      {orderDetail.tests.map((test) => renderTestRow(test))}
+                    </tbody>
                   </table>
                   {orderDetail.tests.length === 0 && (
                     <div className="text-center py-16 text-gray-400">

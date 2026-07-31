@@ -196,6 +196,7 @@ export interface TestChild {
   refLow: number | null;
   refHigh: number | null;
   sortOrder: number | null;
+  notes: string | null;
   children?: TestChild[];
 }
 
@@ -280,6 +281,7 @@ export async function updateTestResult(orderId: string, testId: string, body: {
   unit?: string;
   refRange?: string;
   status?: string;
+  notes?: string;
 }) {
   const { data } = await api.patch(`/orders/${orderId}/tests/${testId}`, body);
   return data;
