@@ -7,183 +7,160 @@ import {
   Phone,
   Calendar,
   ChevronRight,
-  Loader2,
 } from "lucide-react";
 import { getPatients, type Patient } from "../lib/api-client";
+import PageHeader from "../components/ui/PageHeader";
+import StatCard from "../components/ui/StatCard";
+import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
+  const load = (q?: string) => {
+    setLoading(true);
+    setError("");
+    getPatients(q || undefined)
+      .then(setPatients)
+      .catch(() => {
+        setPatients([]);
+        setError("Failed to load patients. Please try again.");
+      })
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(true);
-      getPatients(search || undefined)
-        .then(setPatients)
-        .finally(() => setLoading(false));
-    }, 300);
+    const timer = setTimeout(() => load(search), 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Patients</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Manage patient records and registrations
-              </p>
-            </div>
-            <Link
-              to="/patients/new"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-sm font-semibold hover:from-teal-700 hover:to-cyan-700 transition-all shadow-lg shadow-teal-200/50"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Patient</span>
-            </Link>
-          </div>
+    <div className="h-full overflow-y-auto bg-surface-100">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div className="mb-6">
+          <PageHeader
+            title="Patients"
+            subtitle="Manage patient records and registrations"
+            actions={
+              <Link
+                to="/patients/new"
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-3.5 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
+              >
+                <Plus className="size-3.5" />
+                Add Patient
+              </Link>
+            }
+          />
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search */}
-        <div className="relative max-w-md mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div className="relative mb-6 max-w-md">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" />
           <input
             type="text"
             placeholder="Search by name, phone, email, or ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 transition-all"
+            className="w-full rounded-md border border-line-300 bg-surface-0 py-2.5 pl-10 pr-4 text-sm transition-colors duration-fast focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
           />
         </div>
 
-        {/* Stats */}
-        {!loading && patients.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            {[
-              { label: "Total Patients", value: patients.length, icon: Users },
-              {
-                label: "With Orders",
-                value: patients.filter((p) => (p._count?.orders ?? 0) > 0).length,
-                icon: Calendar,
-              },
-            ].map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div
-                  key={stat.label}
-                  className="bg-white rounded-xl border border-gray-100 p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center">
-                      <Icon className="w-4 h-4 text-teal-600" />
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-gray-900">
-                        {stat.value}
-                      </div>
-                      <div className="text-xs text-gray-500">{stat.label}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
-            <span className="ml-3 text-sm text-gray-500">Loading patients...</span>
-          </div>
-        )}
-
-        {/* Empty */}
-        {!loading && patients.length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-teal-50 flex items-center justify-center">
-              <Users className="w-8 h-8 text-teal-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {search ? "No patients found" : "No patients yet"}
-            </h3>
-            <p className="text-sm text-gray-500 mb-6">
-              {search
-                ? "Try a different search term"
-                : "Register your first patient to get started"}
-            </p>
-            {!search && (
-              <Link
-                to="/patients/new"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Patient</span>
-              </Link>
+        {loading ? (
+          <LoadingState label="Loading patients…" rows={5} />
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => load(search)} />
+        ) : (
+          <>
+            {/* Stats */}
+            {patients.length > 0 && (
+              <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <StatCard label="Total Patients" value={String(patients.length)} icon={Users} accent="accent" />
+                <StatCard
+                  label="With Orders"
+                  value={String(patients.filter((p) => (p._count?.orders ?? 0) > 0).length)}
+                  icon={Calendar}
+                  accent="blue"
+                />
+              </div>
             )}
-          </div>
-        )}
 
-        {/* Patient List */}
-        {!loading && patients.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="divide-y divide-gray-50">
-              {patients.map((patient) => (
-                <Link
-                  key={patient.id}
-                  to={`/patients/${patient.id}`}
-                  className="flex items-center justify-between px-6 py-4 hover:bg-teal-50/30 transition-colors group"
-                >
-                  <div className="flex items-center gap-4">
-                    {/* Avatar */}
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-50 to-cyan-50 flex items-center justify-center text-sm font-semibold text-teal-700">
-                      {patient.firstName[0]}
-                      {patient.lastName[0]}
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {patient.firstName} {patient.lastName}
+            {/* Empty */}
+            {patients.length === 0 && (
+              <EmptyState
+                icon={Users}
+                title={search ? "No patients found" : "No patients yet"}
+                hint={search ? "Try a different search term" : "Register your first patient to get started"}
+                action={
+                  !search ? (
+                    <Link
+                      to="/patients/new"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-4 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
+                    >
+                      <Plus className="size-3.5" />
+                      Add Patient
+                    </Link>
+                  ) : undefined
+                }
+              />
+            )}
+
+            {/* Patient List */}
+            {patients.length > 0 && (
+              <div className="overflow-hidden rounded-md border border-line-200 bg-surface-0 shadow-raised">
+                <div className="divide-y divide-line-200">
+                  {patients.map((patient) => (
+                    <Link
+                      key={patient.id}
+                      to={`/patients/${patient.id}`}
+                      className="group flex items-center justify-between px-5 py-4 transition-colors duration-fast hover:bg-surface-100"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex size-10 items-center justify-center rounded-full bg-accent-100 text-sm font-semibold text-accent-700">
+                          {patient.firstName[0]}
+                          {patient.lastName[0]}
+                        </div>
+                        <div>
+                          <div className="font-medium text-ink-950">
+                            {patient.firstName} {patient.lastName}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-3">
+                            {patient.phone && (
+                              <span className="flex items-center gap-1 text-xs text-ink-400">
+                                <Phone className="size-3" />
+                                {patient.phone}
+                              </span>
+                            )}
+                            {patient.gender && (
+                              <span className="flex items-center gap-1 text-xs text-ink-400">
+                                {patient.gender === "male" ? "♂" : "♀"}{" "}
+                                {patient.gender}
+                              </span>
+                            )}
+                            {patient.patientId && (
+                              <span className="data-mono text-xs text-ink-400">
+                                ID: {patient.patientId}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        {patient.phone && (
-                          <span className="flex items-center gap-1 text-xs text-gray-400">
-                            <Phone className="w-3 h-3" />
-                            {patient.phone}
+                      <div className="flex items-center gap-4">
+                        {patient._count && patient._count.orders > 0 && (
+                          <span className="rounded-full bg-accent-100 px-2.5 py-1 text-xs font-medium text-accent-700">
+                            {patient._count.orders} orders
                           </span>
                         )}
-                        {patient.gender && (
-                          <span className="flex items-center gap-1 text-xs text-gray-400">
-                            {patient.gender === "male" ? "♂" : "♀"}{" "}
-                            {patient.gender}
-                          </span>
-                        )}
-                        {patient.patientId && (
-                          <span className="text-xs text-gray-400">
-                            ID: {patient.patientId}
-                          </span>
-                        )}
+                        <ChevronRight className="size-4 text-line-300 transition-colors duration-fast group-hover:text-accent-500" />
                       </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {patient._count && patient._count.orders > 0 && (
-                      <span className="text-xs bg-teal-50 text-teal-700 px-2.5 py-1 rounded-full font-medium">
-                        {patient._count.orders} orders
-                      </span>
-                    )}
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-teal-500 transition-colors" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

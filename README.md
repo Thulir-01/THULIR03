@@ -288,10 +288,10 @@ Key environment variables (see `.env.example` for full list):
 | **Sprint 5.8–5.9** | **Masters codegen + lookup system** — auto-code generation, quick enable/disable, ref-range snapshot into orders, Referrers tab, generic LookupMaster (8 types) | ✅ **Complete** |
 | **Sprint 6.1** | **StaffDetail** — NABL sign-off details (registration no, qualification, signature) for report verification | ✅ **Complete** |
 | **Sprint 6.2** | **Verify → Approve → Report workflow** — technician verify queue, pathologist approval queue, printable clinical report (Print/Save-as-PDF) | ✅ **Complete** |
-| **Sprint 7** | Invoice / Receipt print | ⬜ Next |
-| **Sprint 8** | Reports & Analytics | ⬜ |
-| **Sprint 9** | Phase 1 UI/Hardening Pass | ⬜ |
-| **Sprint 10** | Referrer-wise rate cards + party detail screens (hospitals, corporates, insurers, labs, consultants) | ⬜ |
+| **Sprint 7** | Invoice / Receipt print — API `getInvoiceData`, printable Tax Invoice vs Payment Receipt page, per-parameter rates, billing summary | ✅ **Complete** |
+| **Sprint 8** | Reports & Analytics — revenue (billed/collected/outstanding), 14-day daily series chart, top test volumes, referrer payouts | ✅ **Complete** |
+| **Sprint 9** | **Phase 1 UI/Hardening pass** — shared UI kit (`PageHeader`, `PageStates` Loading/Empty/Error+retry, `StatCard`), removed duplicate per-page top bars, semantic-token sweep across all screens, error handling + retry everywhere | ✅ **Complete** |
+| **Sprint 10** | Referrer-wise rate cards + party detail screens (hospitals, corporates, insurers, labs, consultants) | ⬜ Next |
 | **Sprint 11+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
 
 Full 24-sprint build plan available in the project brief.

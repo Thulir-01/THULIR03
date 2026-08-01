@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo, Fragment, type ReactNode } from "react";
-import { useNavigate } from "react-router";
 import {
   Search, FlaskConical, Loader2, CheckCircle2, Clock,
   Save, Phone, Calendar, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Minus,
@@ -45,7 +44,6 @@ function countTotal(tests: TestChild[]): number {
 }
 
 export default function TestResultPage() {
-  const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -305,20 +303,7 @@ export default function TestResultPage() {
   };
 
   return (
-    <div className="h-full w-full overflow-hidden bg-gray-100 flex flex-col">
-      {/* TOP BAR */}
-      <div className="bg-gradient-to-r from-teal-700 to-teal-600 text-white px-4 py-2.5 flex items-center justify-between shrink-0 shadow-sm">
-        <div className="flex items-center gap-4">
-          <span className="font-bold text-base tracking-wide">THULIR03</span>
-          <span className="text-teal-300/60">|</span>
-          <span className="text-sm font-medium text-teal-50">Test Results Entry</span>
-        </div>
-        <button onClick={() => navigate("/dashboard")}
-          className="text-xs px-3 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-white transition-colors font-medium">
-          Dashboard
-        </button>
-      </div>
-
+    <div className="h-full w-full overflow-hidden bg-surface-100 flex flex-col">
       <div className="flex-1 overflow-hidden p-3">
         <div className="h-full flex gap-3">
           {/* LEFT: Orders list */}

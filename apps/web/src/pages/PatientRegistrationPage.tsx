@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router";
 import { Search, Trash2, HelpCircle, User, X, Loader2, ChevronDown, Phone, Calendar, ArrowLeft } from "lucide-react";
 import { registerPatient, getPatients } from "../lib/api-client";
 
@@ -90,7 +89,6 @@ function Field({ label, w, children }: FieldProps) {
 }
 
 export default function PatientRegistrationPage() {
-  const navigate = useNavigate();
   const today = new Date().toISOString().split("T")[0];
 
   // === Patient Search ===
@@ -371,20 +369,7 @@ export default function PatientRegistrationPage() {
   // ─── RENDER ─────────────────────────────────────────────────
 
   return (
-    <div className="h-full w-full overflow-hidden bg-gray-100 flex flex-col">
-      {/* TOP BAR */}
-      <div className="bg-gradient-to-r from-teal-700 to-teal-600 text-white px-4 py-2.5 flex items-center justify-between shrink-0 shadow-sm">
-        <div className="flex items-center gap-4">
-          <span className="font-bold text-base tracking-wide">THULIR03</span>
-          <span className="text-teal-300/60">|</span>
-          <span className="text-sm font-medium text-teal-50">Patient Registration</span>
-        </div>
-        <button onClick={() => navigate("/dashboard")}
-          className="text-xs px-3 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-white transition-colors font-medium">
-          Dashboard
-        </button>
-      </div>
-
+    <div className="h-full w-full overflow-hidden bg-surface-100 flex flex-col">
       <div className="flex-1 overflow-hidden p-2.5">
         <div className="h-full flex gap-2.5">
 
