@@ -17,6 +17,7 @@ import {
   User,
   Plus,
   Settings2,
+  ClipboardSignature,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -43,6 +44,13 @@ const MASTERS_ITEMS = [
 
 const MASTER_ROLES = new Set(["lab_admin", "lab_manager", "pathologist"]);
 
+// Staff (NABL sign-off details) — management screen for admin / manager
+const STAFF_ITEMS = [
+  { to: "/staff", label: "Staff", icon: ClipboardSignature },
+];
+
+const STAFF_ROLES = new Set(["lab_admin", "lab_manager"]);
+
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
   if (role === "pathologist") return "Pathologist";
@@ -62,10 +70,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const canManageMasters = MASTER_ROLES.has(user?.role ?? "");
+  const canManageStaff = STAFF_ROLES.has(user?.role ?? "");
 
-  const navItems = canManageMasters
-    ? [...NAV_ITEMS, ...MASTERS_ITEMS]
-    : NAV_ITEMS;
+  const navItems = [
+    ...NAV_ITEMS,
+    ...(canManageMasters ? MASTERS_ITEMS : []),
+    ...(canManageStaff ? STAFF_ITEMS : []),
+  ];
 
   const paletteItems = useMemo(() => {
     const q = query.trim().toLowerCase();

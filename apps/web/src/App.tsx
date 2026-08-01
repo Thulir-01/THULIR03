@@ -17,6 +17,7 @@ import ReferrerFormPage from "./pages/ReferrerFormPage";
 import ReferrerPricingPage from "./pages/ReferrerPricingPage";
 import MastersPage from "./pages/MastersPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
+import StaffPage from "./pages/StaffPage";
 
 const shell = (page: React.ReactNode) => <AppShell>{page}</AppShell>;
 
@@ -78,6 +79,10 @@ export default function App() {
         <Route
           path="/audit"
           element={<ProtectedRoute>{shell(<AuditLogsPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/staff"
+          element={<ProtectedRoute>{shell(<StaffPage />)}</ProtectedRoute>}
         />
       </Routes>
     </AuthProvider>

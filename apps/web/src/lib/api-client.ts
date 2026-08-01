@@ -607,3 +607,56 @@ export async function generateLookupMasterCode(type: LookupMasterType) {
   const { data } = await api.get(`/masters/lookup/${type}/generate-code`);
   return data as string;
 }
+
+// ─── Staff / NABL Sign-off Details ─────────────────────────────────────────
+
+export interface StaffDetail {
+  id: string;
+  registrationNo: string | null;
+  qualification: string | null;
+  designation: string | null;
+  signatureImageUrl: string | null;
+  updatedAt: string;
+}
+
+export interface StaffUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  isActive: boolean;
+  role: { id: string; name: string; slug: string } | null;
+  branch: { id: string; name: string } | null;
+  staffDetail: StaffDetail | null;
+}
+
+export interface UpsertStaffDetailData {
+  registrationNo?: string;
+  qualification?: string;
+  designation?: string;
+  signatureImageUrl?: string;
+}
+
+export async function listStaff() {
+  const { data } = await api.get("/users/staff");
+  return data as StaffUser[];
+}
+
+export async function getStaffDetail(userId: string) {
+  const { data } = await api.get(`/users/${userId}/staff-detail`);
+  return data as StaffUser;
+}
+
+export async function upsertStaffDetail(
+  userId: string,
+  body: UpsertStaffDetailData,
+) {
+  const { data } = await api.put(`/users/${userId}/staff-detail`, body);
+  return data as StaffDetail;
+}
+
+export async function removeStaffDetail(userId: string) {
+  const { data } = await api.delete(`/users/${userId}/staff-detail`);
+  return data as { message: string };
+}

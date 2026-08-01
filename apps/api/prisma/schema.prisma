@@ -119,9 +119,33 @@ model User {
   organization Organization @relation(fields: [organizationId], references: [id])
   branch       Branch?      @relation(fields: [branchId], references: [id])
   role         Role?        @relation(fields: [roleId], references: [id])
+  staffDetail  StaffDetail?
 
   @@index([organizationId])
   @@map("users")
+}
+
+// ─── Staff / Employee details ────────────────────────────────────────────────
+// Thin 1:1 extension of User for NABL report sign-off: pathologist council
+// registration no., qualification, designation, and the digital signature
+// image that stamps a verified/published report. Extends User, not Party —
+// staff are employees, external parties live in the parties table.
+
+model StaffDetail {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  registrationNo    String?  @map("registration_no")
+  qualification     String?
+  designation       String?
+  signatureImageUrl String?  @map("signature_image_url")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@map("staff_details")
 }
 
 // ─── Patients & Referrers ────────────────────────────────────────────────────

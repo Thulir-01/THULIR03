@@ -28,6 +28,7 @@ export const TENANT_SCOPED_MODELS = new Set([
   'masterssequence',
   'referrerprice',
   'lookupmaster',
+  'staffdetail',
   'auditlog',
 ]);
 
