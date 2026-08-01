@@ -20,6 +20,7 @@ import {
   ClipboardSignature,
   ShieldCheck,
   BadgeCheck,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -67,6 +68,13 @@ const VERIFY_ITEMS = [
 
 const VERIFY_ROLES = new Set(["technician", "lab_admin", "lab_manager"]);
 
+// Reports — analytics (revenue, test volumes, referrer payouts)
+const REPORTS_ITEMS = [
+  { to: "/reports", label: "Reports", icon: BarChart3 },
+];
+
+const REPORTS_ROLES = new Set(["lab_admin", "lab_manager"]);
+
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
   if (role === "pathologist") return "Pathologist";
@@ -89,9 +97,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const canManageStaff = STAFF_ROLES.has(user?.role ?? "");
   const canApprove = APPROVALS_ROLES.has(user?.role ?? "");
   const canVerify = VERIFY_ROLES.has(user?.role ?? "");
+  const canViewReports = REPORTS_ROLES.has(user?.role ?? "");
 
   const navItems = [
     ...NAV_ITEMS,
+    ...(canViewReports ? REPORTS_ITEMS : []),
     ...(canVerify ? VERIFY_ITEMS : []),
     ...(canApprove ? APPROVALS_ITEMS : []),
     ...(canManageMasters ? MASTERS_ITEMS : []),

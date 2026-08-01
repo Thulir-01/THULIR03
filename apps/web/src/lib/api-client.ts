@@ -439,6 +439,37 @@ export async function getDashboardStats() {
   return data as DashboardStats;
 }
 
+export interface AnalyticsReport {
+  range: { from: string | null; to: string | null };
+  revenue: {
+    totalBilled: number;
+    totalDiscount: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    orderCount: number;
+  };
+  dailySeries: { date: string; billed: number; collected: number }[];
+  testVolumes: {
+    testCode: string;
+    testName: string;
+    count: number;
+    rateSum: number;
+  }[];
+  referrerPayouts: {
+    partyId: string | null;
+    name: string;
+    orderCount: number;
+    billed: number;
+    commissionPercent: number;
+    estimatedPayout: number;
+  }[];
+}
+
+export async function getAnalytics(params?: { from?: string; to?: string }) {
+  const { data } = await api.get('/reports/analytics', { params });
+  return data as AnalyticsReport;
+}
+
 // ─── Audit Logs ──────────────────────────────────────────────────
 
 export interface AuditLogEntry {

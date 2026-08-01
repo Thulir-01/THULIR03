@@ -14,6 +14,7 @@ import { OrdersModule } from './orders/orders.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MastersModule } from './masters/masters.module';
+import { ReportsModule } from './reports/reports.module';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -41,6 +42,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     AuditLogsModule,
     DashboardModule,
     MastersModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -22,6 +22,7 @@ import ApprovalsPage from "./pages/ApprovalsPage";
 import VerifyPage from "./pages/VerifyPage";
 import ReportPage from "./pages/ReportPage";
 import InvoicePage from "./pages/InvoicePage";
+import ReportsPage from "./pages/ReportsPage";
 
 const shell = (page: React.ReactNode) => <AppShell>{page}</AppShell>;
 
@@ -103,6 +104,10 @@ export default function App() {
         <Route
           path="/orders/:orderId/invoice"
           element={<ProtectedRoute>{shell(<InvoicePage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/reports"
+          element={<ProtectedRoute>{shell(<ReportsPage />)}</ProtectedRoute>}
         />
       </Routes>
     </AuthProvider>
