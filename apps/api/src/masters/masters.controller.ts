@@ -18,10 +18,12 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import {
   MastersService,
   type CreateCategoryDto,
+  type CreateLookupDto,
   type CreatePackageDto,
   type CreateParameterDto,
   type ReferrerPriceRowDto,
   type UpdateCategoryDto,
+  type UpdateLookupDto,
   type UpdatePackageDto,
   type UpdateParameterDto,
 } from './masters.service';
@@ -67,6 +69,18 @@ export class MastersController {
 
   // ── Parameters ────────────────────────────────────────────────────────────
 
+  @Get('parameters/generate-code')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({
+    summary: 'Suggest the next auto-generated parameter code for a category',
+  })
+  generateParameterCode(
+    @Query('categoryId') categoryId: string,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.generateParameterCode(orgId, categoryId);
+  }
+
   @Get('parameters')
   @Roles(...ADMIN_MANAGER)
   @ApiOperation({
@@ -105,6 +119,24 @@ export class MastersController {
     return this.mastersService.findParameter(orgId, id);
   }
 
+  // NOTE: static segments (bulk-status) MUST be declared before the :id
+  // routes — NestJS matches in declaration order, so a later bulk-status
+  // would be swallowed by parameters/:id ("bulk-status" parsed as a uuid).
+
+  @Patch('parameters/bulk-status')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({ summary: 'Enable/disable many parameters at once' })
+  bulkSetParameterStatus(
+    @Body() body: { ids: string[]; isActive: boolean },
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.bulkSetParameterStatus(
+      orgId,
+      body.ids,
+      body.isActive,
+    );
+  }
+
   @Patch('parameters/:id')
   @Roles(...ADMIN_MANAGER)
   @ApiOperation({ summary: 'Update a test parameter' })
@@ -126,7 +158,27 @@ export class MastersController {
     return this.mastersService.removeParameter(orgId, id);
   }
 
+  @Patch('parameters/:id/status')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({
+    summary: 'Quick enable/disable a parameter (fast PATCH, audited)',
+  })
+  setParameterStatus(
+    @Param('id') id: string,
+    @Body() body: { isActive: boolean },
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.setParameterStatus(orgId, id, body.isActive);
+  }
+
   // ── Packages ──────────────────────────────────────────────────────────────
+
+  @Get('packages/generate-code')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({ summary: 'Suggest the next auto-generated package code' })
+  generatePackageCode(@CurrentUser('organizationId') orgId: string) {
+    return this.mastersService.generatePackageCode(orgId);
+  }
 
   @Get('packages')
   @Roles(...ADMIN_MANAGER)
@@ -158,6 +210,20 @@ export class MastersController {
     return this.mastersService.findPackage(orgId, id);
   }
 
+  @Patch('packages/bulk-status')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({ summary: 'Enable/disable many packages at once' })
+  bulkSetPackageStatus(
+    @Body() body: { ids: string[]; isActive: boolean },
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.bulkSetPackageStatus(
+      orgId,
+      body.ids,
+      body.isActive,
+    );
+  }
+
   @Patch('packages/:id')
   @Roles(...ADMIN_MANAGER)
   @ApiOperation({ summary: 'Update a test package (items = replace-all)' })
@@ -177,6 +243,97 @@ export class MastersController {
     @CurrentUser('organizationId') orgId: string,
   ) {
     return this.mastersService.removePackage(orgId, id);
+  }
+
+  @Patch('packages/:id/status')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({
+    summary: 'Quick enable/disable a package (fast PATCH, audited)',
+  })
+  setPackageStatus(
+    @Param('id') id: string,
+    @Body() body: { isActive: boolean },
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.setPackageStatus(orgId, id, body.isActive);
+  }
+
+  // ── Generic lookup masters (8 types, one table) ───────────────────────────
+  // NOTE: static segments (generate-code) must be declared BEFORE the :id
+  // routes — NestJS matches in declaration order.
+
+  @Get('lookup/:type/generate-code')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({ summary: 'Suggest the next auto-generated lookup code' })
+  generateLookupCode(
+    @Param('type') type: string,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.generateLookupCode(orgId, type);
+  }
+
+  @Get('lookup/:type')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({
+    summary: 'List lookup values for a type (search, isActive filters)',
+  })
+  findLookups(
+    @Param('type') type: string,
+    @CurrentUser('organizationId') orgId: string,
+    @Query('search') search?: string,
+    @Query('isActive') isActive?: string,
+  ) {
+    return this.mastersService.findLookups(orgId, type, { search, isActive });
+  }
+
+  @Post('lookup/:type')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({
+    summary: 'Create a lookup value (409 on duplicate code in this type)',
+  })
+  createLookup(
+    @Param('type') type: string,
+    @Body() body: CreateLookupDto,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.createLookup(orgId, type, body);
+  }
+
+  @Patch('lookup/:type/:id')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({ summary: 'Update a lookup value' })
+  updateLookup(
+    @Param('type') type: string,
+    @Param('id') id: string,
+    @Body() body: UpdateLookupDto,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.updateLookup(orgId, type, id, body);
+  }
+
+  @Delete('lookup/:type/:id')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({ summary: 'Soft delete (deactivate) a lookup value' })
+  removeLookup(
+    @Param('type') type: string,
+    @Param('id') id: string,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.removeLookup(orgId, type, id);
+  }
+
+  @Patch('lookup/:type/:id/status')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({
+    summary: 'Quick enable/disable a lookup value (fast PATCH, audited)',
+  })
+  setLookupStatus(
+    @Param('type') type: string,
+    @Param('id') id: string,
+    @Body() body: { isActive: boolean },
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.mastersService.setLookupStatus(orgId, type, id, body.isActive);
   }
 
   // ── Referrer price overrides ──────────────────────────────────────────────

@@ -5,12 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../../generated/prisma/client';
 import { resolveEffectivePrice, round2 } from './price-resolver';
 
 // ─── DTOs ───────────────────────────────────────────────────────────────────
 
 export interface CreateCategoryDto {
   name: string;
+  codePrefix?: string;
+  defaultSampleType?: string;
+  defaultTurnaroundHours?: number;
   sortOrder?: number;
   isActive?: boolean;
 }
@@ -23,6 +27,8 @@ export interface CreateParameterDto {
   categoryId: string;
   sampleType?: string;
   unit?: string;
+  refLow?: number;
+  refHigh?: number;
   methodology?: string;
   turnaroundHours?: number;
   defaultPrice?: number;
@@ -51,6 +57,43 @@ export interface ReferrerPriceRowDto {
   price: number;
 }
 
+/** The eight simple code+name lookup masters share one table + one API. */
+export const LOOKUP_TYPES = [
+  'sample_type',
+  'container_type',
+  'unit',
+  'method',
+  'payment_mode',
+  'rejection_reason',
+  'discount_scheme',
+  'tax_rate',
+] as const;
+
+export type LookupType = (typeof LOOKUP_TYPES)[number];
+
+/** Short human prefix used for auto-generated codes, e.g. `RJ-001`. */
+export const LOOKUP_CODE_PREFIX: Record<LookupType, string> = {
+  sample_type: 'ST',
+  container_type: 'CT',
+  unit: 'UN',
+  method: 'MD',
+  payment_mode: 'PM',
+  rejection_reason: 'RJ',
+  discount_scheme: 'DS',
+  tax_rate: 'TX',
+};
+
+export interface CreateLookupDto {
+  code: string;
+  name: string;
+  /** Free-form extra fields per type, e.g. { colorHex, percent } */
+  metadata?: Prisma.InputJsonValue;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export type UpdateLookupDto = Partial<CreateLookupDto>;
+
 // ─── Service ────────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -73,6 +116,9 @@ export class MastersService {
       data: {
         tenantId,
         name: data.name.trim(),
+        codePrefix: data.codePrefix?.trim() ?? '',
+        defaultSampleType: data.defaultSampleType ?? null,
+        defaultTurnaroundHours: data.defaultTurnaroundHours ?? null,
         sortOrder: data.sortOrder ?? 0,
         isActive: data.isActive ?? true,
       },
@@ -88,6 +134,15 @@ export class MastersService {
       where: { id },
       data: {
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+        ...(data.codePrefix !== undefined
+          ? { codePrefix: data.codePrefix.trim() }
+          : {}),
+        ...(data.defaultSampleType !== undefined
+          ? { defaultSampleType: data.defaultSampleType }
+          : {}),
+        ...(data.defaultTurnaroundHours !== undefined
+          ? { defaultTurnaroundHours: data.defaultTurnaroundHours }
+          : {}),
         ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
       },
@@ -111,11 +166,25 @@ export class MastersService {
         { name: { contains: query.search, mode: 'insensitive' } },
       ];
     }
-    return this.prisma.client.testParameter.findMany({
+    const params = await this.prisma.client.testParameter.findMany({
       where,
       include: { category: { select: { id: true, name: true } } },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
+    // Usage counts (how many order lines already reference each code) — used
+    // by the UI to show a non-blocking warning when disabling a parameter
+    // that appears in existing orders.
+    if (params.length === 0) return params;
+    const counts = await this.prisma.client.orderTest.groupBy({
+      by: ['testCode'],
+      where: { testCode: { in: params.map((p) => p.code) } },
+      _count: { _all: true },
+    });
+    const usage = new Map(counts.map((c) => [c.testCode, c._count._all]));
+    return params.map((p) => ({
+      ...p,
+      usageCount: usage.get(p.code) ?? 0,
+    }));
   }
 
   async findParameter(tenantId: string, id: string) {
@@ -144,16 +213,23 @@ export class MastersService {
     if (!category) {
       throw new BadRequestException('Category not found in this tenant');
     }
+    // Category-level defaults: pre-fill sample type / turnaround from the
+    // category when the caller didn't supply them explicitly.
+    const sampleType = data.sampleType ?? category.defaultSampleType ?? null;
+    const turnaroundHours =
+      data.turnaroundHours ?? category.defaultTurnaroundHours ?? null;
     return this.prisma.client.testParameter.create({
       data: {
         tenantId,
         code,
         name: data.name.trim(),
         categoryId: data.categoryId,
-        sampleType: data.sampleType ?? null,
+        sampleType,
         unit: data.unit ?? null,
+        refLow: data.refLow ?? null,
+        refHigh: data.refHigh ?? null,
         methodology: data.methodology ?? null,
-        turnaroundHours: data.turnaroundHours ?? null,
+        turnaroundHours,
         defaultPrice: data.defaultPrice ?? 0,
         isActive: data.isActive ?? true,
         sortOrder: data.sortOrder ?? 0,
@@ -198,6 +274,8 @@ export class MastersService {
           ? { sampleType: data.sampleType }
           : {}),
         ...(data.unit !== undefined ? { unit: data.unit } : {}),
+        ...(data.refLow !== undefined ? { refLow: data.refLow } : {}),
+        ...(data.refHigh !== undefined ? { refHigh: data.refHigh } : {}),
         ...(data.methodology !== undefined
           ? { methodology: data.methodology }
           : {}),
@@ -224,6 +302,81 @@ export class MastersService {
       where: { id },
       data: { isActive: false },
     });
+  }
+
+  // ── Auto code generation ──────────────────────────────────────────────────
+
+  /**
+   * Consume the next value of a per-tenant, per-scope counter inside a
+   * transaction. The upsert both creates the counter row on first use and
+   * increments it atomically, so two concurrent generate-code calls for the
+   * same category can never produce the same number (same pattern as the
+   * Order/Sample ID fixes). Returns the value that was just consumed.
+   */
+  private async nextSequence(tenantId: string, scope: string): Promise<number> {
+    return this.prisma.client.$transaction(async (tx) => {
+      const row = await tx.mastersSequence.upsert({
+        where: { tenantId_scope: { tenantId, scope } },
+        create: { tenantId, scope, nextValue: 1 },
+        update: { nextValue: { increment: 1 } },
+      });
+      // First call: create returns nextValue=1 (code -001). Every later call
+      // increments and returns the value just consumed, so concurrent calls
+      // can never collide.
+      return row.nextValue;
+    });
+  }
+
+  /**
+   * Generate a suggested code for a new parameter: `PREFIX-001`, where the
+   * prefix is the category's configured codePrefix (e.g. "HEM") or falls back
+   * to the first 3 letters of the category name ("BIO" for Biochemistry).
+   */
+  async generateParameterCode(tenantId: string, categoryId: string) {
+    const category = await this.prisma.client.testCategory.findFirst({
+      where: { id: categoryId, tenantId },
+    });
+    if (!category) throw new NotFoundException('Category not found');
+    const prefix =
+      category.codePrefix?.trim() ||
+      category.name.slice(0, 3).toUpperCase() ||
+      'TST';
+    const seq = await this.nextSequence(tenantId, `test-param:${categoryId}`);
+    return `${prefix}-${String(seq).padStart(3, '0')}`;
+  }
+
+  /** Generate a suggested code for a new package: `PKG-001`. */
+  async generatePackageCode(tenantId: string) {
+    const seq = await this.nextSequence(tenantId, 'test-package');
+    return `PKG-${String(seq).padStart(3, '0')}`;
+  }
+
+  // ── Quick enable / disable (fast PATCH, picked up by the audit interceptor)
+
+  async setParameterStatus(tenantId: string, id: string, isActive: boolean) {
+    const param = await this.prisma.client.testParameter.findFirst({
+      where: { id, tenantId },
+    });
+    if (!param) throw new NotFoundException('Test parameter not found');
+    return this.prisma.client.testParameter.update({
+      where: { id },
+      data: { isActive },
+    });
+  }
+
+  async bulkSetParameterStatus(
+    tenantId: string,
+    ids: string[],
+    isActive: boolean,
+  ) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('ids are required');
+    }
+    const res = await this.prisma.client.testParameter.updateMany({
+      where: { id: { in: ids }, tenantId },
+      data: { isActive },
+    });
+    return { updated: res.count };
   }
 
   // ── Packages ──────────────────────────────────────────────────────────────
@@ -372,6 +525,156 @@ export class MastersService {
       where: { id },
       data: { isActive: false },
     });
+  }
+
+  async setPackageStatus(tenantId: string, id: string, isActive: boolean) {
+    const pkg = await this.prisma.client.testPackage.findFirst({
+      where: { id, tenantId },
+    });
+    if (!pkg) throw new NotFoundException('Test package not found');
+    return this.prisma.client.testPackage.update({
+      where: { id },
+      data: { isActive },
+    });
+  }
+
+  async bulkSetPackageStatus(
+    tenantId: string,
+    ids: string[],
+    isActive: boolean,
+  ) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('ids are required');
+    }
+    const res = await this.prisma.client.testPackage.updateMany({
+      where: { id: { in: ids }, tenantId },
+      data: { isActive },
+    });
+    return { updated: res.count };
+  }
+
+  // ── Generic lookup masters (8 types, one table) ───────────────────────────
+
+  private assertLookupType(type: string): asserts type is LookupType {
+    if (!(LOOKUP_TYPES as readonly string[]).includes(type)) {
+      throw new BadRequestException(`Unknown lookup type "${type}"`);
+    }
+  }
+
+  async findLookups(
+    tenantId: string,
+    type: string,
+    query?: { search?: string; isActive?: string },
+  ) {
+    this.assertLookupType(type);
+    const where: Record<string, unknown> = { tenantId, type };
+    if (query?.isActive !== undefined && query.isActive !== '') {
+      where.isActive = query.isActive === 'true';
+    }
+    if (query?.search) {
+      where.OR = [
+        { code: { contains: query.search, mode: 'insensitive' } },
+        { name: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+    return this.prisma.client.lookupMaster.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createLookup(tenantId: string, type: string, data: CreateLookupDto) {
+    this.assertLookupType(type);
+    if (!data.code?.trim() || !data.name?.trim()) {
+      throw new BadRequestException('code and name are required');
+    }
+    const code = data.code.trim().toUpperCase();
+    const existing = await this.prisma.client.lookupMaster.findFirst({
+      where: { tenantId, type, code },
+    });
+    if (existing) {
+      throw new ConflictException(`Code "${code}" already exists`);
+    }
+    return this.prisma.client.lookupMaster.create({
+      data: {
+        tenantId,
+        type: type,
+        code,
+        name: data.name.trim(),
+        metadata: data.metadata ?? undefined,
+        sortOrder: data.sortOrder ?? 0,
+        isActive: data.isActive ?? true,
+      },
+    });
+  }
+
+  async updateLookup(
+    tenantId: string,
+    type: string,
+    id: string,
+    data: UpdateLookupDto,
+  ) {
+    this.assertLookupType(type);
+    const row = await this.prisma.client.lookupMaster.findFirst({
+      where: { id, tenantId, type },
+    });
+    if (!row) throw new NotFoundException('Lookup value not found');
+    if (data.code) {
+      const code = data.code.trim().toUpperCase();
+      const dup = await this.prisma.client.lookupMaster.findFirst({
+        where: { tenantId, type, code, NOT: { id } },
+      });
+      if (dup) throw new ConflictException(`Code "${code}" already exists`);
+    }
+    return this.prisma.client.lookupMaster.update({
+      where: { id },
+      data: {
+        ...(data.code ? { code: data.code.trim().toUpperCase() } : {}),
+        ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+        ...(data.metadata !== undefined ? { metadata: data.metadata } : {}),
+        ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      },
+    });
+  }
+
+  /** Quick enable/disable (fast PATCH, picked up by the audit interceptor). */
+  async setLookupStatus(
+    tenantId: string,
+    type: string,
+    id: string,
+    isActive: boolean,
+  ) {
+    this.assertLookupType(type);
+    const row = await this.prisma.client.lookupMaster.findFirst({
+      where: { id, tenantId, type },
+    });
+    if (!row) throw new NotFoundException('Lookup value not found');
+    return this.prisma.client.lookupMaster.update({
+      where: { id },
+      data: { isActive },
+    });
+  }
+
+  /** Soft delete only — same rule as TestParameter. */
+  async removeLookup(tenantId: string, type: string, id: string) {
+    this.assertLookupType(type);
+    const row = await this.prisma.client.lookupMaster.findFirst({
+      where: { id, tenantId, type },
+    });
+    if (!row) throw new NotFoundException('Lookup value not found');
+    return this.prisma.client.lookupMaster.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
+  /** Optional auto-code for lookups, e.g. `RJ-001` — scope `lookup:<type>`. */
+  async generateLookupCode(tenantId: string, type: string) {
+    this.assertLookupType(type);
+    const prefix = LOOKUP_CODE_PREFIX[type];
+    const seq = await this.nextSequence(tenantId, `lookup:${type}`);
+    return `${prefix}-${String(seq).padStart(3, '0')}`;
   }
 
   // ── Referrer price overrides ──────────────────────────────────────────────

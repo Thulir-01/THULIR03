@@ -223,15 +223,41 @@ model TestCategory {
   id        String   @id @default(uuid()) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid
   name      String
-  sortOrder Int      @default(0) @map("sort_order")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // Auto-code prefix, e.g. "HEM" for Hematology — makes generated codes
+  // meaningful ("HEM-014") instead of an arbitrary number.
+  codePrefix             String   @default("") @map("code_prefix")
+  // Category-level defaults — new parameters in this category are pre-filled
+  // with these (still editable per-parameter). Cuts repetitive entry for
+  // labs with 200+ parameters where most of a category shares the same
+  // sample type / turnaround.
+  defaultSampleType      String?  @map("default_sample_type")
+  defaultTurnaroundHours Int?     @map("default_turnaround_hours")
+  sortOrder              Int      @default(0) @map("sort_order")
+  isActive               Boolean  @default(true) @map("is_active")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   parameters TestParameter[]
 
   @@index([tenantId])
   @@map("test_categories")
+}
+
+/**
+ * Persistent per-tenant, per-scope counters for auto-generated masters codes
+ * (e.g. "test-param:<categoryId>", "test-package"). A real counter row — NOT
+ * count() on existing rows — so deactivating/deleting a row never re-numbers
+ * and collides. The $transaction-wrapped upsert makes concurrent generation
+ * race-safe (same pattern as the Order/Sample ID fixes).
+ */
+model MastersSequence {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  scope     String
+  nextValue Int    @default(1) @map("next_value")
+
+  @@unique([tenantId, scope])
+  @@map("masters_sequences")
 }
 
 model TestParameter {
@@ -242,6 +268,10 @@ model TestParameter {
   categoryId      String   @map("category_id") @db.Uuid
   sampleType      String?
   unit            String?
+  // Reference range (numbers) — snapshot onto OrderTest at registration so
+  // Result Entry always shows the range the test was booked under.
+  refLow  Decimal? @map("ref_low") @db.Decimal(10, 2)
+  refHigh Decimal? @map("ref_high") @db.Decimal(10, 2)
   methodology     String?
   turnaroundHours Int?     @map("turnaround_hours")
   defaultPrice    Decimal  @default(0) @map("default_price") @db.Decimal(10, 2)
@@ -311,6 +341,43 @@ model ReferrerPrice {
   @@unique([partyId, packageId])
   @@index([tenantId])
   @@map("referrer_prices")
+}
+
+// ─── Generic Lookup Masters ───────────────────────────────────────────────────
+// ONE table for the simple code+name+status lookups (sample types, container
+// types, units, methods, payment modes, rejection reasons, discount schemes,
+// tax rates) instead of eight bespoke tables. Free-form per-type extras live
+// in `metadata` (e.g. container_type: {"colorHex":"#8B5CF6"}, tax_rate:
+// {"percent":18}) and are rendered by a config-driven UI.
+
+enum LookupMasterType {
+  sample_type
+  container_type
+  unit
+  method
+  payment_mode
+  rejection_reason
+  discount_scheme
+  tax_rate
+}
+
+model LookupMaster {
+  id        String            @id @default(uuid()) @db.Uuid
+  tenantId  String            @map("tenant_id") @db.Uuid
+  type      LookupMasterType
+  code      String
+  name      String
+  // free-form extra fields per type — e.g. container_type: {"colorHex":"#8B5CF6"},
+  // discount_scheme: {"percent":10}, tax_rate: {"percent":18}
+  metadata  Json?
+  isActive  Boolean           @default(true) @map("is_active")
+  sortOrder Int               @default(0) @map("sort_order")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@unique([tenantId, type, code])
+  @@index([tenantId, type])
+  @@map("lookup_masters")
 }
 
 // ─── Orders ──────────────────────────────────────────────────────────────────

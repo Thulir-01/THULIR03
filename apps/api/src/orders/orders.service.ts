@@ -4,10 +4,32 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
+/** The JSON shape of an order test row as returned over the API — the fields
+ *  Result Entry renders. Used by the read-time enrichment pass. */
+interface OrderTestView {
+  testCode: string;
+  unit: string | null;
+  refRange: string | null;
+  refLow: number | null;
+  refHigh: number | null;
+  children?: OrderTestView[];
+}
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { findProfile } from './test-profiles';
 import { resolveEffectivePrice } from '../masters/price-resolver';
+
+/** Render a master's numeric ref range as a display string, e.g. "4.5 – 11". */
+function formatRefRange(
+  refLow: number | null,
+  refHigh: number | null,
+): string | null {
+  if (refLow === null && refHigh === null) return null;
+  if (refLow !== null && refHigh !== null) return `${refLow} – ${refHigh}`;
+  if (refLow !== null) return `≥ ${refLow}`;
+  return `≤ ${refHigh}`;
+}
 
 export interface RegisterPatientOrderDto {
   patientId?: string;
@@ -128,7 +150,59 @@ export class OrdersService {
       },
     });
     if (!order) throw new NotFoundException('Order not found');
+
+    // Read-time enrichment: older orders (booked before unit/ref snapshots
+    // existed) may have null unit/refRange on their test rows. Fill those in
+    // from the parameter master so Result Entry always shows real values,
+    // not blanks — the master remains the single source of truth.
+    await this.enrichMissingTestMeta(
+      tenantId,
+      order.tests as unknown as OrderTestView[],
+    );
     return order;
+  }
+
+  /**
+   * Fill null unit/refRange/refLow/refHigh on order test rows (recursively,
+   * so profile children are covered too) from the matching master parameter.
+   * Operates on plain JSON-ish shapes (the values we return over the API),
+   * so it only needs the fields Result Entry consumes.
+   */
+  private async enrichMissingTestMeta(
+    tenantId: string,
+    tests: OrderTestView[],
+  ) {
+    const missing = new Set<string>();
+    const walk = (list: OrderTestView[]) => {
+      for (const t of list) {
+        if (!t.unit || !t.refRange) missing.add(t.testCode);
+        if (t.children?.length) walk(t.children);
+      }
+    };
+    walk(tests);
+    if (missing.size === 0) return;
+    const masters = await this.prisma.client.testParameter.findMany({
+      where: { tenantId, code: { in: [...missing] } },
+    });
+    const byCode = new Map(masters.map((m) => [m.code, m]));
+    const fill = (list: OrderTestView[]) => {
+      for (const t of list) {
+        const m = byCode.get(t.testCode);
+        if (m && (!t.unit || !t.refRange)) {
+          if (!t.unit) t.unit = m.unit;
+          if (!t.refRange) {
+            t.refRange = formatRefRange(
+              m.refLow ? Number(m.refLow) : null,
+              m.refHigh ? Number(m.refHigh) : null,
+            );
+          }
+          if (t.refLow === null && m.refLow) t.refLow = Number(m.refLow);
+          if (t.refHigh === null && m.refHigh) t.refHigh = Number(m.refHigh);
+        }
+        if (t.children?.length) fill(t.children);
+      }
+    };
+    fill(tests);
   }
 
   async register(tenantId: string, dto: RegisterPatientOrderDto) {
@@ -168,20 +242,38 @@ export class OrdersService {
         };
       }
     }
+    // Always load active parameters — used both for referrer pricing AND for
+    // snapshotting unit/ref-range onto order tests, so Result Entry shows the
+    // values the test was booked under even for single (non-profile) tests.
     const parameterByCode = new Map<
       string,
-      { id: string; defaultPrice: number }
+      {
+        id: string;
+        defaultPrice: number;
+        unit: string | null;
+        refLow: number | null;
+        refHigh: number | null;
+      }
     >();
+    const params = await this.prisma.client.testParameter.findMany({
+      where: { tenantId, isActive: true },
+    });
+    for (const p of params) {
+      parameterByCode.set(p.code, {
+        id: p.id,
+        defaultPrice: Number(p.defaultPrice),
+        unit: p.unit ?? null,
+        refLow: p.refLow ? Number(p.refLow) : null,
+        refHigh: p.refHigh ? Number(p.refHigh) : null,
+      });
+    }
     const packageByCode = new Map<
       string,
       { id: string; pricingMode: string; fixedPrice: number | null }
     >();
     const overrides = new Map<string, number>();
     if (referrerPricing) {
-      const [params, pkgs, priceRows] = await Promise.all([
-        this.prisma.client.testParameter.findMany({
-          where: { tenantId, isActive: true },
-        }),
+      const [pkgs, priceRows] = await Promise.all([
         this.prisma.client.testPackage.findMany({
           where: { tenantId, isActive: true },
         }),
@@ -194,12 +286,6 @@ export class OrdersService {
             })
           : Promise.resolve([]),
       ]);
-      for (const p of params) {
-        parameterByCode.set(p.code, {
-          id: p.id,
-          defaultPrice: Number(p.defaultPrice),
-        });
-      }
       for (const p of pkgs) {
         packageByCode.set(p.code, {
           id: p.id,
@@ -363,9 +449,15 @@ export class OrdersService {
           refLow?: number | null;
           refHigh?: number | null;
         };
+        type SingleSeed = ParentSeed & {
+          unit?: string | null;
+          refRange?: string | null;
+          refLow?: number | null;
+          refHigh?: number | null;
+        };
         const parentSeeds: ParentSeed[] = [];
         const childSegments: ChildSeed[][] = [];
-        const singleSeeds: ParentSeed[] = [];
+        const singleSeeds: SingleSeed[] = [];
 
         for (const t of tests) {
           const profile = findProfile(t.code);
@@ -400,6 +492,10 @@ export class OrdersService {
               })),
             );
           } else {
+            // Snapshot unit + ref range from the parameter master (the same
+            // source Result Entry renders read-only) so single tests show
+            // real values, not blanks.
+            const meta = parameterByCode.get(t.code);
             singleSeeds.push({
               tenantId,
               orderId: order.id,
@@ -410,6 +506,13 @@ export class OrdersService {
               rate: effectiveRates.get(t.code) ?? t.rate,
               status: 'pending',
               sortOrder: 0,
+              unit: meta?.unit ?? null,
+              refRange: formatRefRange(
+                meta?.refLow ?? null,
+                meta?.refHigh ?? null,
+              ),
+              refLow: meta?.refLow ?? null,
+              refHigh: meta?.refHigh ?? null,
             });
           }
         }

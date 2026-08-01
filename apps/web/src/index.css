@@ -247,3 +247,12 @@ body {
   opacity: 0;
   animation: fadeInUp 0.5s var(--ease-precise) 0.3s forwards;
 }
+
+/* Hide the horizontal scrollbar on the Masters tab bar while keeping scroll. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

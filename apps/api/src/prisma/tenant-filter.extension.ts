@@ -25,7 +25,9 @@ export const TENANT_SCOPED_MODELS = new Set([
   'testcategory',
   'testparameter',
   'testpackage',
+  'masterssequence',
   'referrerprice',
+  'lookupmaster',
   'auditlog',
 ]);
 

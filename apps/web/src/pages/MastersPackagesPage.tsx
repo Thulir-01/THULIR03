@@ -9,12 +9,16 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  Wand2,
 } from "lucide-react";
 import {
   getMastersPackages,
   getMastersParameters,
   createMastersPackage,
   updateMastersPackage,
+  setMastersPackageStatus,
+  bulkSetMastersPackageStatus,
+  generateMastersPackageCode,
   type TestPackage,
   type TestParameter,
 } from "../lib/api-client";
@@ -49,6 +53,8 @@ export default function PackagesPanel() {
   const [form, setForm] = useState<PkgForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -98,10 +104,22 @@ export default function PackagesPanel() {
     }));
 
   const startCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, code: "" });
     setCreating(true);
     setEditingId(null);
     setError("");
+    // Suggest PKG-001 style code immediately — always editable.
+    generateMastersPackageCode()
+      .then((code) => {
+        setForm((f) => (f.code.trim() ? f : { ...f, code }));
+      })
+      .catch(() => {});
+  };
+
+  const generateCodeNow = () => {
+    generateMastersPackageCode()
+      .then((code) => setForm((f) => ({ ...f, code })))
+      .catch(() => setError("Could not generate code"));
   };
 
   const startEdit = (p: TestPackage) => {
@@ -175,6 +193,46 @@ export default function PackagesPanel() {
       return n;
     });
 
+  // ── Quick enable/disable (optimistic) ─────────────────────────────────────
+  const toggleStatus = async (p: TestPackage) => {
+    const next = !p.isActive;
+    setPackages((list) =>
+      list.map((x) => (x.id === p.id ? { ...x, isActive: next } : x))
+    );
+    try {
+      await setMastersPackageStatus(p.id, next);
+    } catch {
+      setPackages((list) =>
+        list.map((x) => (x.id === p.id ? { ...x, isActive: p.isActive } : x))
+      );
+    }
+  };
+
+  // ── Bulk disable bar ──────────────────────────────────────────────────────
+  const toggleSelect = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  const disableSelected = async () => {
+    if (selected.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await bulkSetMastersPackageStatus([...selected], false);
+      setSelected(new Set());
+      await load();
+    } catch {
+      setError("Failed to disable selected packages");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const selectedCount = selected.size;
+
   return (
     <div className="h-full overflow-y-auto bg-surface-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -205,6 +263,23 @@ export default function PackagesPanel() {
           </div>
         )}
 
+        {/* Bulk disable bar */}
+        {selectedCount > 0 && (
+          <div className="flex items-center justify-between rounded-md border border-status-critical/30 bg-status-critical/5 px-4 py-2.5">
+            <span className="text-sm font-medium text-ink-800">
+              {selectedCount} selected
+            </span>
+            <button
+              onClick={disableSelected}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-status-critical text-surface-0 text-xs font-semibold hover:opacity-90 disabled:opacity-50"
+            >
+              {bulkBusy && <Loader2 className="size-3.5 animate-spin" />}
+              Disable selected
+            </button>
+          </div>
+        )}
+
         {/* Create/edit form */}
         {(creating || editingId) && (
           <div className="rounded-md border border-accent-200 bg-surface-0 p-5 shadow-overlay">
@@ -229,14 +304,27 @@ export default function PackagesPanel() {
                 <label className="block text-xs font-medium text-ink-600 mb-1">
                   Code <span className="text-status-critical">*</span>
                 </label>
-                <input
-                  value={form.code}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, code: e.target.value }))
-                  }
-                  placeholder="FEVER-PANEL"
-                  className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={form.code}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, code: e.target.value }))
+                    }
+                    placeholder="PKG-001"
+                    className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+                  />
+                  <button
+                    onClick={generateCodeNow}
+                    type="button"
+                    title="Generate code"
+                    className="inline-flex items-center gap-1 px-2.5 rounded-sm border border-line-200 text-xs font-medium text-accent-600 hover:bg-surface-100 shrink-0"
+                  >
+                    <Wand2 className="size-3.5" /> Auto
+                  </button>
+                </div>
+                <p className="text-[11px] text-ink-400 mt-1">
+                  Auto-suggests PKG-001 style — editable anytime.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-600 mb-1">
@@ -438,6 +526,14 @@ export default function PackagesPanel() {
                 className="rounded-md border border-line-200 bg-surface-0 overflow-hidden"
               >
                 <div className="flex items-center gap-3 px-4 py-3 hover:bg-surface-100/60 transition-colors duration-fast">
+                  {/* Bulk-select checkbox */}
+                  <input
+                    type="checkbox"
+                    checked={selected.has(p.id)}
+                    onChange={() => toggleSelect(p.id)}
+                    className="size-4 accent-accent-700 shrink-0"
+                    title="Select for bulk disable"
+                  />
                   <button
                     onClick={() => toggleExpand(p.id)}
                     className="text-ink-400 hover:text-ink-600"
@@ -468,6 +564,22 @@ export default function PackagesPanel() {
                       ? `₹${p.fixedPrice}`
                       : `₹${pkgSum(p).toFixed(2)}`}
                   </span>
+                  {/* Quick enable/disable toggle */}
+                  <button
+                    onClick={() => toggleStatus(p)}
+                    title={p.isActive ? "Click to deactivate" : "Click to activate"}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-fast shrink-0 ${
+                      p.isActive ? "bg-status-success" : "bg-ink-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block size-3.5 transform rounded-full bg-surface-0 shadow transition-transform duration-fast ${
+                        p.isActive
+                          ? "translate-x-[18px]"
+                          : "translate-x-[3px]"
+                      }`}
+                    />
+                  </button>
                   <span
                     className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
                       p.isActive

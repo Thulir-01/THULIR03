@@ -342,6 +342,9 @@ export async function getAuditLogs(params?: {
 export interface TestCategory {
   id: string;
   name: string;
+  codePrefix: string;
+  defaultSampleType: string | null;
+  defaultTurnaroundHours: number | null;
   sortOrder: number;
   isActive: boolean;
   _count?: { parameters: number };
@@ -354,11 +357,14 @@ export interface TestParameter {
   categoryId: string;
   sampleType: string | null;
   unit: string | null;
+  refLow: number | null;
+  refHigh: number | null;
   methodology: string | null;
   turnaroundHours: number | null;
   defaultPrice: number;
   isActive: boolean;
   sortOrder: number;
+  usageCount?: number;
   category?: { id: string; name: string };
 }
 
@@ -406,14 +412,46 @@ export async function getMastersCategories() {
   return data as TestCategory[];
 }
 
-export async function createMastersCategory(body: { name: string; sortOrder?: number }) {
+export async function createMastersCategory(body: { name: string; codePrefix?: string; defaultSampleType?: string; defaultTurnaroundHours?: number; sortOrder?: number }) {
   const { data } = await api.post("/masters/categories", body);
   return data as TestCategory;
 }
 
-export async function updateMastersCategory(id: string, body: Partial<{ name: string; sortOrder: number; isActive: boolean }>) {
+export async function updateMastersCategory(id: string, body: Partial<{ name: string; codePrefix: string; defaultSampleType: string | null; defaultTurnaroundHours: number | null; sortOrder: number; isActive: boolean }>) {
   const { data } = await api.patch(`/masters/categories/${id}`, body);
   return data as TestCategory;
+}
+
+export async function generateMastersParameterCode(categoryId: string) {
+  const { data } = await api.get("/masters/parameters/generate-code", {
+    params: { categoryId },
+  });
+  return data as string;
+}
+
+export async function generateMastersPackageCode() {
+  const { data } = await api.get("/masters/packages/generate-code");
+  return data as string;
+}
+
+export async function setMastersParameterStatus(id: string, isActive: boolean) {
+  const { data } = await api.patch(`/masters/parameters/${id}/status`, { isActive });
+  return data as TestParameter;
+}
+
+export async function bulkSetMastersParameterStatus(ids: string[], isActive: boolean) {
+  const { data } = await api.patch("/masters/parameters/bulk-status", { ids, isActive });
+  return data as { updated: number };
+}
+
+export async function setMastersPackageStatus(id: string, isActive: boolean) {
+  const { data } = await api.patch(`/masters/packages/${id}/status`, { isActive });
+  return data as TestPackage;
+}
+
+export async function bulkSetMastersPackageStatus(ids: string[], isActive: boolean) {
+  const { data } = await api.patch("/masters/packages/bulk-status", { ids, isActive });
+  return data as { updated: number };
 }
 
 export async function getMastersParameters(params?: { categoryId?: string; search?: string; isActive?: string }) {
@@ -487,4 +525,85 @@ export async function getPricePreview(params?: { referrerId?: string; parameterI
     referrer: { id: string; pricingMode: string | null; discountPercent: number | null } | null;
     items: PricePreviewItem[];
   };
+}
+
+// ─── Masters: Generic Lookups (8 types, one table) ────────────────
+
+export type LookupMasterType =
+  | "sample_type"
+  | "container_type"
+  | "unit"
+  | "method"
+  | "payment_mode"
+  | "rejection_reason"
+  | "discount_scheme"
+  | "tax_rate";
+
+export interface LookupMaster {
+  id: string;
+  type: LookupMasterType;
+  code: string;
+  name: string;
+  metadata: Record<string, unknown> | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLookupData {
+  code: string;
+  name: string;
+  metadata?: Record<string, unknown>;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export async function getLookupMasters(
+  type: LookupMasterType,
+  params?: { search?: string; isActive?: string },
+) {
+  const { data } = await api.get(`/masters/lookup/${type}`, { params });
+  return data as LookupMaster[];
+}
+
+export async function createLookupMaster(
+  type: LookupMasterType,
+  body: CreateLookupData,
+) {
+  const { data } = await api.post(`/masters/lookup/${type}`, body);
+  return data as LookupMaster;
+}
+
+export async function updateLookupMaster(
+  type: LookupMasterType,
+  id: string,
+  body: Partial<CreateLookupData>,
+) {
+  const { data } = await api.patch(`/masters/lookup/${type}/${id}`, body);
+  return data as LookupMaster;
+}
+
+export async function deleteLookupMaster(
+  type: LookupMasterType,
+  id: string,
+) {
+  const { data } = await api.delete(`/masters/lookup/${type}/${id}`);
+  return data as LookupMaster;
+}
+
+export async function setLookupMasterStatus(
+  type: LookupMasterType,
+  id: string,
+  isActive: boolean,
+) {
+  const { data } = await api.patch(`/masters/lookup/${type}/${id}/status`, {
+    isActive,
+  });
+  return data as LookupMaster;
+}
+
+export async function generateLookupMasterCode(type: LookupMasterType) {
+  const { data } = await api.get(`/masters/lookup/${type}/generate-code`);
+  return data as string;
 }
