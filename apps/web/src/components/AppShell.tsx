@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import { NavLink, useNavigate } from "react-router";
 import {
   LayoutDashboard,
@@ -90,33 +90,31 @@ function roleLabel(role?: string) {
   return role;
 }
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem("thulir-rail") === "open" ? false : true
-  );
-  const [paletteOpen, setPaletteOpen] = useState(false);
+type NavItem = { to: string; label: string; icon: any };
+
+const CommandPalette = memo(function CommandPalette({
+  open,
+  onClose,
+  navItems,
+  go,
+}: {
+  open: boolean;
+  onClose: () => void;
+  navItems: NavItem[];
+  go: (to: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const canManageMasters = MASTER_ROLES.has(user?.role ?? "");
-  const canManageStaff = STAFF_ROLES.has(user?.role ?? "");
-  const canApprove = APPROVALS_ROLES.has(user?.role ?? "");
-  const canVerify = VERIFY_ROLES.has(user?.role ?? "");
-  const canViewReports = REPORTS_ROLES.has(user?.role ?? "");
-  const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
-
-  const navItems = [
-    ...NAV_ITEMS,
-    ...(canViewReports ? REPORTS_ITEMS : []),
-    ...(canManageParties ? PARTIES_ITEMS : []),
-    ...(canVerify ? VERIFY_ITEMS : []),
-    ...(canApprove ? APPROVALS_ITEMS : []),
-    ...(canManageMasters ? MASTERS_ITEMS : []),
-    ...(canManageStaff ? STAFF_ITEMS : []),
-  ];
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      setCursor(0);
+      // small timeout to ensure the input is mounted
+      setTimeout(() => inputRef.current?.focus(), 20);
+    }
+  }, [open]);
 
   const paletteItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -130,30 +128,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }, [query, navItems]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen((o) => !o);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  useEffect(() => {
-    if (paletteOpen) {
-      setQuery("");
-      setCursor(0);
-      setTimeout(() => inputRef.current?.focus(), 20);
-    }
-  }, [paletteOpen]);
-
-  const go = (to: string) => {
-    setPaletteOpen(false);
-    navigate(to);
-  };
-
   const onPaletteKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -164,11 +138,125 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     } else if (e.key === "Enter") {
       e.preventDefault();
       const item = paletteItems[cursor];
-      if (item) go(item.to);
+      if (item) {
+        onClose();
+        go(item.to);
+      }
     } else if (e.key === "Escape") {
-      setPaletteOpen(false);
+      onClose();
     }
   };
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-ink-950/30 px-4 pt-[12vh]"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md overflow-hidden rounded-md border border-line-200 bg-surface-0 shadow-overlay"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2.5 border-b border-line-200 px-3.5">
+          <Search className="size-4 shrink-0 text-ink-400" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCursor(0);
+            }}
+            onKeyDown={onPaletteKey}
+            placeholder="Jump to page or action…"
+            className="h-11 w-full bg-transparent text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none"
+          />
+          <kbd className="rounded-sm border border-line-200 bg-surface-100 px-1.5 py-0.5 text-[10px] text-ink-400">
+            ESC
+          </kbd>
+        </div>
+        <div className="max-h-72 overflow-y-auto py-1.5">
+          {paletteItems.length === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-ink-400">
+              No matches for “{query}”
+            </div>
+          )}
+          {paletteItems.map((item, i) => (
+            <button
+              key={item.to}
+              onClick={() => {
+                onClose();
+                go(item.to);
+              }}
+              onMouseEnter={() => setCursor(i)}
+              className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors duration-fast ${
+                i === cursor ? "bg-accent-100 text-accent-700" : "text-ink-600"
+              }`}
+            >
+              <item.icon className="size-4 shrink-0" />
+              <span className="flex-1 truncate">{item.label}</span>
+              <span className="text-[10px] uppercase tracking-wider text-ink-400">
+                {item.group}
+              </span>
+              {i === cursor && (
+                <CornerDownLeft className="size-3.5 text-ink-400" />
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="border-t border-line-200 px-3.5 py-2 text-[11px] text-ink-400">
+          ↑↓ to navigate · ↵ to open
+        </div>
+      </div>
+    </div>
+  );
+});
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(
+    () => (localStorage.getItem("thulir-rail") === "open" ? false : true)
+  );
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const canManageMasters = MASTER_ROLES.has(user?.role ?? "");
+  const canManageStaff = STAFF_ROLES.has(user?.role ?? "");
+  const canApprove = APPROVALS_ROLES.has(user?.role ?? "");
+  const canVerify = VERIFY_ROLES.has(user?.role ?? "");
+  const canViewReports = REPORTS_ROLES.has(user?.role ?? "");
+  const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
+
+  const navItems = useMemo(
+    () => [
+      ...NAV_ITEMS,
+      ...(canViewReports ? REPORTS_ITEMS : []),
+      ...(canManageParties ? PARTIES_ITEMS : []),
+      ...(canVerify ? VERIFY_ITEMS : []),
+      ...(canApprove ? APPROVALS_ITEMS : []),
+      ...(canManageMasters ? MASTERS_ITEMS : []),
+      ...(canManageStaff ? STAFF_ITEMS : []),
+    ],
+    [
+      canViewReports,
+      canManageParties,
+      canVerify,
+      canApprove,
+      canManageMasters,
+      canManageStaff,
+    ]
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const toggleRail = () => {
     setCollapsed((c) => {
@@ -328,67 +416,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Content */}
       <main className={`${contentPad} flex-1 min-h-0 overflow-hidden pt-0`}>{children}</main>
 
-      {/* ─── Command Palette ─── */}
-      {paletteOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-ink-950/30 px-4 pt-[12vh]"
-          onClick={() => setPaletteOpen(false)}
-        >
-          <div
-            className="w-full max-w-md overflow-hidden rounded-md border border-line-200 bg-surface-0 shadow-overlay"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2.5 border-b border-line-200 px-3.5">
-              <Search className="size-4 shrink-0 text-ink-400" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setCursor(0);
-                }}
-                onKeyDown={onPaletteKey}
-                placeholder="Jump to page or action…"
-                className="h-11 w-full bg-transparent text-sm text-ink-950 placeholder:text-ink-400 focus:outline-none"
-              />
-              <kbd className="rounded-sm border border-line-200 bg-surface-100 px-1.5 py-0.5 text-[10px] text-ink-400">
-                ESC
-              </kbd>
-            </div>
-            <div className="max-h-72 overflow-y-auto py-1.5">
-              {paletteItems.length === 0 && (
-                <div className="px-4 py-6 text-center text-sm text-ink-400">
-                  No matches for “{query}”
-                </div>
-              )}
-              {paletteItems.map((item, i) => (
-                <button
-                  key={item.to}
-                  onClick={() => go(item.to)}
-                  onMouseEnter={() => setCursor(i)}
-                  className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors duration-fast ${
-                    i === cursor
-                      ? "bg-accent-100 text-accent-700"
-                      : "text-ink-600"
-                  }`}
-                >
-                  <item.icon className="size-4 shrink-0" />
-                  <span className="flex-1 truncate">{item.label}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-ink-400">
-                    {item.group}
-                  </span>
-                  {i === cursor && (
-                    <CornerDownLeft className="size-3.5 text-ink-400" />
-                  )}
-                </button>
-              ))}
-            </div>
-            <div className="border-t border-line-200 px-3.5 py-2 text-[11px] text-ink-400">
-              ↑↓ to navigate · ↵ to open
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Command Palette (moved to its own memoized component) */}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navItems={navItems} go={(to) => {
+        setPaletteOpen(false);
+        navigate(to);
+      }} />
     </div>
   );
 }
