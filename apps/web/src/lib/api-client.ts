@@ -365,6 +365,60 @@ export async function getOrderReport(orderId: string) {
   return data as ClinicalReport;
 }
 
+export interface InvoiceTestRow {
+  testCode: string;
+  testName: string;
+  isProfile: boolean;
+  rate: string;
+  status: string;
+  children?: { testCode: string; testName: string; rate: string }[];
+}
+
+export interface OrderInvoice {
+  id: string;
+  orderNumber: string;
+  status: string;
+  createdAt: string;
+  priority: string;
+  emergency: boolean;
+  refNo: string | null;
+  deliveryMode: string | null;
+  consolidatedBill: boolean;
+  patient: {
+    title: string | null;
+    firstName: string;
+    lastName: string;
+    gender: string | null;
+    dateOfBirth: string | null;
+    ageYears: number | null;
+    ageMonths: number | null;
+    phone: string | null;
+    email: string | null;
+  };
+  referrer: string | null;
+  tests: InvoiceTestRow[];
+  billing: {
+    billAmount: string | null;
+    otherCharges: string | null;
+    discountPercent: string | null;
+    discountAmount: string | null;
+    discountAuth: string | null;
+    totalAmount: string | null;
+    amountPaid: string | null;
+    balanceAmount: string | null;
+    paymentMode: string | null;
+    bankName: string | null;
+    paymentRef: string | null;
+    paymentDate: string | null;
+    paymentRemarks: string | null;
+  };
+}
+
+export async function getOrderInvoice(orderId: string) {
+  const { data } = await api.get(`/orders/${orderId}/invoice`);
+  return data as OrderInvoice;
+}
+
 // ─── Dashboard Stats ──────────────────────────────────────────────
 
 export interface DashboardStats {

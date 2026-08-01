@@ -765,6 +765,81 @@ export class OrdersService {
     };
   }
 
+  /** Invoice / receipt print payload. Unlike the clinical report this is
+   *  available for ANY order (billing happens at registration, before the
+   *  report is approved) — the receipt doubles as the collection proof. */
+  async getInvoiceData(tenantId: string, orderId: string) {
+    const order = await this.prisma.client.order.findFirst({
+      where: { id: orderId, tenantId, deletedAt: null },
+      include: {
+        patient: {
+          select: {
+            title: true,
+            firstName: true,
+            lastName: true,
+            gender: true,
+            dateOfBirth: true,
+            ageYears: true,
+            ageMonths: true,
+            phone: true,
+            email: true,
+          },
+        },
+        referrerParty: { select: { name: true } },
+        tests: {
+          where: { parentTestId: null },
+          select: {
+            testCode: true,
+            testName: true,
+            isProfile: true,
+            rate: true,
+            status: true,
+            children: {
+              orderBy: { sortOrder: 'asc' },
+              select: {
+                testCode: true,
+                testName: true,
+                rate: true,
+              },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      createdAt: order.createdAt,
+      priority: order.priority,
+      emergency: order.emergency,
+      refNo: order.refNo,
+      deliveryMode: order.deliveryMode,
+      consolidatedBill: order.consolidatedBill,
+      patient: order.patient,
+      referrer: order.referrerParty?.name ?? null,
+      tests: order.tests,
+      billing: {
+        billAmount: order.billAmount,
+        otherCharges: order.otherCharges,
+        discountPercent: order.discountPercent,
+        discountAmount: order.discountAmount,
+        discountAuth: order.discountAuth,
+        totalAmount: order.totalAmount,
+        amountPaid: order.amountPaid,
+        balanceAmount: order.balanceAmount,
+        paymentMode: order.paymentMode,
+        bankName: order.bankName,
+        paymentRef: order.paymentRef,
+        paymentDate: order.paymentDate,
+        paymentRemarks: order.paymentRemarks,
+      },
+    };
+  }
+
   async updateTestResult(
     tenantId: string,
     orderId: string,

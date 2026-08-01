@@ -329,17 +329,28 @@ export default function OrdersPage() {
                               <User className="w-3.5 h-3.5" />
                               <span className="capitalize">{order.patient.gender || "N/A"}</span>
                             </div>
-                            {order.status === "approved" && (
+                            <div className="flex flex-wrap gap-1.5 mt-1">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/orders/${order.id}/report`);
+                                  navigate(`/orders/${order.id}/invoice`);
                                 }}
-                                className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
                               >
-                                <FileText className="w-3.5 h-3.5" /> View Report
+                                <FileText className="w-3.5 h-3.5" /> Invoice
                               </button>
-                            )}
+                              {order.status === "approved" && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/orders/${order.id}/report`);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors"
+                                >
+                                  <FileText className="w-3.5 h-3.5" /> View Report
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

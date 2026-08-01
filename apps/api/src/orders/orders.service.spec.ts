@@ -115,4 +115,77 @@ describe('OrdersService — verify / approve workflow', () => {
       'only available for approved orders',
     );
   });
+
+  it('rejects invoice for an order from another tenant (404)', async () => {
+    const service = makeService({ order: { findFirst: () => null } });
+    await expect(service.getInvoiceData('tenant-A', 'order-X')).rejects.toThrow(
+      'Order not found',
+    );
+  });
+
+  it('returns invoice payload with billing + tests for ANY order status', async () => {
+    const invoiceOrder = {
+      id: 'order-1',
+      orderNumber: 'ORD-ABC123',
+      status: 'pending', // billing happens at registration — no approval gate
+      createdAt: new Date('2026-08-01'),
+      priority: 'routine',
+      emergency: false,
+      refNo: 'LAB-9',
+      deliveryMode: 'walk-in',
+      consolidatedBill: false,
+      patient: {
+        title: 'Mr',
+        firstName: 'Arun',
+        lastName: 'Kumar',
+        gender: 'Male',
+        dateOfBirth: null,
+        ageYears: 34,
+        ageMonths: null,
+        phone: '9999988888',
+        email: 'arun@example.com',
+      },
+      referrerParty: { name: 'Dr Meera' },
+      tests: [
+        {
+          testCode: 'CBC',
+          testName: 'Complete Blood Count',
+          isProfile: true,
+          rate: '450',
+          status: 'pending',
+          children: [{ testCode: 'HB', testName: 'Haemoglobin', rate: '80' }],
+        },
+      ],
+      billAmount: '500',
+      otherCharges: '0',
+      discountPercent: '10',
+      discountAmount: '50',
+      discountAuth: 'MGMT',
+      totalAmount: '450',
+      amountPaid: '200',
+      balanceAmount: '250',
+      paymentMode: 'Cash',
+      bankName: null,
+      paymentRef: null,
+      paymentDate: null,
+      paymentRemarks: 'advance',
+    };
+    const service = makeService({
+      order: { findFirst: () => invoiceOrder },
+    });
+    const data = await service.getInvoiceData('tenant-A', 'order-1');
+    expect(data.orderNumber).toBe('ORD-ABC123');
+    expect(data.status).toBe('pending');
+    expect(data.patient.firstName).toBe('Arun');
+    expect(data.referrer).toBe('Dr Meera');
+    expect(data.tests[0].testCode).toBe('CBC');
+    expect(data.tests[0].children[0].testName).toBe('Haemoglobin');
+    expect(data.billing.billAmount).toBe('500');
+    expect(data.billing.discountPercent).toBe('10');
+    expect(data.billing.discountAmount).toBe('50');
+    expect(data.billing.totalAmount).toBe('450');
+    expect(data.billing.amountPaid).toBe('200');
+    expect(data.billing.balanceAmount).toBe('250');
+    expect(data.billing.paymentMode).toBe('Cash');
+  });
 });

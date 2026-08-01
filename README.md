@@ -14,9 +14,14 @@ thulir03-lims/
 │   │       ├── users/          # User management
 │   │       ├── roles/          # RBAC role & permission management
 │   │       ├── patients/       # Patient CRUD + search
-│   │       ├── referrers/      # Doctor/referrer CRUD
-│   │       ├── orders/         # Order registration, list/search, test results
+│   │       ├── referrers/      # Doctor/referrer CRUD (migrated to parties)
+│   │       ├── parties/        # Unified master-data parties (doctors, hospitals, corporates, insurers, labs, consultants)
+│   │       ├── orders/         # Order registration, list/search, test results, verify → approve → report workflow
 │   │       │   └── test-profiles.ts  # Profile defs (CBC, LFT, RFT, Lipid, Thyroid, Diabetes)
+│   │       ├── masters/        # Test parameters, packages, referrer pricing, generic lookup masters
+│   │       ├── users/          # User management + staff NABL sign-off details (registration no, signature)
+│   │       ├── audit-logs/     # Audit trail viewer
+│   │       ├── dashboard/      # Live stats + recent orders
 │   │       ├── common/         # Guards (JwtAuth, Roles), interceptors, decorators
 │   │       │   └── interceptors/     # TenantInterceptor + AuditInterceptor (global)
 │   │       ├── prisma/         # Prisma service + tenant-filter extension
@@ -34,8 +39,16 @@ thulir03-lims/
 │   │       │   ├── PatientsPage.tsx         # Patient list + search
 │   │       │   ├── ReferrerFormPage.tsx     # Referrer create/edit
 │   │       │   ├── ReferrersPage.tsx        # Referrer list
-│   │       │   ├── OrdersPage.tsx           # Orders list with search & expand
-│   │       │   └── TestResultPage.tsx       # Result entry with flags (↑/↓) & profiles
+│   │       │   ├── OrdersPage.tsx           # Orders list with search & expand + report link
+│   │       │   ├── TestResultPage.tsx       # Result entry with flags (↑/↓) & profiles + verify button
+│   │       │   ├── VerifyPage.tsx           # Technician verify queue (/verify)
+│   │       │   ├── ApprovalsPage.tsx        # Pathologist approval queue (/approvals)
+│   │       │   ├── ReportPage.tsx           # Printable clinical report + Print/Save-as-PDF (/orders/:id/report)
+│   │       │   ├── MastersPage.tsx          # Masters one-panel tabs (parameters, packages, referrers, lookups)
+│   │       │   ├── MastersParametersPage.tsx / MastersPackagesPage.tsx / LookupMasterPage.tsx
+│   │       │   ├── ReferrerPricingPage.tsx  # Per-referrer rate cards
+│   │       │   ├── StaffPage.tsx            # Staff NABL sign-off details
+│   │       │   └── AuditLogsPage.tsx        # Audit trail viewer
 │   │       ├── components/
 │   │       │   └── ProtectedRoute.tsx       # Auth guard wrapper
 │   │       ├── lib/
@@ -157,6 +170,15 @@ System roles are auto-created: `lab_admin`, `pathologist`, `technician`, `lab_ma
 | `GET` | `/api/v1/orders` | List orders (search by order#, patient name, phone) |
 | `GET` | `/api/v1/orders/:id` | Get order detail with all test parameters |
 | `PATCH` | `/api/v1/orders/:orderId/tests/:testId` | Save test result (auto-completes parent profile + order) |
+| `POST` | `/api/v1/orders/:id/verify` | **Technician verify** — only from `completed`; moves order to `verified` |
+| `POST` | `/api/v1/orders/:id/approve` | **Pathologist approve** — stamps NABL e-signature on every test; unlocks report |
+| `GET` | `/api/v1/orders/:id/report` | Clinical report data (patient, results, verified/approved signatories) — only after approval |
+| `GET` | `/api/v1/users/staff` | List users with staff sign-off details |
+| `GET/PUT/DELETE` | `/api/v1/users/:id/staff-detail` | Get / upsert / remove staff details (reg no, qualification, signature) |
+| `GET/POST/PATCH/DELETE` | `/api/v1/masters/parameters` | Test parameter catalog CRUD |
+| `GET/POST/PATCH/DELETE` | `/api/v1/masters/packages` | Test package CRUD |
+| `GET/PUT/DELETE` | `/api/v1/masters/referrers/:referrerId/prices` | Per-referrer rate cards |
+| `GET/POST/PATCH/DELETE` | `/api/v1/masters/lookup/:type` | Generic lookup masters (sample_type, container, unit, method, payment_mode, rejection_reason, discount_scheme, tax_rate) |
 
 ### Frontend Routes
 
@@ -170,7 +192,13 @@ System roles are auto-created: `lab_admin`, `pathologist`, `technician`, `lab_ma
 | `/patients` | Patient list | Yes |
 | `/orders` | Orders list | Yes |
 | `/results` | Test result entry with flags | Yes |
+| `/verify` | Technician verify queue | Yes |
+| `/approvals` | Pathologist approval queue | Yes (pathologist/admin/manager) |
+| `/orders/:orderId/report` | Printable clinical report + Print/Save-as-PDF | Yes |
 | `/referrers` | Referrer list | Yes |
+| `/masters` | Masters panel (parameters, packages, referrers, lookups) | Yes (admin/manager/pathologist) |
+| `/staff` | Staff NABL sign-off details | Yes (admin/manager) |
+| `/audit` | Audit trail viewer | Yes |
 
 ### Protected Routes
 Frontend uses `ProtectedRoute` component — unauthenticated users are redirected to `/login` with their intended destination preserved.
@@ -196,6 +224,24 @@ Profiles auto-expand into individual parameters on registration:
 ### Full Audit Trail (Sprint 4.5)
 - `AuditLogInterceptor` (global) writes an `audit_logs` row for every `POST`/`PATCH`/`PUT`/`DELETE` on clinical endpoints: actor, action, entity, entity id, sanitized response payload, IP + user agent.
 - Audit writes are fire-and-forget — a failed audit never fails the business request.
+
+### Masters Catalog (Sprint 5.7 – 5.9)
+- **Test parameters** — one master record per lab test: category, unit, reference range (low/high), TAT, methodology, default price, auto-code generation (`HEM-001`) via `MastersSequence`.
+- **Test packages** — named bundles with price (fixed or sum-of-parts), auto-code (`PKG-004`).
+- **Referrer pricing** — per-referrer rate cards (referrer X pays ₹250 for CBC, walk-in pays ₹400).
+- **Generic lookup masters** — one tenant-scoped table, 8 types (sample_type, container_type, unit, method, payment_mode, rejection_reason, discount_scheme, tax_rate) with metadata JSONB, soft delete, auto-code per type (`CT-001`), one config-driven UI tab per type.
+- **Quick enable/disable** — one-click row toggle + bulk status endpoint.
+
+### Staff NABL Sign-off Details (Sprint 6.1)
+- `StaffDetail` — 1:1 extension of `User`: registration no, qualification, designation, signature image URL — tenant-scoped, ready to stamp verified reports.
+
+### Verify → Approve → Report Workflow (Sprint 6.2)
+- **State machine enforced server-side**: `pending → completed → verified → approved`.
+  - Result entry auto-completes tests → order `completed`.
+  - **Technician** verifies (`/verify` queue) — only from `completed`.
+  - **Pathologist** approves (`/approvals` queue) — stamps the NABL e-signature hash on every test, sets `finalReportDate`, unlocks the report.
+  - Report endpoint refuses anything not `approved` (409). Re-verify / re-approve blocked (409).
+- **Printable clinical report** (`/orders/:id/report`) — letterhead, patient/order meta, flagged results table (H/L markers), dual signature block, browser **Print / Save-as-PDF**.
 
 ## Development Commands
 
@@ -235,16 +281,18 @@ Key environment variables (see `.env.example` for full list):
 | **Sprint 4.5** | **Foundation Hardening** — Prisma tenant-isolation extension (auto-injects org id on every query), full audit trail (audit_logs on all writes), auth/TOTP + tenant-isolation tests, CI schema-drift check, compose auto-migrate | ✅ **Complete** |
 | **Sprint 5** | **Perf & Consistency** — registration wrapped in `$transaction` (no orphan patients), UUID-derived order numbers (no collisions), tenant_id indexes on patients/orders/referrers, bcrypt cost 10, dashboard COUNT endpoint | ✅ **Complete** |
 | **Sprint 5.1** | **Audit Fixes** — hot-reload dev script, unified web API client (silent token refresh), helmet headers, rate limiting (5/min login), JWT access/refresh type separation, pagination, user org index, dependency-vuln cleanup | ✅ **Complete** |
-| **Sprint 6** | Invoice / Receipt print | ⬜ Next |
-| **Sprint 7** | PDF Report Generation | ⬜ |
+| **Sprint 5.2** | **Go-live hardening** — zero dependency vulnerabilities, NABL signature fields reserved, JWT secret startup guard | ✅ **Complete** |
+| **Sprint 5.5** | **Result edit-lock + audit fixes** — verified results immutable, before-capture audit, registration transaction | ✅ **Complete** |
+| **Sprint 5.6** | **Sample entity + batched registration** — OrderTest tenant scoping + backfill, collision-safe batch registration | ✅ **Complete** |
+| **Sprint 5.7** | **Masters catalog + parties foundation** — test parameters/packages/referrer pricing, referrers migrated into unified parties | ✅ **Complete** |
+| **Sprint 5.8–5.9** | **Masters codegen + lookup system** — auto-code generation, quick enable/disable, ref-range snapshot into orders, Referrers tab, generic LookupMaster (8 types) | ✅ **Complete** |
+| **Sprint 6.1** | **StaffDetail** — NABL sign-off details (registration no, qualification, signature) for report verification | ✅ **Complete** |
+| **Sprint 6.2** | **Verify → Approve → Report workflow** — technician verify queue, pathologist approval queue, printable clinical report (Print/Save-as-PDF) | ✅ **Complete** |
+| **Sprint 7** | Invoice / Receipt print | ⬜ Next |
 | **Sprint 8** | Reports & Analytics | ⬜ |
-| **Sprint 9** | Configurable Test Catalog from UI | ⬜ |
-| **Sprint 10** | Phase 1 UI/Hardening Pass | ⬜ |
-| **Sprint 11+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
-| **Sprint 7** | Reports & Analytics | ⬜ |
-| **Sprint 8** | Configurable Test Catalog from UI | ⬜ |
 | **Sprint 9** | Phase 1 UI/Hardening Pass | ⬜ |
-| **Sprint 10+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
+| **Sprint 10** | Referrer-wise rate cards + party detail screens (hospitals, corporates, insurers, labs, consultants) | ⬜ |
+| **Sprint 11+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
 
 Full 24-sprint build plan available in the project brief.
 
@@ -256,7 +304,7 @@ Full 24-sprint build plan available in the project brief.
 - **Audit trail** — wired (Sprint 4.5): every clinical/financial write produces an `audit_logs` row via a global interceptor. New modules inherit it automatically.
 - **Backups** — automated, encrypted, with a tested restore process. Suggested retention: 30 daily + 12 monthly.
 - **Secrets** — the API refuses to boot in `NODE_ENV=production` with a weak/default `JWT_SECRET` (see `main.ts` `assertSecureStartup`). Generate with `openssl rand -hex 32`.
-- **NABL readiness** — result e-signature fields (`verifiedBy`, `verifiedAt`, `signatureHash`) are reserved on `order_tests` (migration `20260731101000_reserve_result_signature`). Critical-value alerting is future work.
+- **NABL readiness** — result e-signature fields (`verifiedBy`, `verifiedAt`, `signatureHash`) are reserved on `order_tests`, and the **verify → approve → report workflow is live** (Sprint 6.2): technicians verify, pathologists approve with the NABL e-signature stamp, staff registration numbers + signatures feed the printable report. Critical-value alerting is future work.
 - **RLS note** — tenant isolation is enforced at the app layer by the Prisma tenant-filter extension (tested by the e2e suite). Postgres RLS is deliberately not enabled: Prisma 7 has no native RLS support and the pooled Supabase connection makes per-request `SET LOCAL` unreliable. Revisit when Prisma ships native RLS.
 - **Redis** — `docker-compose` provisions Redis for future background jobs (report generation, critical-value alerts); nothing consumes it yet, and rate limiting is in-memory via `@nestjs/throttler`.
 

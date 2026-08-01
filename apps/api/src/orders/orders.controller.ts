@@ -134,4 +134,17 @@ export class OrdersController {
   ) {
     return this.ordersService.getReportData(orgId, id);
   }
+
+  @Get(':id/invoice')
+  @Roles('lab_admin', 'lab_manager', 'receptionist')
+  @ApiOperation({
+    summary:
+      'Get invoice / receipt payload for an order (any status — billed at registration)',
+  })
+  invoice(
+    @Param('id') id: string,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.ordersService.getInvoiceData(orgId, id);
+  }
 }
