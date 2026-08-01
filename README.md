@@ -291,8 +291,8 @@ Key environment variables (see `.env.example` for full list):
 | **Sprint 7** | Invoice / Receipt print — API `getInvoiceData`, printable Tax Invoice vs Payment Receipt page, per-parameter rates, billing summary | ✅ **Complete** |
 | **Sprint 8** | Reports & Analytics — revenue (billed/collected/outstanding), 14-day daily series chart, top test volumes, referrer payouts | ✅ **Complete** |
 | **Sprint 9** | **Phase 1 UI/Hardening pass** — shared UI kit (`PageHeader`, `PageStates` Loading/Empty/Error+retry, `StatCard`), removed duplicate per-page top bars, semantic-token sweep across all screens, error handling + retry everywhere | ✅ **Complete** |
-| **Sprint 10** | Referrer-wise rate cards + party detail screens (hospitals, corporates, insurers, labs, consultants) | ⬜ Next |
-| **Sprint 11+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ |
+| **Sprint 10** | **Parties & Rate Cards** — new `PartiesModule` (CRUD for all 6 party types: doctor, hospital, corporate, insurance_tpa, reference_lab, consultant; type filter + search), rate-card overrides relaxed to any active party (not just doctors), `PartiesPage` (type tabs + search + cards), `PartyFormPage` (dynamic per type), `PartyPricingPage` (mode cards for doctors + custom price grid for all) | ✅ **Complete** |
+| **Sprint 11+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ Next |
 
 Full 24-sprint build plan available in the project brief.
 
