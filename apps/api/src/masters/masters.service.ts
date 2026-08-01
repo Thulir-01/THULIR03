@@ -680,8 +680,10 @@ export class MastersService {
   // ── Referrer price overrides ──────────────────────────────────────────────
 
   async listReferrerPrices(tenantId: string, referrerId: string) {
+    // Any party type can hold rate-card overrides (doctors, hospitals,
+    // corporates, insurance TPAs, reference labs, consultants).
     const referrer = await this.prisma.client.party.findFirst({
-      where: { id: referrerId, tenantId, partyType: 'doctor', deletedAt: null },
+      where: { id: referrerId, tenantId, deletedAt: null },
     });
     if (!referrer) throw new NotFoundException('Referrer not found');
     return this.prisma.client.referrerPrice.findMany({
@@ -719,7 +721,7 @@ export class MastersService {
     rows: ReferrerPriceRowDto[],
   ) {
     const referrer = await this.prisma.client.party.findFirst({
-      where: { id: referrerId, tenantId, partyType: 'doctor', deletedAt: null },
+      where: { id: referrerId, tenantId, deletedAt: null },
     });
     if (!referrer) throw new NotFoundException('Referrer not found');
 
@@ -816,12 +818,7 @@ export class MastersService {
 
     if (query.referrerId) {
       const r = await this.prisma.client.party.findFirst({
-        where: {
-          id: query.referrerId,
-          tenantId,
-          partyType: 'doctor',
-          deletedAt: null,
-        },
+        where: { id: query.referrerId, tenantId, deletedAt: null },
         include: { doctorDetail: true },
       });
       if (!r) throw new NotFoundException('Referrer not found');

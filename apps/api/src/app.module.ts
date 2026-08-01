@@ -10,6 +10,7 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { PatientsModule } from './patients/patients.module';
 import { ReferrersModule } from './referrers/referrers.module';
+import { PartiesModule } from './parties/parties.module';
 import { OrdersModule } from './orders/orders.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -38,6 +39,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     RolesModule,
     PatientsModule,
     ReferrersModule,
+    PartiesModule,
     OrdersModule,
     AuditLogsModule,
     DashboardModule,

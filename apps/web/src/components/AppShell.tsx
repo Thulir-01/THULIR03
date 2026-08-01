@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   BadgeCheck,
   BarChart3,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -75,6 +76,13 @@ const REPORTS_ITEMS = [
 
 const REPORTS_ROLES = new Set(["lab_admin", "lab_manager"]);
 
+// Parties — hospitals, corporates, insurers, labs & consultants with rate cards
+const PARTIES_ITEMS = [
+  { to: "/parties", label: "Parties", icon: Building2 },
+];
+
+const PARTIES_ROLES = new Set(["lab_admin", "lab_manager"]);
+
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
   if (role === "pathologist") return "Pathologist";
@@ -98,10 +106,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const canApprove = APPROVALS_ROLES.has(user?.role ?? "");
   const canVerify = VERIFY_ROLES.has(user?.role ?? "");
   const canViewReports = REPORTS_ROLES.has(user?.role ?? "");
+  const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
 
   const navItems = [
     ...NAV_ITEMS,
     ...(canViewReports ? REPORTS_ITEMS : []),
+    ...(canManageParties ? PARTIES_ITEMS : []),
     ...(canVerify ? VERIFY_ITEMS : []),
     ...(canApprove ? APPROVALS_ITEMS : []),
     ...(canManageMasters ? MASTERS_ITEMS : []),

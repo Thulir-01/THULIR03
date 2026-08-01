@@ -135,6 +135,93 @@ export async function deleteReferrer(id: string) {
   return data;
 }
 
+// ─── Parties (hospitals, corporates, insurers, labs, consultants) ──
+
+export type PartyType =
+  | "doctor"
+  | "hospital"
+  | "corporate"
+  | "insurance_tpa"
+  | "reference_lab"
+  | "consultant";
+
+export const PARTY_TYPE_LABELS: Record<PartyType, string> = {
+  doctor: "Doctor",
+  hospital: "Hospital",
+  corporate: "Corporate",
+  insurance_tpa: "Insurance / TPA",
+  reference_lab: "Reference Lab",
+  consultant: "Consultant",
+};
+
+export interface Party {
+  id: string;
+  partyType: PartyType;
+  name: string;
+  address: string | null;
+  gstin: string | null;
+  primaryContactName: string | null;
+  primaryContactPhone: string | null;
+  primaryContactEmail: string | null;
+  status: string;
+  createdAt: string;
+  // Doctor detail (flattened when partyType === "doctor")
+  specialty: string | null;
+  qualification: string | null;
+  clinicName: string | null;
+  registration: string | null;
+  commission: number | null;
+  pricingMode: string | null;
+  discountPercent: number | null;
+  _count?: { orders: number; referrerPrices: number };
+}
+
+export interface CreatePartyData {
+  name: string;
+  partyType: PartyType;
+  address?: string;
+  gstin?: string;
+  primaryContactName?: string;
+  primaryContactPhone?: string;
+  primaryContactEmail?: string;
+  // Doctor-only
+  specialty?: string;
+  qualification?: string;
+  clinicName?: string;
+  registration?: string;
+  commission?: number;
+  pricingMode?: string;
+  discountPercent?: number | null;
+}
+
+export async function getParties(params?: {
+  type?: PartyType;
+  search?: string;
+}) {
+  const { data } = await api.get("/parties", { params });
+  return data as Party[];
+}
+
+export async function getParty(id: string) {
+  const { data } = await api.get(`/parties/${id}`);
+  return data as Party;
+}
+
+export async function createParty(body: CreatePartyData) {
+  const { data } = await api.post("/parties", body);
+  return data as Party;
+}
+
+export async function updateParty(id: string, body: Partial<CreatePartyData>) {
+  const { data } = await api.patch(`/parties/${id}`, body);
+  return data as Party;
+}
+
+export async function deleteParty(id: string) {
+  const { data } = await api.delete(`/parties/${id}`);
+  return data as { message: string };
+}
+
 // ─── Orders Registration ───────────────────────────────────────────
 
 export interface RegisterOrderData {

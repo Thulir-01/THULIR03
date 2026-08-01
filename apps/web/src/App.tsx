@@ -23,6 +23,9 @@ import VerifyPage from "./pages/VerifyPage";
 import ReportPage from "./pages/ReportPage";
 import InvoicePage from "./pages/InvoicePage";
 import ReportsPage from "./pages/ReportsPage";
+import PartiesPage from "./pages/PartiesPage";
+import PartyFormPage from "./pages/PartyFormPage";
+import PartyPricingPage from "./pages/PartyPricingPage";
 
 const shell = (page: React.ReactNode) => <AppShell>{page}</AppShell>;
 
@@ -108,6 +111,22 @@ export default function App() {
         <Route
           path="/reports"
           element={<ProtectedRoute>{shell(<ReportsPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/parties"
+          element={<ProtectedRoute>{shell(<PartiesPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/parties/new"
+          element={<ProtectedRoute>{shell(<PartyFormPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/parties/:id/edit"
+          element={<ProtectedRoute>{shell(<PartyFormPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/parties/:id/pricing"
+          element={<ProtectedRoute>{shell(<PartyPricingPage />)}</ProtectedRoute>}
         />
       </Routes>
     </AuthProvider>
