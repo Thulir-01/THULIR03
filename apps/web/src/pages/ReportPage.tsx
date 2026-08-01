@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router";
+import JsBarcode from "jsbarcode";
 import {
   ArrowLeft,
   Loader2,
@@ -12,6 +13,8 @@ import {
   Calendar,
   User,
   FlaskConical,
+  MapPin,
+  Mail,
 } from "lucide-react";
 import {
   getOrderReport,
@@ -55,6 +58,37 @@ function ageLabel(p: ClinicalReport["patient"]): string {
   return "—";
 }
 
+/** Code128 barcode of the order number — scannable on the printed report. */
+function OrderBarcode({ value }: { value: string }) {
+  const ref = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (ref.current) {
+      try {
+        JsBarcode(ref.current, value, {
+          format: "CODE128",
+          displayValue: false,
+          width: 1.6,
+          height: 36,
+          margin: 0,
+          background: "#ffffff",
+          lineColor: "#0f172a",
+        });
+      } catch {
+        // Invalid barcode content — the order number text below still shows.
+      }
+    }
+  }, [value]);
+
+  return (
+    <svg
+      ref={ref}
+      className="h-9 w-44 print:h-10"
+      aria-label={`Barcode ${value}`}
+    />
+  );
+}
+
 export default function ReportPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
@@ -87,7 +121,7 @@ export default function ReportPage() {
   const renderTest = (t: ReportTestRow) => {
     const flag = getFlag(t.result, t.refLow, t.refHigh);
     return (
-      <tr key={t.testCode + t.testName} className="border-b border-slate-200">
+      <tr key={t.testCode + t.testName} className="border-b border-slate-200 print:break-inside-avoid">
         <td className="py-2 pr-2 align-top">
           <span className="font-semibold text-slate-900">{t.testName}</span>
           <span className="block text-[10px] text-slate-500 uppercase tracking-wide">
@@ -123,6 +157,8 @@ export default function ReportPage() {
       </tr>
     );
   };
+
+  const lab = report?.lab;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 print:max-w-none print:p-0">
@@ -162,24 +198,41 @@ export default function ReportPage() {
       {report && !loading && (
         <div
           id="clinical-report"
-          className="bg-white rounded-xl border border-slate-200 shadow-sm print:rounded-none print:border-0 print:shadow-none overflow-hidden"
+          className="bg-white rounded-xl border border-slate-200 shadow-sm print:rounded-none print:border-0 print:shadow-none overflow-hidden print:overflow-visible"
         >
           {/* Letterhead */}
-          <div className="border-b-2 border-slate-900 px-8 py-6 print:border-slate-800">
-            <div className="flex items-start justify-between">
-              <div>
+          <div className="border-b-2 border-slate-900 px-8 py-6 print:border-slate-800 print:break-inside-avoid">
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0">
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900">
                   THULIR<span className="text-sky-600">03</span>
                 </h1>
                 <p className="text-xs text-slate-600 mt-0.5 tracking-wide">
-                  CLINICAL PATHOLOGY LABORATORY
+                  {lab?.name ?? "CLINICAL PATHOLOGY LABORATORY"}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-1 max-w-sm">
-                  Diagnostic &amp; Reference Laboratory Services · NABL-aligned
-                  quality management
-                </p>
+                {/* Lab contact — real org address/phone/email, printed */}
+                <div className="mt-2 space-y-0.5 text-[11px] text-slate-500">
+                  {lab?.address && (
+                    <p className="flex items-start gap-1.5">
+                      <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span>{lab.address}</span>
+                    </p>
+                  )}
+                  {lab?.phone && (
+                    <p className="flex items-center gap-1.5">
+                      <Phone className="w-3 h-3 shrink-0" />
+                      <span>{lab.phone}</span>
+                    </p>
+                  )}
+                  {lab?.email && (
+                    <p className="flex items-center gap-1.5">
+                      <Mail className="w-3 h-3 shrink-0" />
+                      <span>{lab.email}</span>
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <p className="text-xs text-slate-500">Pathology Report</p>
                 <p className="font-mono text-sm font-semibold text-slate-900">
                   {report.orderNumber}
@@ -187,12 +240,16 @@ export default function ReportPage() {
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   {fmtDate(report.createdAt)}
                 </p>
+                {/* Barcode */}
+                <div className="mt-2 flex justify-end">
+                  <OrderBarcode value={report.orderNumber} />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Patient + order meta */}
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 px-8 py-5 border-b border-slate-200 text-sm">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3 px-8 py-5 border-b border-slate-200 text-sm print:break-inside-avoid">
             <div className="col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
@@ -266,16 +323,16 @@ export default function ReportPage() {
           </div>
 
           {/* Results table */}
-          <div className="px-8 py-5">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="px-8 py-5 print:px-6">
+            <div className="flex items-center gap-2 mb-3 print:break-inside-avoid">
               <FlaskConical className="w-4 h-4 text-sky-600" />
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900">
                 Laboratory Results
               </h2>
             </div>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm print:text-[11px]">
               <thead>
-                <tr className="border-b-2 border-slate-900 text-left">
+                <tr className="border-b-2 border-slate-900 text-left print:break-inside-avoid">
                   <th className="py-2 pr-2 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
                     Test
                   </th>
@@ -300,7 +357,7 @@ export default function ReportPage() {
                     {t.children?.map((c) => (
                       <tr
                         key={c.testCode + c.testName}
-                        className="border-b border-slate-100 bg-slate-50/60"
+                        className="border-b border-slate-100 bg-slate-50/60 print:break-inside-avoid"
                       >
                         <td className="py-1.5 pr-2 pl-4 align-top text-slate-700">
                           <span className="text-[11px]">▸ {c.testName}</span>
@@ -337,14 +394,14 @@ export default function ReportPage() {
                 ))}
               </tbody>
             </table>
-            <p className="text-[10px] text-slate-400 mt-3">
+            <p className="text-[10px] text-slate-400 mt-3 print:break-inside-avoid">
               * Flagged values outside the reference range are marked H / L.
               Results should be interpreted in the context of clinical history.
             </p>
           </div>
 
           {/* Signatures */}
-          <div className="px-8 py-6 border-t border-slate-200 grid grid-cols-2 gap-6">
+          <div className="px-8 py-6 border-t border-slate-200 grid grid-cols-2 gap-6 print:break-inside-avoid">
             <div className="text-center">
               {report.verifiedBy?.signatureImageUrl && (
                 <img
@@ -382,7 +439,7 @@ export default function ReportPage() {
           </div>
 
           {/* Footer */}
-          <div className="px-8 py-4 bg-slate-50 border-t border-slate-200 print:bg-white">
+          <div className="px-8 py-4 bg-slate-50 border-t border-slate-200 print:bg-white print:break-inside-avoid">
             <div className="flex items-center justify-between text-[10px] text-slate-500">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />

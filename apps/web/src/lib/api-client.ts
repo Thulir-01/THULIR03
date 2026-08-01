@@ -444,6 +444,12 @@ export interface ClinicalReport {
     registrationNo: string | null;
     signatureImageUrl: string | null;
   } | null;
+  lab: {
+    name: string;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
   tests: ReportTestRow[];
 }
 

@@ -701,7 +701,7 @@ export class OrdersService {
       );
     }
 
-    const [verifiedByUser, approvedByUser] = await Promise.all([
+    const [verifiedByUser, approvedByUser, organization] = await Promise.all([
       order.verifiedBy
         ? this.prisma.client.user.findFirst({
             where: { id: order.verifiedBy },
@@ -728,6 +728,12 @@ export class OrdersService {
             },
           })
         : null,
+      // The tenant IS the lab organization — used for the printable
+      // letterhead (name / address / phone / email).
+      this.prisma.client.organization.findFirst({
+        where: { id: tenantId, deletedAt: null },
+        select: { name: true, address: true, phone: true, email: true },
+      }),
     ]);
 
     return {
@@ -759,6 +765,14 @@ export class OrdersService {
             registrationNo: approvedByUser.staffDetail?.registrationNo ?? null,
             signatureImageUrl:
               approvedByUser.staffDetail?.signatureImageUrl ?? null,
+          }
+        : null,
+      lab: organization
+        ? {
+            name: organization.name,
+            address: organization.address ?? null,
+            phone: organization.phone ?? null,
+            email: organization.email ?? null,
           }
         : null,
       tests: order.tests,

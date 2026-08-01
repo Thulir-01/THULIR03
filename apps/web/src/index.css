@@ -256,3 +256,22 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ─── Print / PDF — clean A4 clinical reports & invoices ─── */
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
+@media print {
+  /* Keep brand colors (letterhead rule, H/L flags, footer) on paper */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Prevent the printable report card from being clipped by overflow rules */
+  html,
+  body {
+    background: #ffffff !important;
+  }
+}
