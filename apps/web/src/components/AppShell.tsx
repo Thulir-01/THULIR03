@@ -18,6 +18,8 @@ import {
   Plus,
   Settings2,
   ClipboardSignature,
+  ShieldCheck,
+  BadgeCheck,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -51,6 +53,20 @@ const STAFF_ITEMS = [
 
 const STAFF_ROLES = new Set(["lab_admin", "lab_manager"]);
 
+// Approvals — pathologist queue of verified orders awaiting sign-off
+const APPROVALS_ITEMS = [
+  { to: "/approvals", label: "Approvals", icon: ShieldCheck },
+];
+
+const APPROVALS_ROLES = new Set(["pathologist", "lab_admin", "lab_manager"]);
+
+// Verify — technician queue of completed orders awaiting result confirmation
+const VERIFY_ITEMS = [
+  { to: "/verify", label: "Verify", icon: BadgeCheck },
+];
+
+const VERIFY_ROLES = new Set(["technician", "lab_admin", "lab_manager"]);
+
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
   if (role === "pathologist") return "Pathologist";
@@ -71,9 +87,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const canManageMasters = MASTER_ROLES.has(user?.role ?? "");
   const canManageStaff = STAFF_ROLES.has(user?.role ?? "");
+  const canApprove = APPROVALS_ROLES.has(user?.role ?? "");
+  const canVerify = VERIFY_ROLES.has(user?.role ?? "");
 
   const navItems = [
     ...NAV_ITEMS,
+    ...(canVerify ? VERIFY_ITEMS : []),
+    ...(canApprove ? APPROVALS_ITEMS : []),
     ...(canManageMasters ? MASTERS_ITEMS : []),
     ...(canManageStaff ? STAFF_ITEMS : []),
   ];

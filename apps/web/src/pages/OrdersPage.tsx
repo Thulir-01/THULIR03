@@ -329,6 +329,17 @@ export default function OrdersPage() {
                               <User className="w-3.5 h-3.5" />
                               <span className="capitalize">{order.patient.gender || "N/A"}</span>
                             </div>
+                            {order.status === "approved" && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/orders/${order.id}/report`);
+                                }}
+                                className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors"
+                              >
+                                <FileText className="w-3.5 h-3.5" /> View Report
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>

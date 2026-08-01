@@ -94,4 +94,44 @@ export class OrdersController {
   ) {
     return this.ordersService.updateTestResult(orgId, orderId, testId, body);
   }
+
+  @Post(':id/verify')
+  @Roles('lab_admin', 'technician')
+  @ApiOperation({
+    summary:
+      'Technician verify — confirm all results entered, order → verified',
+  })
+  verify(
+    @Param('id') id: string,
+    @CurrentUser('organizationId') orgId: string,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.ordersService.verifyOrder(orgId, id, actorId);
+  }
+
+  @Post(':id/approve')
+  @Roles('lab_admin', 'pathologist')
+  @ApiOperation({
+    summary:
+      'Pathologist approval — NABL sign-off: stamps every test e-signature, order → approved',
+  })
+  approve(
+    @Param('id') id: string,
+    @CurrentUser('organizationId') orgId: string,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.ordersService.approveOrder(orgId, id, actorId);
+  }
+
+  @Get(':id/report')
+  @Roles('lab_admin', 'pathologist', 'technician')
+  @ApiOperation({
+    summary: 'Get printable clinical report payload for an approved order',
+  })
+  report(
+    @Param('id') id: string,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.ordersService.getReportData(orgId, id);
+  }
 }

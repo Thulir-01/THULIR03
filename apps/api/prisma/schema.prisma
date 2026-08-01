@@ -443,6 +443,13 @@ model Order {
   deliveryMode     String?   @map("delivery_mode")
   emergency        Boolean   @default(false)
   finalReportDate  DateTime? @map("final_report_date")
+  // Workflow: technician verify → pathologist approve (NABL sign-off).
+  // The per-test e-signature lives on order_tests (verified_by/verified_at/
+  // signature_hash); these order-level fields record the actor + time.
+  verifiedBy String?   @map("verified_by") @db.Uuid
+  verifiedAt DateTime? @map("verified_at")
+  approvedBy String?   @map("approved_by") @db.Uuid
+  approvedAt DateTime? @map("approved_at")
   billHf           Boolean   @default(false) @map("bill_hf")
   consolidatedBill Boolean   @default(false) @map("consolidated_bill")
   remarks          String?

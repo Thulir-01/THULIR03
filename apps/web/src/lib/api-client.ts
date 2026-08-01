@@ -291,6 +291,80 @@ export async function updateTestResult(orderId: string, testId: string, body: {
   return data;
 }
 
+export interface WorkflowState {
+  id: string;
+  orderNumber: string;
+  status: string;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  finalReportDate: string | null;
+}
+
+export async function verifyOrder(orderId: string) {
+  const { data } = await api.post(`/orders/${orderId}/verify`);
+  return data as WorkflowState;
+}
+
+export async function approveOrder(orderId: string) {
+  const { data } = await api.post(`/orders/${orderId}/approve`);
+  return data as WorkflowState;
+}
+
+export interface ReportTestRow {
+  testCode: string;
+  testName: string;
+  isProfile: boolean;
+  result: string | null;
+  unit: string | null;
+  refRange: string | null;
+  refLow: number | null;
+  refHigh: number | null;
+  notes: string | null;
+  status: string;
+  children?: ReportTestRow[];
+}
+
+export interface ClinicalReport {
+  id: string;
+  orderNumber: string;
+  status: string;
+  createdAt: string;
+  sampleCollectDt: string | null;
+  refNo: string | null;
+  remarks: string | null;
+  priority: string;
+  emergency: boolean;
+  patient: {
+    title: string | null;
+    firstName: string;
+    lastName: string;
+    gender: string | null;
+    dateOfBirth: string | null;
+    ageYears: number | null;
+    ageMonths: number | null;
+    phone: string | null;
+  };
+  referrer: string | null;
+  verifiedAt: string | null;
+  approvedAt: string | null;
+  finalReportDate: string | null;
+  verifiedBy: { name: string; signatureImageUrl: string | null } | null;
+  approvedBy: {
+    name: string;
+    designation: string | null;
+    registrationNo: string | null;
+    signatureImageUrl: string | null;
+  } | null;
+  tests: ReportTestRow[];
+}
+
+export async function getOrderReport(orderId: string) {
+  const { data } = await api.get(`/orders/${orderId}/report`);
+  return data as ClinicalReport;
+}
+
 // ─── Dashboard Stats ──────────────────────────────────────────────
 
 export interface DashboardStats {

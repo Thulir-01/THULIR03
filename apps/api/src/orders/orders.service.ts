@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
   ConflictException,
   Injectable,
@@ -545,6 +545,224 @@ export class OrdersService {
       },
       { timeout: 30000 },
     );
+  }
+
+  /**
+   * Technician verify: confirms every result in the order is entered and
+   * correct, moving the order from `completed` → `verified`. Only allowed
+   * when all tests are completed — an incomplete order cannot be verified.
+   */
+  async verifyOrder(tenantId: string, orderId: string, actorUserId: string) {
+    const order = await this.prisma.client.order.findFirst({
+      where: { id: orderId, tenantId, deletedAt: null },
+      include: { tests: { select: { status: true } } },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 'completed') {
+      throw new ConflictException(
+        `Order is "${order.status}" — only completed orders can be verified`,
+      );
+    }
+    if (!order.tests.every((t) => t.status === 'completed')) {
+      throw new ConflictException(
+        'All test results must be completed before verifying',
+      );
+    }
+    const now = new Date();
+    return this.prisma.client.order.update({
+      where: { id: orderId },
+      data: { status: 'verified', verifiedBy: actorUserId, verifiedAt: now },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        verifiedBy: true,
+        verifiedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Pathologist approval: the NABL sign-off. Only allowed from `verified`.
+   * Stamps every test row with the pathologist's e-signature (verifiedBy /
+   * verifiedAt / signatureHash) so the report carries an immutable sign-off,
+   * sets finalReportDate, and moves the order to `approved` — the only state
+   * a printable report is available from.
+   */
+  async approveOrder(tenantId: string, orderId: string, actorUserId: string) {
+    const order = await this.prisma.client.order.findFirst({
+      where: { id: orderId, tenantId, deletedAt: null },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 'verified') {
+      throw new ConflictException(
+        `Order is "${order.status}" — only verified orders can be approved`,
+      );
+    }
+    const now = new Date();
+    // Deterministic signature hash: order + actor + timestamp, so the report
+    // (and later the QR verification portal) can re-derive it to confirm an
+    // original, un-tampered report.
+    const signatureHash = createHash('sha256')
+      .update(`${order.id}:${actorUserId}:${now.toISOString()}`)
+      .digest('hex');
+
+    return this.prisma.client.$transaction(
+      async (tx) => {
+        await tx.orderTest.updateMany({
+          where: { orderId },
+          data: {
+            verifiedBy: actorUserId,
+            verifiedAt: now,
+            signatureHash,
+          },
+        });
+        return tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: 'approved',
+            approvedBy: actorUserId,
+            approvedAt: now,
+            finalReportDate: now,
+          },
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            approvedBy: true,
+            approvedAt: true,
+            finalReportDate: true,
+          },
+        });
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  /**
+   * Report payload — everything the printable clinical report needs: patient
+   * demographics, all tests with results/units/ref-ranges, and the verify /
+   * approve actors (resolved to names + pathologist signature image). Only
+   * available for approved orders; anything else is a 409.
+   */
+  async getReportData(tenantId: string, orderId: string) {
+    const order = await this.prisma.client.order.findFirst({
+      where: { id: orderId, tenantId, deletedAt: null },
+      include: {
+        patient: {
+          select: {
+            title: true,
+            firstName: true,
+            lastName: true,
+            gender: true,
+            dateOfBirth: true,
+            ageYears: true,
+            ageMonths: true,
+            phone: true,
+          },
+        },
+        referrerParty: { select: { name: true } },
+        tests: {
+          where: { parentTestId: null },
+          select: {
+            testCode: true,
+            testName: true,
+            isProfile: true,
+            result: true,
+            unit: true,
+            refRange: true,
+            refLow: true,
+            refHigh: true,
+            notes: true,
+            status: true,
+            children: {
+              orderBy: { sortOrder: 'asc' },
+              select: {
+                testCode: true,
+                testName: true,
+                result: true,
+                unit: true,
+                refRange: true,
+                refLow: true,
+                refHigh: true,
+                notes: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 'approved') {
+      throw new ConflictException(
+        `Report is only available for approved orders (current: "${order.status}")`,
+      );
+    }
+
+    const [verifiedByUser, approvedByUser] = await Promise.all([
+      order.verifiedBy
+        ? this.prisma.client.user.findFirst({
+            where: { id: order.verifiedBy },
+            select: {
+              firstName: true,
+              lastName: true,
+              staffDetail: { select: { signatureImageUrl: true } },
+            },
+          })
+        : null,
+      order.approvedBy
+        ? this.prisma.client.user.findFirst({
+            where: { id: order.approvedBy },
+            select: {
+              firstName: true,
+              lastName: true,
+              staffDetail: {
+                select: {
+                  signatureImageUrl: true,
+                  designation: true,
+                  registrationNo: true,
+                },
+              },
+            },
+          })
+        : null,
+    ]);
+
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      createdAt: order.createdAt,
+      sampleCollectDt: order.sampleCollectDt,
+      refNo: order.refNo,
+      remarks: order.remarks,
+      priority: order.priority,
+      emergency: order.emergency,
+      patient: order.patient,
+      referrer: order.referrerParty?.name ?? null,
+      verifiedAt: order.verifiedAt,
+      approvedAt: order.approvedAt,
+      finalReportDate: order.finalReportDate,
+      verifiedBy: verifiedByUser
+        ? {
+            name: `${verifiedByUser.firstName} ${verifiedByUser.lastName}`,
+            signatureImageUrl:
+              verifiedByUser.staffDetail?.signatureImageUrl ?? null,
+          }
+        : null,
+      approvedBy: approvedByUser
+        ? {
+            name: `${approvedByUser.firstName} ${approvedByUser.lastName}`,
+            designation: approvedByUser.staffDetail?.designation ?? null,
+            registrationNo: approvedByUser.staffDetail?.registrationNo ?? null,
+            signatureImageUrl:
+              approvedByUser.staffDetail?.signatureImageUrl ?? null,
+          }
+        : null,
+      tests: order.tests,
+    };
   }
 
   async updateTestResult(

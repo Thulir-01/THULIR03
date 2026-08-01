@@ -4,7 +4,7 @@ import {
   Search, FlaskConical, Loader2, CheckCircle2, Clock,
   Save, Phone, Calendar, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Minus,
 } from "lucide-react";
-import { getOrders, getOrder, updateTestResult, type OrderListItem, type TestChild } from "../lib/api-client";
+import { getOrders, getOrder, updateTestResult, verifyOrder, type OrderListItem, type TestChild } from "../lib/api-client";
 
 function getFlag(result: string, refLow: number | null, refHigh: number | null): { icon: ReactNode; color: string; title: string } | null {
   if (!result || (refLow === null && refHigh === null)) return null;
@@ -151,6 +151,21 @@ export default function TestResultPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const [verifying, setVerifying] = useState(false);
+
+  const doVerify = async () => {
+    if (!orderDetail) return;
+    setVerifying(true);
+    try {
+      const updated = await verifyOrder(orderDetail.id);
+      setOrderDetail((prev) => (prev ? { ...prev, status: updated.status } : prev));
+    } catch {
+      alert("Verification failed — all results must be completed first.");
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const pendingCount = orderDetail ? countPending(orderDetail.tests) : 0;
@@ -392,9 +407,20 @@ export default function TestResultPage() {
                     <div className="w-px h-8 bg-gray-200" />
                     <div className="text-right">
                       <div className="text-xs text-gray-500">Status</div>
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${pendingCount === 0 ? "text-green-600" : "text-amber-600"}`}>
-                        {pendingCount === 0 ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                        {pendingCount === 0 ? "Completed" : `${pendingCount} pending`}
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${
+                        orderDetail.status === "approved" || orderDetail.status === "verified"
+                          ? "text-teal-600"
+                          : pendingCount === 0 ? "text-green-600" : "text-amber-600"
+                      }`}>
+                        {orderDetail.status === "approved" ? (
+                          <><CheckCircle2 className="w-3 h-3" /> Approved</>
+                        ) : orderDetail.status === "verified" ? (
+                          <><CheckCircle2 className="w-3 h-3" /> Verified — awaiting approval</>
+                        ) : pendingCount === 0 ? (
+                          <><CheckCircle2 className="w-3 h-3" /> Completed</>
+                        ) : (
+                          <><Clock className="w-3 h-3" /> {pendingCount} pending</>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -405,13 +431,33 @@ export default function TestResultPage() {
               <div className="flex-1 bg-white rounded-lg border border-gray-200/80 shadow-sm min-h-0 flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 shrink-0">
                   <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Test Results</h3>
-                  {pendingCount > 0 && (
-                    <button onClick={saveAll} disabled={saving !== null}
-                      className="h-7 px-3 bg-teal-600 text-white rounded text-[11px] font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center gap-1">
-                      {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                      Save All ({pendingCount})
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {pendingCount > 0 && (
+                      <button onClick={saveAll} disabled={saving !== null}
+                        className="h-7 px-3 bg-teal-600 text-white rounded text-[11px] font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center gap-1">
+                        {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        Save All ({pendingCount})
+                      </button>
+                    )}
+                    {orderDetail.status === "completed" && pendingCount === 0 && (
+                      <button onClick={doVerify} disabled={verifying}
+                        title="Confirm all results are correct — moves the order to verified (next: pathologist approval)"
+                        className="h-7 px-3 bg-teal-600 text-white rounded text-[11px] font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50 flex items-center gap-1">
+                        {verifying ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                        Verify & Send for Approval
+                      </button>
+                    )}
+                    {orderDetail.status === "verified" && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600">
+                        <CheckCircle2 className="w-3 h-3" /> Verified — sent to pathologist
+                      </span>
+                    )}
+                    {orderDetail.status === "approved" && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600">
+                        <CheckCircle2 className="w-3 h-3" /> Approved — report ready
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   <table className="w-full text-sm table-fixed">
