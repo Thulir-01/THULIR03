@@ -27,6 +27,10 @@ import LabSettingsPage from "./pages/LabSettingsPage";
 import PartiesPage from "./pages/PartiesPage";
 import PartyFormPage from "./pages/PartyFormPage";
 import PartyPricingPage from "./pages/PartyPricingPage";
+import InventoryPage from "./pages/InventoryPage";
+import VerifyReportPage from "./pages/VerifyReportPage";
+import PortalOrdersPage from "./pages/PortalOrdersPage";
+import PortalReportPage from "./pages/PortalReportPage";
 
 const shell = (page: React.ReactNode) => <AppShell>{page}</AppShell>;
 
@@ -37,6 +41,31 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-report" element={<VerifyReportPage />} />
+        <Route
+          path="/portal/patient"
+          element={
+            <ProtectedRoute>
+              <PortalOrdersPage kind="patient" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/portal/referrer"
+          element={
+            <ProtectedRoute>
+              <PortalOrdersPage kind="referrer" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/portal/:kind/report/:orderId"
+          element={
+            <ProtectedRoute>
+              <PortalReportPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard"
           element={<ProtectedRoute>{shell(<Dashboard />)}</ProtectedRoute>}
@@ -131,7 +160,12 @@ export default function App() {
         />
         <Route
           path="/parties/:id/pricing"
-          element={<ProtectedRoute>{shell(<PartyPricingPage />)}</ProtectedRoute>}
+          element={<ProtectedRoute>{shell(<PartyPricingPage />)}</ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory"
+          element={<ProtectedRoute>{shell(<InventoryPage />)}</ProtectedRoute>}
         />
       </Routes>
     </AuthProvider>

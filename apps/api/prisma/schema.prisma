@@ -120,6 +120,8 @@ model User {
   branch       Branch?      @relation(fields: [branchId], references: [id])
   role         Role?        @relation(fields: [roleId], references: [id])
   staffDetail  StaffDetail?
+  patient      Patient?
+  party        Party?
 
   @@index([organizationId])
   @@map("users")
@@ -166,11 +168,14 @@ model Patient {
   abhaAddress String?   @unique @map("abha_address")
   abhaNumber  String?   @map("abha_number")
   patientId   String?   @map("patient_id")
+  // Optional portal login link — set when the lab enables patient portal access.
+  userId String? @unique @map("user_id") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
   orders Order[]
+  user   User?   @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
   @@map("patients")
@@ -206,6 +211,8 @@ model Party {
   documents          Json?
   // active | inactive | blacklisted
   status    String   @default("active")
+  // Optional portal login link — set when the lab enables referrer portal access.
+  userId String? @unique @map("user_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -213,6 +220,7 @@ model Party {
   doctorDetail   PartyDoctorDetail?
   orders         Order[] // a party can be the referrer on many orders
   referrerPrices ReferrerPrice[]
+  user           User?    @relation(fields: [userId], references: [id])
 
   @@index([tenantId, partyType])
   @@map("parties")
@@ -307,6 +315,7 @@ model TestParameter {
   category       TestCategory      @relation(fields: [categoryId], references: [id])
   packageItems   TestPackageItem[]
   referrerPrices ReferrerPrice[]
+  inventoryRequirements TestInventoryRequirement[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -546,4 +555,92 @@ model AuditLog {
   @@index([tenantId, action])
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+// ─── Inventory: Suppliers, Items, Stock Ledger ───────────────────────────────
+// Sprint 11: reagent/consumables inventory. Suppliers are a lightweight contact
+// table; InventoryItem holds the on-hand balance; every IN/OUT writes a row to
+// InventoryTransaction (the stock ledger) so balances stay auditable.
+// TestInventoryRequirement links a TestParameter to the items it consumes
+// (qty per test) — the seed for future auto-deduction on result entry.
+
+model InventorySupplier {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  name          String
+  contactPerson String?  @map("contact_person")
+  phone         String?
+  email         String?
+  address       String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  items InventoryItem[]
+
+  @@index([tenantId])
+  @@map("inventory_suppliers")
+}
+
+model InventoryItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  name           String
+  sku            String
+  category       String?
+  unit           String?
+  // Reorder threshold — when quantityOnHand <= minStock the item is flagged.
+  minStock       Decimal  @default(0) @map("min_stock") @db.Decimal(12, 3)
+  quantityOnHand Decimal  @default(0) @map("quantity_on_hand") @db.Decimal(12, 3)
+  supplierId     String?  @map("supplier_id") @db.Uuid
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  supplier       InventorySupplier?       @relation(fields: [supplierId], references: [id])
+  transactions   InventoryTransaction[]
+  requirements   TestInventoryRequirement[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+  @@map("inventory_items")
+}
+
+// Stock ledger — every movement writes a row; balance = sum of IN − OUT.
+model InventoryTransaction {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  itemId      String    @map("item_id") @db.Uuid
+  type        String // "in" | "out"
+  quantity    Decimal   @db.Decimal(12, 3)
+  batchNo     String?   @map("batch_no")
+  expiryDate  DateTime? @map("expiry_date")
+  unitCost    Decimal?  @map("unit_cost") @db.Decimal(10, 2)
+  reference   String?
+  notes       String?
+  performedBy String?   @map("performed_by") @db.Uuid
+  performedAt DateTime  @default(now()) @map("performed_at")
+
+  item InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@index([tenantId, itemId])
+  @@map("inventory_transactions")
+}
+
+// Which inventory items a test consumes, and how much per test.
+model TestInventoryRequirement {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  parameterId String   @map("parameter_id") @db.Uuid
+  itemId      String   @map("item_id") @db.Uuid
+  quantity    Decimal  @default(1) @map("quantity") @db.Decimal(12, 3)
+
+  parameter TestParameter @relation(fields: [parameterId], references: [id])
+  item      InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@unique([parameterId, itemId])
+  @@index([tenantId])
+  @@map("test_inventory_requirements")
 }

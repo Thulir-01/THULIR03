@@ -7,17 +7,20 @@ import {
   Phone,
   Calendar,
   ChevronRight,
+  KeyRound,
 } from "lucide-react";
 import { getPatients, type Patient } from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
+import PortalEnrollModal from "../components/PortalEnrollModal";
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [portalPatient, setPortalPatient] = useState<Patient | null>(null);
 
   const load = (q?: string) => {
     setLoading(true);
@@ -153,6 +156,17 @@ export default function PatientsPage() {
                             {patient._count.orders} orders
                           </span>
                         )}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPortalPatient(patient);
+                          }}
+                          title="Enable patient portal login"
+                          className="inline-flex items-center gap-1 rounded-sm border border-line-200 px-2 py-1 text-[11px] font-medium text-ink-600 transition-colors duration-fast hover:border-accent-500 hover:text-accent-700"
+                        >
+                          <KeyRound className="size-3" /> Portal
+                        </button>
                         <ChevronRight className="size-4 text-line-300 transition-colors duration-fast group-hover:text-accent-500" />
                       </div>
                     </Link>
@@ -163,6 +177,17 @@ export default function PatientsPage() {
           </>
         )}
       </div>
+
+      {portalPatient && (
+        <PortalEnrollModal
+          kind="patient"
+          entityId={portalPatient.id}
+          entityName={`${portalPatient.firstName} ${portalPatient.lastName}`}
+          defaultEmail={portalPatient.email}
+          onClose={() => setPortalPatient(null)}
+          onDone={() => setPortalPatient(null)}
+        />
+      )}
     </div>
   );
 }

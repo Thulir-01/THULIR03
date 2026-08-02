@@ -17,6 +17,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { MastersModule } from './masters/masters.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { PortalsModule } from './portals/portals.module';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -47,6 +49,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     MastersModule,
     ReportsModule,
     SettingsModule,
+    InventoryModule,
+    PortalsModule,
   ],
   controllers: [AppController],
   providers: [

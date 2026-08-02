@@ -1,11 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { FlaskConical, LogIn, Eye, EyeOff, Loader2 } from "lucide-react";
+import { FlaskConical, LogIn, Eye, EyeOff, Loader2, ScanLine } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  function homeForRole(role: string) {
+    if (role === "patient") return "/portal/patient";
+    if (role === "referrer") return "/portal/referrer";
+    return "/dashboard";
+  }
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +28,8 @@ export default function Login() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate("/dashboard");
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      navigate(homeForRole(stored.role ?? ""));
     } catch (err: any) {
       setError(
         err.response?.data?.message || "Invalid email or password"
@@ -126,6 +133,18 @@ export default function Login() {
               Create one
             </Link>
           </p>
+
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <p className="text-center text-xs text-gray-400">
+              Patients & referrers sign in here with portal credentials
+            </p>
+            <Link
+              to="/verify-report"
+              className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-700"
+            >
+              <ScanLine className="size-3.5" /> Verify a report without signing in
+            </Link>
+          </div>
         </div>
       </div>
     </div>

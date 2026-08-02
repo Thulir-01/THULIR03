@@ -292,7 +292,9 @@ Key environment variables (see `.env.example` for full list):
 | **Sprint 8** | Reports & Analytics — revenue (billed/collected/outstanding), 14-day daily series chart, top test volumes, referrer payouts | ✅ **Complete** |
 | **Sprint 9** | **Phase 1 UI/Hardening pass** — shared UI kit (`PageHeader`, `PageStates` Loading/Empty/Error+retry, `StatCard`), removed duplicate per-page top bars, semantic-token sweep across all screens, error handling + retry everywhere | ✅ **Complete** |
 | **Sprint 10** | **Parties & Rate Cards** — new `PartiesModule` (CRUD for all 6 party types: doctor, hospital, corporate, insurance_tpa, reference_lab, consultant; type filter + search), rate-card overrides relaxed to any active party (not just doctors), `PartiesPage` (type tabs + search + cards), `PartyFormPage` (dynamic per type), `PartyPricingPage` (mode cards for doctors + custom price grid for all) | ✅ **Complete** |
-| **Sprint 11+** | Instrument middleware, QC, inventory, portals, compliance, launch | ⬜ Next |
+| **Sprint 10.5** | **Report print + Lab Settings** — report letterhead prints lab name/address/phone/email from the tenant org, Code128 order-number barcode (jsbarcode), A4 `@page` print CSS; new `SettingsModule` (`GET/PATCH /settings/lab`) + `LabSettingsPage /settings` to maintain the printable details | ✅ **Complete** |
+| **Sprint 11** | **Inventory & Portals** — inventory items + transactional stock in/out ledger (oversell blocked), low-stock / expiring / expired alerts, suppliers, test→item consumption links, `InventoryPage` (5 tabs); **patient portal** (own orders & printable reports), **referrer portal** (referred orders & reports), **public report verification** (`/verify-report` + no-auth API), portal enrollment/revoke from Patients/Parties, role-based login redirect | ✅ **Complete** |
+| **Sprint 12+** | QC & compliance, launch — instrument middleware deferred to last | ⬜ Next |
 
 Full 24-sprint build plan available in the project brief.
 

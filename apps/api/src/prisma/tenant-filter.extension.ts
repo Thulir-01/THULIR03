@@ -30,6 +30,10 @@ export const TENANT_SCOPED_MODELS = new Set([
   'lookupmaster',
   'staffdetail',
   'auditlog',
+  'inventorysupplier',
+  'inventoryitem',
+  'inventorytransaction',
+  'testinventoryrequirement',
 ]);
 
 const READ_OPS = new Set([

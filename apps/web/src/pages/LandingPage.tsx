@@ -185,11 +185,19 @@ export default function LandingPage() {
               },
               {
                 title: "Resources",
-                links: ["Documentation", "API Reference", "Support", "Blog"],
+                links: [
+                  { label: "API Reference", to: "/api/docs" },
+                  { label: "Documentation", to: "/api/docs" },
+                  { label: "Report Verification", to: "/verify-report" },
+                ],
               },
               {
-                title: "Company",
-                links: ["About", "Careers", "Contact", "Privacy Policy"],
+                title: "Portals",
+                links: [
+                  { label: "Patient Portal", to: "/login" },
+                  { label: "Referrer Portal", to: "/login" },
+                  { label: "Staff Sign in", to: "/login" },
+                ],
               },
             ].map((col) => (
               <div key={col.title}>
@@ -197,14 +205,14 @@ export default function LandingPage() {
                   {col.title}
                 </h4>
                 <ul className="space-y-2.5">
-                  {col.links.map((link) => (
-                    <li key={link}>
-                      <a
-                        href="#"
+                  {(col.links as Array<{ label: string; to: string }>).map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        to={link.to}
                         className="text-sm hover:text-teal-400 transition-colors"
                       >
-                        {link}
-                      </a>
+                        {link.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>

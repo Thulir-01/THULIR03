@@ -23,6 +23,7 @@ import {
   BarChart3,
   Building2,
   Settings,
+  Boxes,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -90,6 +91,13 @@ const SETTINGS_ITEMS = [
 ];
 
 const SETTINGS_ROLES = new Set(["lab_admin", "lab_manager"]);
+
+// Inventory — reagents & consumables stock, suppliers, test links
+const INVENTORY_ITEMS = [
+  { to: "/inventory", label: "Inventory", icon: Boxes },
+];
+
+const INVENTORY_ROLES = new Set(["lab_admin", "lab_manager"]);
 
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
@@ -235,6 +243,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const canViewReports = REPORTS_ROLES.has(user?.role ?? "");
   const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
   const canManageSettings = SETTINGS_ROLES.has(user?.role ?? "");
+  const canManageInventory = INVENTORY_ROLES.has(user?.role ?? "");
 
   const navItems = useMemo(
     () => [
@@ -242,6 +251,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       ...(canViewReports ? REPORTS_ITEMS : []),
       ...(canManageParties ? PARTIES_ITEMS : []),
       ...(canManageSettings ? SETTINGS_ITEMS : []),
+      ...(canManageInventory ? INVENTORY_ITEMS : []),
       ...(canVerify ? VERIFY_ITEMS : []),
       ...(canApprove ? APPROVALS_ITEMS : []),
       ...(canManageMasters ? MASTERS_ITEMS : []),
@@ -251,6 +261,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       canViewReports,
       canManageParties,
       canManageSettings,
+      canManageInventory,
       canVerify,
       canApprove,
       canManageMasters,

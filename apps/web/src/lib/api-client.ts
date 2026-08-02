@@ -931,3 +931,351 @@ export async function removeStaffDetail(userId: string) {
   const { data } = await api.delete(`/users/${userId}/staff-detail`);
   return data as { message: string };
 }
+
+// ─── Inventory ─────────────────────────────────────────────────────────
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  category: string | null;
+  unit: string | null;
+  minStock: number;
+  quantityOnHand: number;
+  supplierId: string | null;
+  supplierName: string | null;
+  isActive: boolean;
+  lowStock: boolean;
+  createdAt: string;
+  requirementCount?: number;
+}
+
+export interface InventorySupplier {
+  id: string;
+  name: string;
+  contactPerson: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  isActive: boolean;
+  createdAt: string;
+  _count?: { items: number };
+}
+
+export interface InventoryTransaction {
+  id: string;
+  itemId: string;
+  itemName: string;
+  type: "in" | "out";
+  quantity: number;
+  batchNo: string | null;
+  expiryDate: string | null;
+  unitCost: number | null;
+  reference: string | null;
+  notes: string | null;
+  performedAt: string;
+}
+
+export interface TestRequirement {
+  id: string;
+  parameterId: string;
+  parameterCode: string;
+  parameterName: string;
+  itemId: string;
+  itemName: string;
+  itemSku: string;
+  quantity: number;
+}
+
+export interface InventoryAlerts {
+  lowStock: InventoryItem[];
+  expiring: {
+    id: string;
+    itemId: string;
+    itemName: string;
+    sku: string;
+    batchNo: string | null;
+    expiryDate: string;
+  }[];
+  expired: {
+    id: string;
+    itemId: string;
+    itemName: string;
+    sku: string;
+    batchNo: string | null;
+    expiryDate: string;
+  }[];
+}
+
+export async function getInventoryItems(params?: {
+  search?: string;
+  lowStock?: string;
+  includeInactive?: string;
+}) {
+  const { data } = await api.get("/inventory/items", { params });
+  return data as InventoryItem[];
+}
+
+export async function createInventoryItem(body: {
+  name: string;
+  sku: string;
+  category?: string;
+  unit?: string;
+  minStock?: number;
+  supplierId?: string;
+}) {
+  const { data } = await api.post("/inventory/items", body);
+  return data as InventoryItem;
+}
+
+export async function updateInventoryItem(
+  id: string,
+  body: Partial<{
+    name: string;
+    sku: string;
+    category: string;
+    unit: string;
+    minStock: number;
+    supplierId: string;
+    isActive: boolean;
+  }>,
+) {
+  const { data } = await api.patch(`/inventory/items/${id}`, body);
+  return data as InventoryItem;
+}
+
+export async function deleteInventoryItem(id: string) {
+  const { data } = await api.delete(`/inventory/items/${id}`);
+  return data as { message: string };
+}
+
+export async function stockIn(body: {
+  itemId: string;
+  quantity: number;
+  batchNo?: string;
+  expiryDate?: string;
+  unitCost?: number;
+  reference?: string;
+  notes?: string;
+}) {
+  const { data } = await api.post("/inventory/stock/in", body);
+  return data as InventoryItem;
+}
+
+export async function stockOut(body: {
+  itemId: string;
+  quantity: number;
+  reference?: string;
+  notes?: string;
+}) {
+  const { data } = await api.post("/inventory/stock/out", body);
+  return data as InventoryItem;
+}
+
+export async function getInventoryTransactions(params?: {
+  itemId?: string;
+  type?: string;
+}) {
+  const { data } = await api.get("/inventory/transactions", { params });
+  return data as InventoryTransaction[];
+}
+
+export async function getItemTransactions(itemId: string) {
+  const { data } = await api.get(`/inventory/items/${itemId}/transactions`);
+  return data as InventoryTransaction[];
+}
+
+export async function getInventoryAlerts() {
+  const { data } = await api.get("/inventory/alerts");
+  return data as InventoryAlerts;
+}
+
+export async function getInventorySuppliers(search?: string) {
+  const { data } = await api.get("/inventory/suppliers", {
+    params: search ? { search } : {},
+  });
+  return data as InventorySupplier[];
+}
+
+export async function createInventorySupplier(body: {
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+}) {
+  const { data } = await api.post("/inventory/suppliers", body);
+  return data as InventorySupplier;
+}
+
+export async function updateInventorySupplier(
+  id: string,
+  body: Partial<{
+    name: string;
+    contactPerson: string;
+    phone: string;
+    email: string;
+    address: string;
+    isActive: boolean;
+  }>,
+) {
+  const { data } = await api.patch(`/inventory/suppliers/${id}`, body);
+  return data as InventorySupplier;
+}
+
+export async function deleteInventorySupplier(id: string) {
+  const { data } = await api.delete(`/inventory/suppliers/${id}`);
+  return data as { message: string };
+}
+
+export async function getTestRequirements(params?: {
+  itemId?: string;
+  parameterId?: string;
+}) {
+  const { data } = await api.get("/inventory/requirements", { params });
+  return data as TestRequirement[];
+}
+
+export async function setTestRequirement(body: {
+  parameterId: string;
+  itemId: string;
+  quantity: number;
+}) {
+  const { data } = await api.post("/inventory/requirements", body);
+  return data as TestRequirement;
+}
+
+export async function deleteTestRequirement(id: string) {
+  const { data } = await api.delete(`/inventory/requirements/${id}`);
+  return data as { message: string };
+}
+
+// ─── Portals ───────────────────────────────────────────────────────────
+
+export type PortalKind = "patient" | "referrer";
+
+export interface PortalOrder {
+  id: string;
+  orderNumber: string;
+  status: string;
+  priority: string;
+  emergency: boolean;
+  createdAt: string;
+  finalReportDate: string | null;
+  reportReady: boolean;
+  patientName: string | null;
+  testCount: number;
+  tests: { testName: string; status: string }[];
+}
+
+export interface PortalReportTest {
+  testCode: string;
+  testName: string;
+  isProfile: boolean;
+  result: string | null;
+  unit: string | null;
+  refRange: string | null;
+  refLow: number | null;
+  refHigh: number | null;
+  notes: string | null;
+  status: string;
+  children: {
+    testCode: string;
+    testName: string;
+    result: string | null;
+    unit: string | null;
+    refRange: string | null;
+    refLow: number | null;
+    refHigh: number | null;
+    status: string;
+  }[];
+}
+
+export interface PortalReport {
+  orderNumber: string;
+  status: string;
+  priority: string;
+  emergency: boolean;
+  createdAt: string;
+  sampleCollectDt: string | null;
+  refNo: string | null;
+  remarks: string | null;
+  finalReportDate: string | null;
+  verifiedAt: string | null;
+  approvedAt: string | null;
+  patient: {
+    firstName: string;
+    lastName: string;
+    gender: string | null;
+    dateOfBirth: string | null;
+    ageYears: number | null;
+    ageMonths: number | null;
+    phone: string | null;
+  };
+  referrer: string | null;
+  lab: {
+    name: string;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
+  tests: PortalReportTest[];
+}
+
+export interface ReportVerification {
+  valid: boolean;
+  orderNumber?: string;
+  status?: string;
+  labName?: string | null;
+  reportDate?: string | null;
+  patientName?: string;
+  tests?: string[];
+  message?: string;
+}
+
+export async function enrollPortalUser(body: {
+  kind: PortalKind;
+  entityId: string;
+  email: string;
+  password: string;
+}) {
+  const { data } = await api.post("/portals/enroll", body);
+  return data as { message: string; email: string; role: string };
+}
+
+export async function revokePortalUser(body: { kind: PortalKind; entityId: string }) {
+  const { data } = await api.post("/portals/revoke", body);
+  return data as { message: string };
+}
+
+export async function resetPortalPassword(body: { userId: string; password: string }) {
+  const { data } = await api.post("/portals/reset-password", body);
+  return data as { message: string };
+}
+
+export async function getPatientPortalOrders() {
+  const { data } = await api.get("/portals/patient/orders");
+  return data as PortalOrder[];
+}
+
+export async function getPatientPortalReport(orderId: string) {
+  const { data } = await api.get(`/portals/patient/orders/${orderId}`);
+  return data as PortalReport;
+}
+
+export async function getReferrerPortalOrders() {
+  const { data } = await api.get("/portals/referrer/orders");
+  return data as PortalOrder[];
+}
+
+export async function getReferrerPortalReport(orderId: string) {
+  const { data } = await api.get(`/portals/referrer/orders/${orderId}`);
+  return data as PortalReport;
+}
+
+export async function verifyReportPublic(orderNumber: string) {
+  const { data } = await api.get("/public/reports/verify", {
+    params: { orderNumber },
+  });
+  return data as ReportVerification;
+}

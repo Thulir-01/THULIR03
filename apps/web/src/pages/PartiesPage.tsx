@@ -16,6 +16,7 @@ import {
   FileText,
   Trash2,
   BadgePercent,
+  KeyRound,
 } from "lucide-react";
 import {
   getParties,
@@ -26,6 +27,7 @@ import {
 } from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
+import PortalEnrollModal from "../components/PortalEnrollModal";
 
 const TYPES: Array<{ value: PartyType | "all"; label: string; icon: typeof Building2 }> = [
   { value: "all", label: "All Parties", icon: Building2 },
@@ -52,6 +54,7 @@ export default function PartiesPage() {
   const [error, setError] = useState("");
   const [type, setType] = useState<PartyType | "all">("all");
   const [search, setSearch] = useState("");
+  const [portalParty, setPortalParty] = useState<Party | null>(null);
 
   const load = useCallback(
     async (t?: PartyType, q?: string) => {
@@ -265,6 +268,13 @@ export default function PartiesPage() {
                       <FileText className="size-3" /> Edit
                     </button>
                     <button
+                      onClick={() => setPortalParty(party)}
+                      title="Enable referrer portal login"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-500 transition-colors duration-fast hover:text-accent-700"
+                    >
+                      <KeyRound className="size-3" /> Portal
+                    </button>
+                    <button
                       onClick={() => handleDelete(party)}
                       className="text-ink-400 transition-colors duration-fast hover:text-status-critical"
                       title="Delete"
@@ -278,6 +288,17 @@ export default function PartiesPage() {
           </div>
         )}
       </div>
+
+      {portalParty && (
+        <PortalEnrollModal
+          kind="referrer"
+          entityId={portalParty.id}
+          entityName={portalParty.name}
+          defaultEmail={portalParty.primaryContactEmail}
+          onClose={() => setPortalParty(null)}
+          onDone={() => setPortalParty(null)}
+        />
+      )}
     </div>
   );
 }
