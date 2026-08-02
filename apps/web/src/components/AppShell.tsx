@@ -22,6 +22,7 @@ import {
   BadgeCheck,
   BarChart3,
   Building2,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -82,6 +83,13 @@ const PARTIES_ITEMS = [
 ];
 
 const PARTIES_ROLES = new Set(["lab_admin", "lab_manager"]);
+
+// Settings — lab (org) details printed on reports & invoices
+const SETTINGS_ITEMS = [
+  { to: "/settings", label: "Settings", icon: Settings },
+];
+
+const SETTINGS_ROLES = new Set(["lab_admin", "lab_manager"]);
 
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
@@ -226,12 +234,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const canVerify = VERIFY_ROLES.has(user?.role ?? "");
   const canViewReports = REPORTS_ROLES.has(user?.role ?? "");
   const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
+  const canManageSettings = SETTINGS_ROLES.has(user?.role ?? "");
 
   const navItems = useMemo(
     () => [
       ...NAV_ITEMS,
       ...(canViewReports ? REPORTS_ITEMS : []),
       ...(canManageParties ? PARTIES_ITEMS : []),
+      ...(canManageSettings ? SETTINGS_ITEMS : []),
       ...(canVerify ? VERIFY_ITEMS : []),
       ...(canApprove ? APPROVALS_ITEMS : []),
       ...(canManageMasters ? MASTERS_ITEMS : []),
@@ -240,6 +250,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     [
       canViewReports,
       canManageParties,
+      canManageSettings,
       canVerify,
       canApprove,
       canManageMasters,

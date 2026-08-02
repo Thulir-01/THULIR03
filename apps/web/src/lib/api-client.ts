@@ -860,6 +860,25 @@ export async function generateLookupMasterCode(type: LookupMasterType) {
   return data as string;
 }
 
+// ─── Lab Settings (org details on reports & invoices) ─────────────────────
+
+export interface LabSettings {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+export async function getLabSettings() {
+  const { data } = await api.get("/settings/lab");
+  return data as LabSettings;
+}
+
+export async function updateLabSettings(body: Partial<LabSettings>) {
+  const { data } = await api.patch("/settings/lab", body);
+  return data as LabSettings;
+}
+
 // ─── Staff / NABL Sign-off Details ─────────────────────────────────────────
 
 export interface StaffDetail {

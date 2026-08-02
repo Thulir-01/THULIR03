@@ -23,6 +23,7 @@ import VerifyPage from "./pages/VerifyPage";
 import ReportPage from "./pages/ReportPage";
 import InvoicePage from "./pages/InvoicePage";
 import ReportsPage from "./pages/ReportsPage";
+import LabSettingsPage from "./pages/LabSettingsPage";
 import PartiesPage from "./pages/PartiesPage";
 import PartyFormPage from "./pages/PartyFormPage";
 import PartyPricingPage from "./pages/PartyPricingPage";
@@ -111,6 +112,10 @@ export default function App() {
         <Route
           path="/reports"
           element={<ProtectedRoute>{shell(<ReportsPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/settings"
+          element={<ProtectedRoute>{shell(<LabSettingsPage />)}</ProtectedRoute>}
         />
         <Route
           path="/parties"
