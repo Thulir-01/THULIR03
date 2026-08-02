@@ -60,8 +60,26 @@ export default function AuditLogsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Known entities are always shown (even when the current 100-row page
+  // has no entries for them); merged with entities seen in the loaded rows
+  // so new modules appear in the filter automatically.
+  const KNOWN_ENTITIES = [
+    "users",
+    "patients",
+    "referrers",
+    "parties",
+    "orders",
+    "samples",
+    "masters",
+    "pricing",
+    "inventory",
+    "settings",
+    "staff",
+    "reports",
+    "portals",
+  ];
   const entities = useMemo(
-    () => [...new Set(logs.map((l) => l.entity))].sort(),
+    () => [...new Set([...KNOWN_ENTITIES, ...logs.map((l) => l.entity)])].sort(),
     [logs],
   );
 

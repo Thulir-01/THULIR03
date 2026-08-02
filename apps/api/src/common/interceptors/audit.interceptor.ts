@@ -78,7 +78,7 @@ export class AuditInterceptor implements NestInterceptor {
     // so the audit trail captures "what did this value used to be" too.
     const before =
       method === 'PATCH' || method === 'PUT' || method === 'DELETE'
-        ? await this.fetchPreImage(entity, parts, request.params)
+        ? await this.fetchPreImage(entity, parts, request.params, tenantId)
         : undefined;
 
     return next.handle().pipe(
@@ -173,6 +173,7 @@ export class AuditInterceptor implements NestInterceptor {
     entity: string,
     parts: string[],
     params?: Record<string, string>,
+    tenantId?: string | null,
   ): Promise<unknown> {
     if (!params) return undefined;
     try {
@@ -195,6 +196,33 @@ export class AuditInterceptor implements NestInterceptor {
         return await this.prisma.client.party.findFirst({
           where: { id: params.id, partyType: 'doctor' },
           include: { doctorDetail: true },
+        });
+      }
+      if (entity === 'parties' && params.id) {
+        return await this.prisma.client.party.findFirst({
+          where: { id: params.id },
+        });
+      }
+      if (entity === 'inventory' && parts[3] === 'items' && params.id) {
+        return await this.prisma.client.inventoryItem.findFirst({
+          where: { id: params.id },
+        });
+      }
+      if (entity === 'inventory' && parts[3] === 'suppliers' && params.id) {
+        return await this.prisma.client.inventorySupplier.findFirst({
+          where: { id: params.id },
+        });
+      }
+      if (entity === 'inventory' && parts[3] === 'requirements' && params.id) {
+        return await this.prisma.client.testInventoryRequirement.findFirst({
+          where: { id: params.id },
+        });
+      }
+      // Lab settings live on the Organization row itself (tenant-scoped by
+      // definition — the org id IS the tenant id).
+      if (entity === 'settings' && parts[3] === 'lab' && tenantId) {
+        return await this.prisma.client.organization.findFirst({
+          where: { id: tenantId },
         });
       }
     } catch {
