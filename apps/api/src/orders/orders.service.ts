@@ -599,6 +599,14 @@ export class OrdersService {
         `Order is "${order.status}" — only verified orders can be approved`,
       );
     }
+    // NABL two-person sign-off: the user who verified the results cannot also
+    // approve them — even a lab_admin who verified must hand off to someone
+    // else. A single person signing both steps would defeat the audit trail.
+    if (order.verifiedBy === actorUserId) {
+      throw new ConflictException(
+        'Two-person sign-off required — the user who verified this order cannot also approve it',
+      );
+    }
     const now = new Date();
     // Deterministic signature hash: order + actor + timestamp, so the report
     // (and later the QR verification portal) can re-derive it to confirm an

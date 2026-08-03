@@ -70,6 +70,44 @@ describe('OrdersService — verify / approve workflow', () => {
     ).rejects.toThrow('only verified orders can be approved');
   });
 
+  it('rejects approval when the approver is the same user who verified', async () => {
+    const service = makeService({
+      order: {
+        findFirst: () => ({ ...order('verified'), verifiedBy: 'tech-1' }),
+      },
+    });
+    await expect(
+      service.approveOrder('tenant-A', 'order-1', 'tech-1'),
+    ).rejects.toThrow('Two-person sign-off required');
+  });
+
+  it('allows approval when the approver is a different user from who verified', async () => {
+    const updateMany = jest.fn().mockResolvedValue({ count: 2 });
+    const orderUpdate = jest.fn().mockResolvedValue({ status: 'approved' });
+    const service = makeService({
+      order: {
+        findFirst: () => ({ ...order('verified'), verifiedBy: 'tech-1' }),
+        update: orderUpdate,
+      },
+      orderTest: { updateMany },
+    });
+    (service as any).prisma.client.$transaction = jest.fn(
+      async (fn: (tx: any) => Promise<unknown>) =>
+        fn({ orderTest: { updateMany }, order: { update: orderUpdate } }),
+    );
+    await service.approveOrder('tenant-A', 'order-1', 'path-1');
+
+    expect(orderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'order-1' },
+        data: expect.objectContaining({
+          status: 'approved',
+          approvedBy: 'path-1',
+        }),
+      }),
+    );
+  });
+
   it('approves a verified order and stamps every test e-signature', async () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 2 });
     const orderUpdate = jest.fn().mockResolvedValue({ status: 'approved' });

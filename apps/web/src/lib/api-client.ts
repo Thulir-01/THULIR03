@@ -343,6 +343,10 @@ export interface OrderDetail {
   emergency: boolean;
   clinicalRemarks: string | null;
   createdAt: string;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
   patient: {
     id: string;
     firstName: string;

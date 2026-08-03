@@ -19,6 +19,7 @@ import {
 } from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
+import { useAuth } from "../lib/useAuth";
 
 function getFlag(
   result: string | null,
@@ -45,6 +46,7 @@ function flatten(tests: TestChild[]): TestChild[] {
 }
 
 export default function ApprovalsPage() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -55,6 +57,7 @@ export default function ApprovalsPage() {
     orderNumber: string;
     status: string;
     emergency: boolean;
+    verifiedBy: string | null;
     patient: {
       firstName: string;
       lastName: string;
@@ -124,6 +127,10 @@ export default function ApprovalsPage() {
   const flagged = allTests.filter((t) =>
     getFlag(t.result, t.refLow, t.refHigh),
   );
+  // NABL two-person sign-off: whoever verified this order cannot also approve
+  // it. The backend enforces this with a 409 — we surface it in the UI first
+  // so the rejection isn't a surprise.
+  const selfVerified = !!detail?.verifiedBy && detail.verifiedBy === user?.id;
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden bg-surface-100 p-3">
@@ -246,9 +253,13 @@ export default function ApprovalsPage() {
                 </div>
                 <button
                   onClick={doApprove}
-                  disabled={approving}
-                  title="Approve with NABL e-signature — stamps every result and unlocks the report"
-                  className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-4 py-2 text-xs font-semibold text-surface-0 shadow-raised transition-colors duration-fast hover:bg-accent-500 disabled:opacity-50"
+                  disabled={approving || selfVerified}
+                  title={
+                    selfVerified
+                      ? "You verified this order — a different user must approve it"
+                      : "Approve with NABL e-signature — stamps every result and unlocks the report"
+                  }
+                  className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-4 py-2 text-xs font-semibold text-surface-0 shadow-raised transition-colors duration-fast hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {approving ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -263,6 +274,13 @@ export default function ApprovalsPage() {
                   <AlertTriangle className="size-3.5" />
                   {flagged.length} result{flagged.length > 1 ? "s" : ""} outside
                   reference range — flagged on the report
+                </div>
+              )}
+              {selfVerified && (
+                <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700">
+                  <ShieldCheck className="size-3.5" />
+                  You verified this order — a different user must approve it
+                  (NABL two-person sign-off)
                 </div>
               )}
             </div>
