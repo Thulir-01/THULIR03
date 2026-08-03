@@ -14,7 +14,6 @@ thulir03-lims/
 │   │       ├── users/          # User management
 │   │       ├── roles/          # RBAC role & permission management
 │   │       ├── patients/       # Patient CRUD + search
-│   │       ├── referrers/      # Doctor/referrer CRUD (migrated to parties)
 │   │       ├── parties/        # Unified master-data parties (doctors, hospitals, corporates, insurers, labs, consultants)
 │   │       ├── orders/         # Order registration, list/search, test results, verify → approve → report workflow
 │   │       │   └── test-profiles.ts  # Profile defs (CBC, LFT, RFT, Lipid, Thyroid, Diabetes)
@@ -37,16 +36,13 @@ thulir03-lims/
 │   │       │   ├── PatientRegistrationPage.tsx  # Full-screen registration (patient+tests+billing)
 │   │       │   ├── PatientFormPage.tsx      # Patient create/edit
 │   │       │   ├── PatientsPage.tsx         # Patient list + search
-│   │       │   ├── ReferrerFormPage.tsx     # Referrer create/edit
-│   │       │   ├── ReferrersPage.tsx        # Referrer list
 │   │       │   ├── OrdersPage.tsx           # Orders list with search & expand + report link
 │   │       │   ├── TestResultPage.tsx       # Result entry with flags (↑/↓) & profiles + verify button
 │   │       │   ├── VerifyPage.tsx           # Technician verify queue (/verify)
 │   │       │   ├── ApprovalsPage.tsx        # Pathologist approval queue (/approvals)
 │   │       │   ├── ReportPage.tsx           # Printable clinical report + Print/Save-as-PDF (/orders/:id/report)
-│   │       │   ├── MastersPage.tsx          # Masters one-panel tabs (parameters, packages, referrers, lookups)
+│   │       │   ├── MastersPage.tsx          # Masters one-panel tabs (parameters, packages, lookups)
 │   │       │   ├── MastersParametersPage.tsx / MastersPackagesPage.tsx / LookupMasterPage.tsx
-│   │       │   ├── ReferrerPricingPage.tsx  # Per-referrer rate cards
 │   │       │   ├── StaffPage.tsx            # Staff NABL sign-off details
 │   │       │   └── AuditLogsPage.tsx        # Audit trail viewer
 │   │       ├── components/
@@ -164,8 +160,6 @@ System roles are auto-created: `lab_admin`, `pathologist`, `technician`, `lab_ma
 | `POST` | `/api/v1/patients` | Create patient |
 | `GET` | `/api/v1/patients/:id` | Get patient |
 | `PATCH` | `/api/v1/patients/:id` | Update patient |
-| `GET` | `/api/v1/referrers` | List referrers |
-| `POST` | `/api/v1/referrers` | Create referrer |
 | `POST` | `/api/v1/orders/register` | Register order — patient + tests + billing in 1 transaction (profiles auto-expand) |
 | `GET` | `/api/v1/orders` | List orders (search by order#, patient name, phone) |
 | `GET` | `/api/v1/orders/:id` | Get order detail with all test parameters |
@@ -195,8 +189,8 @@ System roles are auto-created: `lab_admin`, `pathologist`, `technician`, `lab_ma
 | `/verify` | Technician verify queue | Yes |
 | `/approvals` | Pathologist approval queue | Yes (pathologist/admin/manager) |
 | `/orders/:orderId/report` | Printable clinical report + Print/Save-as-PDF | Yes |
-| `/referrers` | Referrer list | Yes |
-| `/masters` | Masters panel (parameters, packages, referrers, lookups) | Yes (admin/manager/pathologist) |
+| `/parties` | Parties (doctors, hospitals, corporates, insurers, labs, consultants) | Yes (admin/manager) |
+| `/masters` | Masters panel (parameters, packages, lookups) | Yes (admin/manager/pathologist) |
 | `/staff` | Staff NABL sign-off details | Yes (admin/manager) |
 | `/audit` | Audit trail viewer | Yes |
 

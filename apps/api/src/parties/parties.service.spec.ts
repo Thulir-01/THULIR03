@@ -14,26 +14,27 @@ describe('PartiesService — all party types', () => {
     },
   });
 
-  it('filters by party type and excludes standalone doctors by default', async () => {
+  it('filters by party type when one is given', async () => {
     const mocks = baseMocks();
     const service = makeService(mocks);
 
-    await service.findAll('tenant-A', { type: 'hospital' });
+    await service.findAll('tenant-A', { type: 'doctor' });
 
     const where = mocks.party.findMany.mock.calls[0][0].where;
     expect(where.tenantId).toBe('tenant-A');
     expect(where.deletedAt).toBeNull();
-    expect(where.partyType).toBe('hospital');
+    expect(where.partyType).toBe('doctor');
   });
 
-  it('defaults to all non-doctor parties when no type filter is given', async () => {
+  it('returns ALL party types (including doctors) when no type filter is given', async () => {
     const mocks = baseMocks();
     const service = makeService(mocks);
 
     await service.findAll('tenant-A');
 
     const where = mocks.party.findMany.mock.calls[0][0].where;
-    expect(where.partyType).toEqual({ not: 'doctor' });
+    // Doctors are parties now — the merged list must not hide them.
+    expect(where.partyType).toBeUndefined();
   });
 
   it('adds search across name/phone/email/gstin', async () => {

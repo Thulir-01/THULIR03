@@ -6,7 +6,6 @@ import {
   ClipboardList,
   Beaker,
   Users,
-  Stethoscope,
   History,
   LogOut,
   Search,
@@ -20,26 +19,27 @@ import {
   ClipboardSignature,
   ShieldCheck,
   BadgeCheck,
-  BarChart3,
+  TrendingUp,
   Building2,
   Settings,
   Boxes,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
-const NAV_ITEMS = [
+// Operations — the patient/sample journey, in the order it happens:
+// Dashboard → Registration → Patients → Orders → Result Entry, then the
+// role-gated Verify (technician) and Approvals (pathologist) queues.
+const OPERATIONS_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/registration", label: "Registration", icon: FilePlus2 },
+  { to: "/patients", label: "Patients", icon: Users },
   { to: "/orders", label: "Orders", icon: ClipboardList },
   { to: "/results", label: "Result Entry", icon: Beaker },
-  { to: "/patients", label: "Patients", icon: Users },
-  { to: "/referrers", label: "Referrers", icon: Stethoscope },
-  { to: "/audit", label: "Audit Trail", icon: History },
 ];
 
 const QUICK_ACTIONS = [
   { to: "/patients/new", label: "Add Patient", icon: Plus },
-  { to: "/referrers/new", label: "Add Referrer", icon: Plus },
+  { to: "/parties/new", label: "Add Party", icon: Plus },
 ];
 
 // Masters screens — one consolidated panel with tabs; only shown to
@@ -71,12 +71,14 @@ const VERIFY_ITEMS = [
 
 const VERIFY_ROLES = new Set(["technician", "lab_admin", "lab_manager"]);
 
-// Reports — analytics (revenue, test volumes, referrer payouts)
-const REPORTS_ITEMS = [
-  { to: "/reports", label: "Reports", icon: BarChart3 },
+// Analytics — business reporting (revenue, test volumes, referrer payouts).
+// Named Analytics (not Reports) so it can't be confused with the printable
+// per-order clinical report.
+const ANALYTICS_ITEMS = [
+  { to: "/reports", label: "Analytics", icon: TrendingUp },
 ];
 
-const REPORTS_ROLES = new Set(["lab_admin", "lab_manager"]);
+const ANALYTICS_ROLES = new Set(["lab_admin", "lab_manager"]);
 
 // Parties — hospitals, corporates, insurers, labs & consultants with rate cards
 const PARTIES_ITEMS = [
@@ -98,6 +100,10 @@ const INVENTORY_ITEMS = [
 ];
 
 const INVENTORY_ROLES = new Set(["lab_admin", "lab_manager"]);
+
+// Setup — configuration & master data, visually separated from the daily
+// patient workflow (mirrors SENAITE's LIMS Setup area).
+const SETUP_ITEMS = [{ to: "/audit", label: "Audit Trail", icon: History }];
 
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
@@ -240,33 +246,45 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const canManageStaff = STAFF_ROLES.has(user?.role ?? "");
   const canApprove = APPROVALS_ROLES.has(user?.role ?? "");
   const canVerify = VERIFY_ROLES.has(user?.role ?? "");
-  const canViewReports = REPORTS_ROLES.has(user?.role ?? "");
+  const canViewAnalytics = ANALYTICS_ROLES.has(user?.role ?? "");
   const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
   const canManageSettings = SETTINGS_ROLES.has(user?.role ?? "");
   const canManageInventory = INVENTORY_ROLES.has(user?.role ?? "");
 
-  const navItems = useMemo(
+  const operationsNav = useMemo(
     () => [
-      ...NAV_ITEMS,
-      ...(canViewReports ? REPORTS_ITEMS : []),
-      ...(canManageParties ? PARTIES_ITEMS : []),
-      ...(canManageSettings ? SETTINGS_ITEMS : []),
-      ...(canManageInventory ? INVENTORY_ITEMS : []),
+      ...OPERATIONS_ITEMS,
       ...(canVerify ? VERIFY_ITEMS : []),
       ...(canApprove ? APPROVALS_ITEMS : []),
+    ],
+    [canVerify, canApprove]
+  );
+
+  const setupNav = useMemo(
+    () => [
       ...(canManageMasters ? MASTERS_ITEMS : []),
+      ...(canManageParties ? PARTIES_ITEMS : []),
       ...(canManageStaff ? STAFF_ITEMS : []),
+      ...SETUP_ITEMS,
+      ...(canViewAnalytics ? ANALYTICS_ITEMS : []),
+      ...(canManageSettings ? SETTINGS_ITEMS : []),
+      ...(canManageInventory ? INVENTORY_ITEMS : []),
     ],
     [
-      canViewReports,
+      canManageMasters,
       canManageParties,
+      canManageStaff,
+      canViewAnalytics,
       canManageSettings,
       canManageInventory,
-      canVerify,
-      canApprove,
-      canManageMasters,
-      canManageStaff,
     ]
+  );
+
+  // Flat list for the Cmd+K palette — search finds every page in one place,
+  // regardless of which sidebar section it lives in.
+  const navItems = useMemo(
+    () => [...operationsNav, ...setupNav],
+    [operationsNav, setupNav]
   );
 
   useEffect(() => {
@@ -318,9 +336,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        {/* Nav */}
+        {/* Nav — two labeled sections: Operations (daily workflow) and
+            Setup (master data / configuration) */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-          {navItems.map((item) => (
+          {!collapsed && (
+            <div className="mb-1 px-2.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">
+              Operations
+            </div>
+          )}
+          {operationsNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -340,11 +364,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
 
-          {canManageMasters && !collapsed && (
-            <div className="mt-4 mb-1 px-2.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">
-              Masters
+          {!collapsed && (
+            <div className="mt-4 border-t border-line-200 pt-3">
+              <div className="mb-1 px-2.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">
+                Setup
+              </div>
             </div>
           )}
+          {setupNav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              title={item.label}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 rounded-sm px-2.5 py-2 text-[13px] font-medium transition-colors duration-fast ${
+                  collapsed ? "justify-center px-0" : ""
+                } ${
+                  isActive
+                    ? "bg-accent-100 text-accent-700"
+                    : "text-ink-600 hover:bg-surface-100 hover:text-ink-950"
+                }`
+              }
+            >
+              <item.icon className="size-4.5 shrink-0" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </NavLink>
+          ))}
         </nav>
 
         {/* Bottom: palette trigger + user */}

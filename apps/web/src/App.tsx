@@ -12,9 +12,6 @@ import TestResultPage from "./pages/TestResultPage";
 import Dashboard from "./pages/Dashboard";
 import PatientsPage from "./pages/PatientsPage";
 import PatientFormPage from "./pages/PatientFormPage";
-import ReferrersPage from "./pages/ReferrersPage";
-import ReferrerFormPage from "./pages/ReferrerFormPage";
-import ReferrerPricingPage from "./pages/ReferrerPricingPage";
 import MastersPage from "./pages/MastersPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 import StaffPage from "./pages/StaffPage";
@@ -77,18 +74,6 @@ export default function App() {
         <Route
           path="/patients/new"
           element={<ProtectedRoute>{shell(<PatientFormPage />)}</ProtectedRoute>}
-        />
-        <Route
-          path="/referrers"
-          element={<ProtectedRoute>{shell(<ReferrersPage />)}</ProtectedRoute>}
-        />
-        <Route
-          path="/referrers/new"
-          element={<ProtectedRoute>{shell(<ReferrerFormPage />)}</ProtectedRoute>}
-        />
-        <Route
-          path="/referrers/:id/pricing"
-          element={<ProtectedRoute>{shell(<ReferrerPricingPage />)}</ProtectedRoute>}
         />
         <Route
           path="/masters"

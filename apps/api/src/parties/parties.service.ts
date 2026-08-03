@@ -118,12 +118,12 @@ export class PartiesService {
       deletedAt: null,
     };
 
-    // If a type filter is provided, restrict to it. Without one, return all
-    // parties except standalone doctors (those live in the Referrers screen).
+    // If a type filter is provided, restrict to it. Without one, return every
+    // party — including doctors. Referring doctors were historically a
+    // separate module; they are now ordinary parties of type 'doctor' (the
+    // Parties screen is the single management surface for all party types).
     if (query?.type) {
       where.partyType = query.type;
-    } else {
-      where.partyType = { not: 'doctor' };
     }
 
     if (query?.search) {

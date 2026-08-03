@@ -192,12 +192,6 @@ export class AuditInterceptor implements NestInterceptor {
           where: { id: params.id },
         });
       }
-      if (entity === 'referrers' && params.id) {
-        return await this.prisma.client.party.findFirst({
-          where: { id: params.id, partyType: 'doctor' },
-          include: { doctorDetail: true },
-        });
-      }
       if (entity === 'parties' && params.id) {
         return await this.prisma.client.party.findFirst({
           where: { id: params.id },

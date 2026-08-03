@@ -6,7 +6,7 @@ import {
   Beaker,
   IndianRupee,
   FilePlus2,
-  Stethoscope,
+  Building2,
   History,
   ArrowRight,
   Phone,
@@ -69,7 +69,7 @@ export default function Dashboard() {
     { icon: ClipboardList, label: "Orders", desc: "View all lab orders", to: "/orders" },
     { icon: Beaker, label: "Result Entry", desc: "Enter test results", to: "/results" },
     { icon: Users, label: "Patients", desc: "Manage patient records", to: "/patients" },
-    { icon: Stethoscope, label: "Referrers", desc: "Manage referring doctors", to: "/referrers" },
+    { icon: Building2, label: "Parties", desc: "Doctors, hospitals & rate cards", to: "/parties" },
     { icon: History, label: "Audit Trail", desc: "Browse all activity logs", to: "/audit" },
   ];
 

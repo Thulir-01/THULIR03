@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   Table2,
   Package,
-  Stethoscope,
   TestTube,
   Boxes,
   Ruler,
@@ -14,11 +13,10 @@ import {
 } from "lucide-react";
 import ParametersPanel from "./MastersParametersPage";
 import PackagesPanel from "./MastersPackagesPage";
-import ReferrersPage from "./ReferrersPage";
 import LookupMasterPage, { LOOKUP_CONFIGS } from "./LookupMasterPage";
 import type { LookupMasterType } from "../lib/api-client";
 
-type Tab = "parameters" | "packages" | "referrers" | LookupMasterType;
+type Tab = "parameters" | "packages" | LookupMasterType;
 
 const LOOKUP_TABS: Array<{ type: LookupMasterType; icon: typeof Table2 }> = [
   { type: "sample_type", icon: TestTube },
@@ -37,7 +35,6 @@ export default function MastersPage({ initialTab = "parameters" }: { initialTab?
   const tabs: Array<{ id: Tab; label: string; icon: typeof Table2 }> = [
     { id: "parameters", label: "Test Parameters", icon: Table2 },
     { id: "packages", label: "Test Packages", icon: Package },
-    { id: "referrers", label: "Referrers", icon: Stethoscope },
     ...LOOKUP_TABS.map(({ type, icon }) => ({
       id: type as Tab,
       label: LOOKUP_CONFIGS[type].title,
@@ -52,8 +49,8 @@ export default function MastersPage({ initialTab = "parameters" }: { initialTab?
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
           <h1 className="text-2xl font-bold text-ink-950">Masters</h1>
           <p className="text-sm text-ink-400 mt-1">
-            Parameters, packages, referrers and the lab's lookup catalogues —
-            all in one place
+            Test parameters, packages and the lab's lookup catalogues — all in
+            one place (party rate cards live under Parties → Rates)
           </p>
         </div>
         {/* Tab bar */}
@@ -81,10 +78,8 @@ export default function MastersPage({ initialTab = "parameters" }: { initialTab?
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "parameters" && <ParametersPanel />}
         {tab === "packages" && <PackagesPanel />}
-        {tab === "referrers" && <ReferrersPage />}
         {tab !== "parameters" &&
-          tab !== "packages" &&
-          tab !== "referrers" && (
+          tab !== "packages" && (
             <LookupMasterPage config={LOOKUP_CONFIGS[tab]} />
           )}
       </div>

@@ -78,64 +78,7 @@ export async function deletePatient(id: string) {
   return data;
 }
 
-// ─── Referrers (Doctors) ─────────────────────────────────────────
-
-export interface Referrer {
-  id: string;
-  name: string;
-  specialty: string | null;
-  phone: string | null;
-  email: string | null;
-  clinicName: string | null;
-  registration: string | null;
-  commission: number | null;
-  pricingMode: string | null;
-  discountPercent: number | null;
-  isActive: boolean;
-  createdAt: string;
-  _count?: { orders: number };
-}
-
-export interface CreateReferrerData {
-  name: string;
-  specialty?: string;
-  phone?: string;
-  email?: string;
-  clinicName?: string;
-  registration?: string;
-  commission?: number;
-  pricingMode?: string;
-  discountPercent?: number | null;
-}
-
-export async function getReferrers(search?: string) {
-  const { data } = await api.get('/referrers', {
-    params: search ? { search } : {},
-  });
-  return data as Referrer[];
-}
-
-export async function getReferrer(id: string) {
-  const { data } = await api.get(`/referrers/${id}`);
-  return data;
-}
-
-export async function createReferrer(body: CreateReferrerData) {
-  const { data } = await api.post('/referrers', body);
-  return data;
-}
-
-export async function updateReferrer(id: string, body: Partial<CreateReferrerData>) {
-  const { data } = await api.put(`/referrers/${id}`, body);
-  return data;
-}
-
-export async function deleteReferrer(id: string) {
-  const { data } = await api.delete(`/referrers/${id}`);
-  return data;
-}
-
-// ─── Parties (hospitals, corporates, insurers, labs, consultants) ──
+// ─── Parties (doctors, hospitals, corporates, insurers, labs, consultants) ──
 
 export type PartyType =
   | "doctor"

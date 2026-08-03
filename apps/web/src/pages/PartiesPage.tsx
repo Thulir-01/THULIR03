@@ -17,6 +17,7 @@ import {
   Trash2,
   BadgePercent,
   KeyRound,
+  Award,
 } from "lucide-react";
 import {
   getParties,
@@ -31,6 +32,7 @@ import PortalEnrollModal from "../components/PortalEnrollModal";
 
 const TYPES: Array<{ value: PartyType | "all"; label: string; icon: typeof Building2 }> = [
   { value: "all", label: "All Parties", icon: Building2 },
+  { value: "doctor", label: "Doctors", icon: Stethoscope },
   { value: "hospital", label: "Hospitals", icon: Landmark },
   { value: "corporate", label: "Corporates", icon: Briefcase },
   { value: "insurance_tpa", label: "Insurance / TPA", icon: ShieldCheck },
@@ -238,13 +240,26 @@ export default function PartiesPage() {
                       <span>{party.primaryContactName}</span>
                     </div>
                   )}
+                  {party.partyType === "doctor" && party.specialty && (
+                    <div className="flex items-center gap-2">
+                      <Award className="size-3.5 text-ink-400" />
+                      <span>{party.specialty}</span>
+                    </div>
+                  )}
+                  {party.partyType === "doctor" && party.clinicName && (
+                    <div className="flex items-center gap-2">
+                      <Building2 className="size-3.5 text-ink-400" />
+                      <span>{party.clinicName}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between border-t border-line-200 pt-3">
                   <div className="flex items-center gap-1.5">
                     {party._count && party._count.orders > 0 && (
                       <span className="rounded-full bg-accent-100 px-2.5 py-1 text-xs font-medium text-accent-700">
-                        {party._count.orders} orders
+                        {party._count.orders}{" "}
+                        {party.partyType === "doctor" ? "referrals" : "orders"}
                       </span>
                     )}
                     {party._count && party._count.referrerPrices > 0 && (
