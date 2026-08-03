@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock,
   ShieldCheck,
+  BadgeCheck,
   ArrowUp,
   ArrowDown,
   AlertTriangle,
@@ -58,6 +59,7 @@ export default function ApprovalsPage() {
     status: string;
     emergency: boolean;
     verifiedBy: string | null;
+    verifiedByUser: { id: string; name: string } | null;
     patient: {
       firstName: string;
       lastName: string;
@@ -274,6 +276,13 @@ export default function ApprovalsPage() {
                   <AlertTriangle className="size-3.5" />
                   {flagged.length} result{flagged.length > 1 ? "s" : ""} outside
                   reference range — flagged on the report
+                </div>
+              )}
+              {detail.verifiedByUser && (
+                <div className="mt-2 flex items-center gap-1.5 rounded-md border border-accent-200 bg-accent-100/50 px-2.5 py-1.5 text-[11px] font-medium text-accent-800">
+                  <BadgeCheck className="size-3.5" />
+                  Verified by {detail.verifiedByUser.name}
+                  {selfVerified ? " — you" : " — a different user must approve"}
                 </div>
               )}
               {selfVerified && (

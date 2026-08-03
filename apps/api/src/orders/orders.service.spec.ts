@@ -154,6 +154,36 @@ describe('OrdersService — verify / approve workflow', () => {
     );
   });
 
+  it('resolves the verifier name on order detail for the approval screen', async () => {
+    const service = makeService({
+      order: {
+        findFirst: () => ({
+          id: 'order-1',
+          orderNumber: 'ORD-ABC123',
+          status: 'verified',
+          verifiedBy: 'tech-1',
+          tests: [
+            {
+              testCode: 'HB',
+              status: 'completed',
+              unit: 'g/dL',
+              refRange: '13-17',
+            },
+          ],
+        }),
+      },
+      user: {
+        findFirst: () => ({
+          id: 'tech-1',
+          firstName: 'Kavitha',
+          lastName: 'R',
+        }),
+      },
+    });
+    const data = await service.findOne('tenant-A', 'order-1');
+    expect(data.verifiedByUser).toEqual({ id: 'tech-1', name: 'Kavitha R' });
+  });
+
   it('rejects invoice for an order from another tenant (404)', async () => {
     const service = makeService({ order: { findFirst: () => null } });
     await expect(service.getInvoiceData('tenant-A', 'order-X')).rejects.toThrow(

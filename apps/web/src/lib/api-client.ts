@@ -347,6 +347,7 @@ export interface OrderDetail {
   verifiedAt: string | null;
   approvedBy: string | null;
   approvedAt: string | null;
+  verifiedByUser: { id: string; name: string } | null;
   patient: {
     id: string;
     firstName: string;

@@ -159,7 +159,24 @@ export class OrdersService {
       tenantId,
       order.tests as unknown as OrderTestView[],
     );
-    return order;
+
+    // Resolve the verifier's display name so approval screens can tell staff
+    // who verified the results (NABL two-person hand-off: the verifier cannot
+    // be the approver, so knowing who to hand off to matters).
+    let verifiedByUser: { id: string; name: string } | null = null;
+    if (order.verifiedBy) {
+      const verifier = await this.prisma.client.user.findFirst({
+        where: { id: order.verifiedBy },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      if (verifier) {
+        verifiedByUser = {
+          id: verifier.id,
+          name: `${verifier.firstName} ${verifier.lastName}`.trim(),
+        };
+      }
+    }
+    return { ...order, verifiedByUser };
   }
 
   /**
