@@ -28,8 +28,12 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    // Normalize the email so the same address can't be registered twice
+    // with different casing (findUnique on email is case-sensitive).
+    const email = dto.email.toLowerCase().trim();
+
     const existing = await this.prisma.client.user.findUnique({
-      where: { email: dto.email },
+      where: { email },
     });
     if (existing) {
       throw new ConflictException('Email already registered');
@@ -93,7 +97,7 @@ export class AuthService {
 
     const user = await this.prisma.client.user.create({
       data: {
-        email: dto.email,
+        email,
         passwordHash,
         firstName: dto.firstName,
         lastName: dto.lastName,
@@ -108,8 +112,12 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    // Case-insensitive lookup: Gmail-style addresses are case-insensitive,
+    // and autofill often capitalizes the stored lowercase email.
+    const email = dto.email.toLowerCase().trim();
+
     const user = await this.prisma.client.user.findUnique({
-      where: { email: dto.email },
+      where: { email },
       include: { role: true, organization: true },
     });
     if (!user) {
