@@ -12,6 +12,7 @@ import TestResultPage from "./pages/TestResultPage";
 import Dashboard from "./pages/Dashboard";
 import PatientsPage from "./pages/PatientsPage";
 import PatientFormPage from "./pages/PatientFormPage";
+import PatientDetailPage from "./pages/PatientDetailPage";
 import MastersPage from "./pages/MastersPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 import StaffPage from "./pages/StaffPage";
@@ -74,6 +75,10 @@ export default function App() {
         <Route
           path="/patients/new"
           element={<ProtectedRoute>{shell(<PatientFormPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/patients/:id"
+          element={<ProtectedRoute>{shell(<PatientDetailPage />)}</ProtectedRoute>}
         />
         <Route
           path="/masters"

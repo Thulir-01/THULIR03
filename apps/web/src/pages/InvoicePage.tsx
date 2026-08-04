@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Fragment } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
   ArrowLeft,
@@ -259,8 +259,8 @@ export default function InvoicePage() {
               </thead>
               <tbody>
                 {invoice.tests.map((t) => (
-                  <>
-                    <tr key={t.testCode} className="border-b border-slate-100">
+                  <Fragment key={t.testCode}>
+                    <tr className="border-b border-slate-100">
                       <td className="py-2 pr-2 font-semibold text-slate-900">
                         {t.testName}
                         {t.isProfile && t.children?.length ? (
@@ -289,7 +289,7 @@ export default function InvoicePage() {
                         </td>
                       </tr>
                     ))}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
