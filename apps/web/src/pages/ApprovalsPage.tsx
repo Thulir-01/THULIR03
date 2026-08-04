@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Search,
   Loader2,
@@ -106,6 +107,7 @@ interface CriticalValue {
 
 export default function ApprovalsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -650,11 +652,11 @@ export default function ApprovalsPage() {
                                   Approve
                                 </button>
                                 <button
-                                  onClick={() => openDetail(order)}
+                                  onClick={() => navigate(`/approvals/${order.id}`)}
                                   className="inline-flex items-center gap-1.5 rounded-sm border border-line-300 px-3 py-1.5 text-[11px] font-medium text-ink-600 transition-colors duration-fast hover:border-accent-500 hover:text-accent-700"
                                 >
                                   <FileText className="size-3" />
-                                  View Details
+                                  Full Review
                                 </button>
                               </div>
                             </td>
