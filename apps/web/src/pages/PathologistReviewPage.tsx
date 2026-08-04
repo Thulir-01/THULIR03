@@ -17,6 +17,7 @@ import {
   Maximize2,
   Move,
   Ruler,
+  RotateCcw,
   Paintbrush,
   Columns2,
   History,
@@ -223,8 +224,10 @@ export default function PathologistReviewPage() {
   const [comments, setComments] = useState("");
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
 
-  /* Sign-off */
-  const [criticalAcknowledged, setCriticalAcknowledged] = useState(false);
+  /* Sign-off + critical value safety gate */
+  const [criticalAck, setCriticalAck] = useState<{ comment: string; at: string } | null>(null);
+  const [criticalModal, setCriticalModal] = useState(false);
+  const [criticalComment, setCriticalComment] = useState("");
   const [signModal, setSignModal] = useState(false);
   const [signConfirm, setSignConfirm] = useState(false);
   const [signing, setSigning] = useState(false);
@@ -269,7 +272,9 @@ export default function PathologistReviewPage() {
     setDetailLoading(true);
     setDetailError("");
     setDetail(null);
-    setCriticalAcknowledged(false);
+    setCriticalAck(null);
+    setCriticalModal(false);
+    setCriticalComment("");
     setSignConfirm(false);
     setDiagnosis("");
     setGrade("");
@@ -349,6 +354,9 @@ export default function PathologistReviewPage() {
 
   const doSign = async () => {
     if (!detail) return;
+    if (hasCritical && !criticalAck) {
+      setCriticalAck({ comment: criticalComment.trim(), at: new Date().toISOString() });
+    }
     setSigning(true);
     setBanner(null);
     try {
@@ -370,6 +378,21 @@ export default function PathologistReviewPage() {
     } finally {
       setSigning(false);
     }
+  };
+
+  /* Critical value safety gate actions */
+  const confirmCritical = () => {
+    if (!criticalComment.trim()) return;
+    setCriticalModal(false);
+    void doSign();
+  };
+
+  const cancelCritical = () => {
+    setCriticalModal(false);
+    setBanner({
+      tone: "error",
+      text: "Sign-off cancelled — critical result flagged. Consider requesting a re-test or a new sample before proceeding.",
+    });
   };
 
   const todayLabel = new Date().toLocaleDateString("en-IN", {
@@ -408,8 +431,7 @@ export default function PathologistReviewPage() {
           </span>
           {detail && !locked && (
             <button
-              onClick={() => setSignModal(true)}
-              disabled={hasCritical && !criticalAcknowledged}
+              onClick={() => (hasCritical && !criticalAck ? setCriticalModal(true) : setSignModal(true))}
               className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-4 py-2 text-xs font-semibold text-surface-0 shadow-raised transition-colors duration-fast hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <PenLine className="size-3.5" />
@@ -428,13 +450,13 @@ export default function PathologistReviewPage() {
       {detail && hasCritical && (
         <div
           className={`flex shrink-0 flex-wrap items-center gap-3 border-b px-5 py-2.5 ${
-            criticalAcknowledged
+            criticalAck
               ? "border-amber-200 bg-amber-50/60"
               : "border-red-200 bg-red-50"
           }`}
         >
           <AlertTriangle
-            className={`size-4 shrink-0 ${criticalAcknowledged ? "text-amber-600" : "text-status-critical"}`}
+            className={`size-4 shrink-0 ${criticalAck ? "text-amber-600" : "text-status-critical"}`}
           />
           <div className="min-w-0 flex-1 text-xs">
             <span className="font-semibold text-ink-950">
@@ -444,16 +466,13 @@ export default function PathologistReviewPage() {
               {criticals.map((c) => `${c.testName} ${c.result}`).join(" · ")}
             </span>
           </div>
-          {!criticalAcknowledged ? (
-            <button
-              onClick={() => setCriticalAcknowledged(true)}
-              className="inline-flex items-center gap-1.5 rounded-sm border border-status-critical bg-surface-0 px-3 py-1.5 text-[11px] font-semibold text-status-critical transition-colors duration-fast hover:bg-red-100"
-            >
-              <CheckCircle2 className="size-3" /> Acknowledge & Proceed
-            </button>
+          {criticalAck ? (
+            <span className="inline-flex max-w-[45%] items-center gap-1 truncate text-[11px] font-medium text-status-normal">
+              <CheckCircle2 className="size-3 shrink-0" /> Acknowledged — {criticalAck.comment} · {fmtTime(criticalAck.at)}
+            </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-normal">
-              <CheckCircle2 className="size-3" /> Acknowledged — {fmtTime(new Date().toISOString())}
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-critical">
+              <AlertTriangle className="size-3" /> Acknowledgment required at sign-off (CLIA)
             </span>
           )}
         </div>
@@ -1070,14 +1089,22 @@ export default function PathologistReviewPage() {
                           meta={`${fmtDate(draftSavedAt)} ${fmtTime(draftSavedAt)}`}
                         />
                       )}
-                      {hasCritical && (
-                        <AuditEntry
-                          icon={<AlertTriangle className="size-3" />}
-                          tone="red"
-                          title={`Critical value${criticals.length > 1 ? "s" : ""} acknowledged`}
-                          meta={criticalAcknowledged ? "Acknowledged this session" : "Not yet acknowledged"}
-                        />
-                      )}
+                      {hasCritical &&
+                        (criticalAck ? (
+                          <AuditEntry
+                            icon={<AlertTriangle className="size-3" />}
+                            tone="red"
+                            title={`Critical value acknowledged — “${criticalAck.comment}”`}
+                            meta={`By Dr. ${user?.firstName} ${user?.lastName ?? ""} · ${fmtDate(criticalAck.at)} ${fmtTime(criticalAck.at)} · CLIA acknowledgment`}
+                          />
+                        ) : (
+                          <AuditEntry
+                            icon={<AlertTriangle className="size-3" />}
+                            tone="red"
+                            title="Critical values pending acknowledgment"
+                            meta="Required before sign-off (CLIA)"
+                          />
+                        ))}
                       {detail.approvedAt && (
                         <AuditEntry
                           icon={<Lock className="size-3" />}
@@ -1100,6 +1127,153 @@ export default function PathologistReviewPage() {
           </div>
         </aside>
       </div>
+
+      {/* ── Critical value alert — non-dismissible safety gate ── */}
+      {criticalModal && detail && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="critical-alert-title"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/60 p-4"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="max-h-[92vh] w-full max-w-lg overflow-hidden rounded-md border-2 border-status-critical bg-surface-0 shadow-overlay">
+            {/* Header */}
+            <div className="flex items-start gap-3 border-b-2 border-status-critical bg-red-50 px-6 py-4">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-sm bg-status-critical text-surface-0">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-status-critical">
+                  CLIA safety gate · Action required
+                </p>
+                <h2
+                  id="critical-alert-title"
+                  className="mt-0.5 text-lg font-bold leading-tight text-ink-950"
+                >
+                  CRITICAL VALUE DETECTED
+                </h2>
+                <p className="mt-1 text-xs text-ink-600">
+                  <span className="data-mono font-semibold text-status-critical">{detail.orderNumber}</span>
+                  {` · ${detail.patient.firstName} ${detail.patient.lastName}`}
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="max-h-[55vh] overflow-y-auto px-6 py-4">
+              <p className="text-xs leading-relaxed text-ink-700">
+                Sign-off is{" "}
+                <span className="font-semibold text-ink-950">blocked</span> until you acknowledge the
+                critical result{criticals.length > 1 ? "s" : ""} below.{" "}
+                <span className="text-ink-500">
+                  This alert cannot be dismissed without resolving it.
+                </span>
+              </p>
+
+              {/* Critical values */}
+              <div className="mt-4 space-y-2">
+                {criticals.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 rounded-sm border-l-2 border-status-critical bg-red-50/70 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-ink-950">{c.testName}</div>
+                      <div className="data-mono mt-0.5 text-[10px] text-ink-500">
+                        Ref {c.refRange ?? `${c.refLow ?? "—"} – ${c.refHigh ?? "—"}`}
+                      </div>
+                    </div>
+                    <div className="data-mono shrink-0 text-base font-bold text-status-critical">
+                      {c.result}
+                      {c.unit ? (
+                        <span className="ml-1 text-[10px] font-medium text-ink-500">{c.unit}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Patient summary */}
+              <div className="mt-4 rounded-sm border border-line-200 bg-surface-100/60 px-3.5 py-3">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                  Patient summary
+                </p>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <dt className="shrink-0 text-ink-400">Patient</dt>
+                    <dd className="truncate font-medium text-ink-950">
+                      {detail.patient.title ? `${detail.patient.title} ` : ""}
+                      {detail.patient.firstName} {detail.patient.lastName}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-ink-400">Order</dt>
+                    <dd className="data-mono font-medium text-ink-950">{detail.orderNumber}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-ink-400">DOB</dt>
+                    <dd className="font-medium text-ink-950">{fmtDate(detail.patient.dateOfBirth)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-ink-400">Gender</dt>
+                    <dd className="font-medium capitalize text-ink-950">{detail.patient.gender ?? "—"}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* Mandatory comment */}
+              <div className="mt-4">
+                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                  Acknowledgment comment <span className="text-status-critical">*</span>
+                </label>
+                <textarea
+                  value={criticalComment}
+                  onChange={(e) => setCriticalComment(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  placeholder="e.g., Verified with repeat draw — patient asymptomatic, likely hemolyzed sample…"
+                  className="w-full resize-none rounded-md border border-line-300 bg-surface-0 px-3 py-2 text-sm transition-colors duration-fast focus:border-status-critical focus:outline-none focus:ring-1 focus:ring-red-100"
+                />
+                <p className="mt-1 text-[10px] text-ink-400">
+                  Mandatory — prevents “blind” acknowledgment. e.g. “Verified with repeat draw” or
+                  “Noted in clinical context”.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-200 bg-surface-100 px-6 py-3">
+              <span className="flex items-center gap-1.5 text-[11px] text-ink-600">
+                <ShieldCheck className="size-3.5 text-status-critical" />
+                Timestamped & user-stamped into the immutable audit trail
+              </span>
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={cancelCritical}
+                  disabled={signing}
+                  className="inline-flex items-center gap-2 rounded-md border border-status-critical bg-surface-0 px-4 py-2.5 text-xs font-semibold text-status-critical transition-colors duration-fast hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RotateCcw className="size-3.5" /> Cancel & Re-test
+                </button>
+                <button
+                  onClick={confirmCritical}
+                  disabled={!criticalComment.trim() || signing}
+                  className="inline-flex items-center gap-2 rounded-md bg-status-critical px-5 py-2.5 text-xs font-semibold text-surface-0 shadow-raised transition-colors duration-fast hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {signing ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="size-3.5" />
+                  )}
+                  {signing ? "Signing…" : "Confirm & Sign-Off"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Sign-off modal ── */}
       {signModal && detail && (
@@ -1167,19 +1341,11 @@ export default function PathologistReviewPage() {
                 </div>
               </dl>
 
-              {hasCritical && !criticalAcknowledged && (
-                <div className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] font-medium text-status-critical">
-                  <AlertTriangle className="size-3.5 shrink-0" />
-                  Critical values must be acknowledged before sign-off (CLIA).
-                </div>
-              )}
-
               <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-md border border-line-200 bg-surface-100/60 px-3.5 py-3">
                 <input
                   type="checkbox"
                   checked={signConfirm}
                   onChange={(e) => setSignConfirm(e.target.checked)}
-                  disabled={hasCritical && !criticalAcknowledged}
                   className="mt-0.5 size-4 shrink-0 rounded-sm border-line-300 accent-accent-700"
                 />
                 <span className="text-xs leading-relaxed text-ink-700">
@@ -1196,7 +1362,7 @@ export default function PathologistReviewPage() {
               </span>
               <button
                 onClick={doSign}
-                disabled={!signConfirm || signing || (hasCritical && !criticalAcknowledged)}
+                disabled={!signConfirm || signing}
                 className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-5 py-2.5 text-xs font-semibold text-surface-0 shadow-raised transition-colors duration-fast hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {signing ? <Loader2 className="size-3.5 animate-spin" /> : <Lock className="size-3.5" />}
