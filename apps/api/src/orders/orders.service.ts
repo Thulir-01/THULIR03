@@ -930,19 +930,10 @@ export class OrdersService {
           },
         });
 
-        // Check if ALL tests in the order are completed → update order status
-        const allTests = await tx.orderTest.findMany({
-          where: { orderId },
-        });
-        const allDone = allTests.every((t) => t.status === 'completed');
-        if (allDone) {
-          await tx.order.update({
-            where: { id: orderId },
-            data: { status: 'completed' },
-          });
-        }
-
-        // If this is a child test, update parent test status too
+        // If this is a child test, update parent test status too — do this
+        // BEFORE the order-level roll-up. A profile whose last child was just
+        // completed must already read as 'completed' when we check whether the
+        // whole order is done, or the order would never reach 'completed'.
         if (test.parentTestId) {
           const siblings = await tx.orderTest.findMany({
             where: { parentTestId: test.parentTestId },
@@ -956,6 +947,18 @@ export class OrdersService {
               data: { status: 'completed' },
             });
           }
+        }
+
+        // Check if ALL tests in the order are completed → update order status
+        const allTests = await tx.orderTest.findMany({
+          where: { orderId },
+        });
+        const allDone = allTests.every((t) => t.status === 'completed');
+        if (allDone) {
+          await tx.order.update({
+            where: { id: orderId },
+            data: { status: 'completed' },
+          });
         }
 
         return updated;
