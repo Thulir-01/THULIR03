@@ -59,7 +59,7 @@ const STAFF_ROLES = new Set(["lab_admin", "lab_manager"]);
 
 // Approvals — pathologist queue of verified orders awaiting sign-off
 const APPROVALS_ITEMS = [
-  { to: "/approvals", label: "Approvals", icon: ShieldCheck },
+  { to: "/approvals", label: "Pathologist", icon: ShieldCheck },
 ];
 
 const APPROVALS_ROLES = new Set(["pathologist", "lab_admin", "lab_manager"]);
