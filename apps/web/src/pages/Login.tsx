@@ -31,14 +31,23 @@ export default function Login() {
       const stored = JSON.parse(localStorage.getItem("user") || "{}");
       navigate(homeForRole(stored.role ?? ""));
     } catch (err: any) {
-      if (err.response) {
-        // Backend responded — surface its message (401 → "Invalid email or password", etc.)
-        setError(err.response.data?.message || "Invalid email or password");
-      } else {
-        // No response — network/proxy failure: the backend isn't reachable
+      const status = err.response?.status;
+      const rawMessage = err.response?.data?.message;
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.join(", ")
+        : rawMessage;
+      if (message) {
+        // Backend responded with a real message (401 → "Invalid email or password", etc.)
+        setError(message);
+      } else if (!status || status >= 500) {
+        // No response (network failure) or a 5xx/proxy error page without a message
+        // — the backend isn't reachable. Don't mislead the user into thinking the
+        // credentials were wrong.
         setError(
           "Server unreachable — the backend is not responding. Please check the connection and try again."
         );
+      } else {
+        setError("Invalid email or password");
       }
     } finally {
       setIsLoading(false);
