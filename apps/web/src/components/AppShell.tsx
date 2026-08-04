@@ -31,7 +31,7 @@ import { useAuth } from "../lib/useAuth";
 // role-gated Verify (technician) and Approvals (pathologist) queues.
 const OPERATIONS_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/registration", label: "Registration", icon: FilePlus2 },
+  { to: "/patient-registration", label: "Registration", icon: FilePlus2 },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/orders", label: "Orders", icon: ClipboardList },
   { to: "/results", label: "Result Entry", icon: Beaker },

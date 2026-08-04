@@ -7,6 +7,7 @@ import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import PatientRegistrationPage from "./pages/PatientRegistrationPage";
+import PatientRegistrationFlow from "./pages/PatientRegistrationFlow";
 import OrdersPage from "./pages/OrdersPage";
 import TestResultPage from "./pages/TestResultPage";
 import Dashboard from "./pages/Dashboard";
@@ -95,6 +96,10 @@ export default function App() {
         <Route
           path="/registration"
           element={<ProtectedRoute>{shell(<PatientRegistrationPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/patient-registration"
+          element={<ProtectedRoute>{shell(<PatientRegistrationFlow />)}</ProtectedRoute>}
         />
         <Route
           path="/orders"
