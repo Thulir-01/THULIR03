@@ -2,7 +2,7 @@ import "./index.css";
 import { Routes, Route } from "react-router";
 import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./components/ProtectedRoute";
-import AppShell from "./components/AppShell";
+import AppShell from "./components/layout/AppShell";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
