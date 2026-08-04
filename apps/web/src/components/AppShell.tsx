@@ -66,7 +66,7 @@ const APPROVALS_ROLES = new Set(["pathologist", "lab_admin", "lab_manager"]);
 
 // Verify — technician queue of completed orders awaiting result confirmation
 const VERIFY_ITEMS = [
-  { to: "/verify", label: "Verify", icon: BadgeCheck },
+  { to: "/verify", label: "Technician", icon: BadgeCheck },
 ];
 
 const VERIFY_ROLES = new Set(["technician", "lab_admin", "lab_manager"]);
