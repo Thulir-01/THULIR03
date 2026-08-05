@@ -1,6 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
+
+export interface CreateUserDto {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  roleId?: string;
+  branchId?: string;
+}
 
 export interface UpdateUserDto {
   firstName?: string;
@@ -10,6 +25,8 @@ export interface UpdateUserDto {
   branchId?: string;
   isActive?: boolean;
   password?: string;
+  /** Admin “extend access” — bumps lastLoginAt so dormant accounts stay usable. */
+  lastLoginAt?: Date | string;
 }
 
 export interface UpsertStaffDetailDto {
@@ -166,6 +183,65 @@ export class UsersService {
     return { message: 'Staff details removed' };
   }
 
+  /**
+   * Admin-created staff user (same organization, chosen role). Registration
+   * for the public flow lives in AuthService — this is the internal path used
+   * by the System Settings → Add User onboarding workflow.
+   */
+  async create(organizationId: string, data: CreateUserDto) {
+    const email = data.email.toLowerCase().trim();
+    if (!email || !data.password || !data.firstName || !data.lastName) {
+      throw new BadRequestException('Email, password and name are required');
+    }
+
+    const existing = await this.prisma.client.user.findFirst({
+      where: { email, deletedAt: null },
+    });
+    if (existing) throw new ConflictException('Email already registered');
+
+    // Resolve the role within the org's available roles (defaults to lab_admin
+    // when omitted, matching the auth register flow).
+    let role = null;
+    if (data.roleId) {
+      role = await this.prisma.client.role.findUnique({
+        where: { id: data.roleId },
+      });
+      if (!role) throw new BadRequestException('Role not found');
+    } else {
+      role = await this.prisma.client.role.findFirst({
+        where: { slug: 'lab_admin' },
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 12);
+    const user = await this.prisma.client.user.create({
+      data: {
+        email,
+        passwordHash,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone ?? null,
+        organizationId,
+        roleId: role?.id ?? null,
+        branchId: data.branchId ?? null,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        totpEnabled: true,
+        lastLoginAt: true,
+        createdAt: true,
+        role: { select: { id: true, name: true, slug: true } },
+        branch: { select: { id: true, name: true } },
+      },
+    });
+    return user;
+  }
+
   async update(id: string, organizationId: string, data: UpdateUserDto) {
     const user = await this.prisma.client.user.findFirst({
       where: { id, organizationId, deletedAt: null },
@@ -179,6 +255,9 @@ export class UsersService {
     if (data.roleId) updateData.roleId = data.roleId;
     if (data.branchId !== undefined) updateData.branchId = data.branchId;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.lastLoginAt !== undefined) {
+      updateData.lastLoginAt = new Date(data.lastLoginAt);
+    }
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 12);
     }

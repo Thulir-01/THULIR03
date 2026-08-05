@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Put,
   Delete,
   Param,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import {
+  type CreateUserDto,
   type UpdateUserDto,
   type UpsertStaffDetailDto,
   UsersService,
@@ -30,6 +32,16 @@ export class UsersController {
   @ApiOperation({ summary: 'List all users in organization' })
   findAll(@CurrentUser('organizationId') orgId: string) {
     return this.usersService.findAll(orgId);
+  }
+
+  @Post()
+  @Roles('lab_admin')
+  @ApiOperation({ summary: 'Create a staff user in the organization' })
+  create(
+    @Body() body: CreateUserDto,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.usersService.create(orgId, body);
   }
 
   // Static routes must be declared BEFORE the :id route, or "staff" would be

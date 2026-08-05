@@ -880,6 +880,107 @@ export async function removeStaffDetail(userId: string) {
   return data as { message: string };
 }
 
+// ─── System Settings: User Management & RBAC ────────────────────────────
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  isActive: boolean;
+  totpEnabled: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  role: { id: string; name: string; slug: string } | null;
+  branch: { id: string; name: string } | null;
+}
+
+export interface Permission {
+  id: string;
+  resource: string;
+  action: string;
+  description: string | null;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isSystem: boolean;
+  rolePermissions: {
+    id: string;
+    roleId: string;
+    permissionId: string;
+    isAllowed: boolean;
+    permission: Permission;
+  }[];
+  _count?: { users: number };
+}
+
+export interface CreateUserData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  roleId?: string;
+}
+
+export interface UpdateUserData {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  roleId?: string;
+  isActive?: boolean;
+  password?: string;
+  lastLoginAt?: Date | string;
+}
+
+export async function listUsers() {
+  const { data } = await api.get("/users");
+  return data as AdminUser[];
+}
+
+export async function createUser(body: CreateUserData) {
+  const { data } = await api.post("/users", body);
+  return data as AdminUser;
+}
+
+export async function updateUser(id: string, body: UpdateUserData) {
+  const { data } = await api.put(`/users/${id}`, body);
+  return data as AdminUser;
+}
+
+export async function deactivateUser(id: string) {
+  const { data } = await api.delete(`/users/${id}`);
+  return data as { message: string };
+}
+
+export async function listRoles() {
+  const { data } = await api.get("/roles");
+  return data as Role[];
+}
+
+export async function listPermissions() {
+  const { data } = await api.get("/roles/permissions");
+  return data as Permission[];
+}
+
+export async function setRolePermissions(roleId: string, permissionIds: string[]) {
+  const { data } = await api.put(`/roles/${roleId}/permissions`, {
+    permissionIds,
+  });
+  return data as Role;
+}
+
+export async function seedDefaultPermissions() {
+  const { data } = await api.post("/roles/seed-permissions");
+  return data as { message: string };
+}
+
+
 // ─── Inventory ─────────────────────────────────────────────────────────
 
 export interface InventoryItem {

@@ -23,6 +23,7 @@ import {
   Building2,
   Settings,
   Boxes,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -93,6 +94,13 @@ const SETTINGS_ITEMS = [
 ];
 
 const SETTINGS_ROLES = new Set(["lab_admin", "lab_manager"]);
+
+// System — admin-only user management, RBAC & security compliance
+const SYSTEM_ITEMS = [
+  { to: "/system-settings", label: "System", icon: UserCog },
+];
+
+const SYSTEM_ROLES = new Set(["lab_admin"]);
 
 // Inventory — reagents & consumables stock, suppliers, test links
 const INVENTORY_ITEMS = [
@@ -249,6 +257,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const canViewAnalytics = ANALYTICS_ROLES.has(user?.role ?? "");
   const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
   const canManageSettings = SETTINGS_ROLES.has(user?.role ?? "");
+  const canManageSystem = SYSTEM_ROLES.has(user?.role ?? "");
   const canManageInventory = INVENTORY_ROLES.has(user?.role ?? "");
 
   const operationsNav = useMemo(
@@ -268,6 +277,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       ...SETUP_ITEMS,
       ...(canViewAnalytics ? ANALYTICS_ITEMS : []),
       ...(canManageSettings ? SETTINGS_ITEMS : []),
+      ...(canManageSystem ? SYSTEM_ITEMS : []),
       ...(canManageInventory ? INVENTORY_ITEMS : []),
     ],
     [
@@ -276,6 +286,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       canManageStaff,
       canViewAnalytics,
       canManageSettings,
+      canManageSystem,
       canManageInventory,
     ]
   );
