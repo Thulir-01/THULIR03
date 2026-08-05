@@ -19,48 +19,18 @@ import {
   User,
 } from "lucide-react";
 import { getInventoryAlerts } from "../lib/api-client";
+import {
+  loadExtraAlerts,
+  type AlertComment,
+  type AlertItem,
+  type AlertKind,
+  type AlertStatus,
+  type QcSeries,
+  type Severity,
+} from "../lib/alerts-store";
 import { useAuth } from "../lib/useAuth";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
-
-// ─── Types ────────────────────────────────────────────────────────────────
-
-type Severity = "critical" | "warning" | "info";
-type AlertStatus = "unread" | "in_progress" | "acknowledged" | "resolved";
-type AlertKind = "qc" | "maintenance" | "inventory" | "system" | "info";
-
-interface AlertComment {
-  id: string;
-  author: string;
-  text: string;
-  at: string;
-}
-
-interface QcSeries {
-  mean: number;
-  sd: number;
-  unit: string;
-  points: number[];
-  flaggedIndex: number;
-}
-
-interface AlertItem {
-  id: string;
-  severity: Severity;
-  kind: AlertKind;
-  status: AlertStatus;
-  title: string;
-  detail: string;
-  analyzer?: string;
-  lot?: string;
-  rule?: string;
-  test?: string;
-  createdAt: string;
-  roles: string[];
-  demo: boolean;
-  qc?: QcSeries;
-  history?: number[];
-}
 
 // ─── Persistence (localStorage — demo layer for non-server-backed alerts) ──
 
@@ -851,7 +821,9 @@ export default function AlertsPage() {
   // Demo alerts regenerate with now-relative timestamps on each load; their
   // status/comments persist via localStorage.
   const setDemoAlerts = (inv: ReturnType<typeof buildInventoryAlerts> | null) => {
-    setAlerts([...buildDemoAlerts(Date.now()), ...(inv ?? [])]);
+    // Extra alerts (raised by other modules, e.g. rejected results under
+    // investigation) lead the inbox, then demo QC/system + real inventory.
+    setAlerts([...loadExtraAlerts(), ...buildDemoAlerts(Date.now()), ...(inv ?? [])]);
   };
 
   const [alerts, setAlerts] = useState<AlertItem[]>([]);

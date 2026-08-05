@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Timer,
   CheckCircle2,
+  CheckCheck,
   XCircle,
   Eye,
   ArrowRight,
@@ -24,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
+import { pushExtraAlert } from "../lib/alerts-store";
 import {
   getOrders,
   getAuditLogs,
@@ -293,6 +295,8 @@ export default function Dashboard() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [scanOpen, setScanOpen] = useState(false);
+  const [approveAllOpen, setApproveAllOpen] = useState(false);
+  const [approvingAll, setApprovingAll] = useState(false);
   const [locked, setLocked] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   const lastActiveRef = useRef(Date.now());
@@ -427,8 +431,39 @@ export default function Dashboard() {
   };
 
   const reject = (id: string) => {
+    const order = orders.find((o) => o.id === id);
+    if (order) {
+      // Closed loop: a rejected result raises a critical investigation alert
+      // in the Alerts Center so it is never lost between modules.
+      pushExtraAlert({
+        severity: "critical",
+        kind: "system",
+        title: `Result Rejected: ${order.orderNumber}`,
+        detail: `${order.orderNumber} (${maskName(`${order.patient.firstName} ${order.patient.lastName}`)}) was rejected during review and flagged for investigation — re-test / repeat draw required before sign-off.`,
+        roles: ["pathologist", "lab_admin", "lab_manager"],
+      });
+      showToast("Investigation alert raised in the Alerts Center.");
+    }
     // Open the full review so the pathologist can document the re-test request.
     navigate(`/approvals/${id}`);
+  };
+
+  const approveAll = async () => {
+    setApprovingAll(true);
+    let ok = 0;
+    let fail = 0;
+    for (const o of pendingReviews) {
+      try {
+        await approveOrder(o.id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setApprovingAll(false);
+    setApproveAllOpen(false);
+    showToast(`Approved ${ok} order${ok === 1 ? "" : "s"}${fail > 0 ? ` · ${fail} failed` : ""} — e-signed & released.`);
+    await load();
   };
 
   const handleLogout = () => {
@@ -550,6 +585,16 @@ export default function Dashboard() {
                   <h2 className="text-sm font-semibold text-ink-950">My Tasks</h2>
                   <div className="flex items-center gap-2">
                     <span className="hidden text-[10px] text-ink-400 sm:block">Patient details masked — open a task to view</span>
+                    {canApprove && pendingReviews.length > 0 && (
+                      <button
+                        onClick={() => setApproveAllOpen(true)}
+                        disabled={approvingAll}
+                        className="inline-flex items-center gap-1 rounded-md bg-status-normal px-2.5 py-1.5 text-[11px] font-semibold text-surface-0 transition-colors duration-fast hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {approvingAll ? <Loader2 className="size-3 animate-spin" /> : <CheckCheck className="size-3.5" />}
+                        Approve All ({pendingReviews.length})
+                      </button>
+                    )}
                     <Link to="/approvals" className="inline-flex items-center gap-1 text-xs font-medium text-accent-700 transition-colors duration-fast hover:text-accent-500">
                       View All <ArrowRight className="size-3.5" />
                     </Link>
@@ -699,6 +744,48 @@ export default function Dashboard() {
       )}
 
       {scanOpen && <ScanModal onClose={() => setScanOpen(false)} />}
+
+      {/* Approve All confirm — NABL 2-person sign-off gate */}
+      {approveAllOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border border-line-200 bg-surface-0 p-6 shadow-overlay">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-green-50 text-status-normal">
+                <CheckCheck className="size-5" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-ink-950">Approve all pending reviews?</h3>
+                <p className="mt-1 text-xs leading-relaxed text-ink-500">
+                  This e-signs and releases{" "}
+                  <span className="font-semibold text-ink-950">
+                    {pendingReviews.length} verified order{pendingReviews.length === 1 ? "" : "s"}
+                  </span>{" "}
+                  in one batch. Results were already verified by the technician — you are the second
+                  signer (NABL 2-person sign-off). Every approval is recorded in the Audit Trail.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setApproveAllOpen(false)}
+                disabled={approvingAll}
+                className="rounded-md border border-line-200 bg-surface-0 px-3 py-1.5 text-xs font-medium text-ink-700 transition-colors duration-fast hover:bg-surface-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void approveAll()}
+                disabled={approvingAll}
+                className="inline-flex items-center gap-1.5 rounded-md bg-status-normal px-3 py-1.5 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {approvingAll ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
+                {approvingAll ? "Approving…" : `Approve all (${pendingReviews.length})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {locked && <LockOverlay onUnlock={() => { setLocked(false); lastActiveRef.current = Date.now(); }} onLogout={handleLogout} />}
     </div>
   );
