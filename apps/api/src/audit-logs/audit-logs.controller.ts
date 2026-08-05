@@ -34,19 +34,33 @@ export class AuditLogsController {
     description: 'Filter by entity, e.g. orders, patients',
   })
   @ApiQuery({
+    name: 'from',
+    required: false,
+    description: 'ISO timestamp — include entries created at/after this time',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description: 'ISO timestamp — include entries created at/before this time',
+  })
+  @ApiQuery({
     name: 'limit',
     required: false,
-    description: 'Max entries (default 50, max 200)',
+    description: 'Max entries (default 100, max 200)',
   })
   list(
     @Query('action') action?: string,
     @Query('entity') entity?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('limit') limit?: string,
     @CurrentUser('organizationId') orgId?: string,
   ) {
     return this.auditLogsService.list(orgId ?? '', {
       action,
       entity,
+      from,
+      to,
       limit: limit ? Number(limit) : undefined,
     });
   }

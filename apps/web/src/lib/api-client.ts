@@ -518,6 +518,7 @@ export interface AuditLogEntry {
   tenantId: string | null;
   actorId: string | null;
   actorName: string | null;
+  actorRole: string | null;
   action: string;
   entity: string;
   entityId: string | null;
@@ -531,6 +532,8 @@ export interface AuditLogEntry {
 export async function getAuditLogs(params?: {
   action?: string;
   entity?: string;
+  from?: string;
+  to?: string;
   limit?: number;
 }) {
   const { data } = await api.get("/audit-logs", { params });

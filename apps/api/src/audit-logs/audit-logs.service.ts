@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 export interface AuditLogQuery {
   action?: string;
   entity?: string;
+  from?: string;
+  to?: string;
   limit?: number;
 }
 
@@ -17,12 +19,22 @@ export class AuditLogsService {
     const rawLimit = Number(query.limit);
     const limit = Number.isFinite(rawLimit)
       ? Math.min(Math.max(Math.floor(rawLimit), 1), 200)
-      : 50;
+      : 100;
 
     const where = {
       tenantId: orgId,
       ...(query.action ? { action: query.action } : {}),
       ...(query.entity ? { entity: query.entity } : {}),
+      // ISO date-range filter (inclusive) — used by the Audit Log viewer's
+      // "Last 24h / Last 7 days / Last month / custom" presets.
+      ...(query.from || query.to
+        ? {
+            createdAt: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
     };
 
     const logs = await this.prisma.client.auditLog.findMany({
@@ -41,13 +53,20 @@ export class AuditLogsService {
       ),
     ];
     const actorNames = new Map<string, string>();
+    const actorRoles = new Map<string, string | null>();
     if (actorIds.length > 0) {
       const users = await this.prisma.client.user.findMany({
         where: { id: { in: actorIds } },
-        select: { id: true, firstName: true, lastName: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          role: { select: { name: true } },
+        },
       });
       for (const user of users) {
         actorNames.set(user.id, `${user.firstName} ${user.lastName}`.trim());
+        actorRoles.set(user.id, user.role?.name ?? null);
       }
     }
 
@@ -59,6 +78,7 @@ export class AuditLogsService {
       action: log.action,
       entity: log.entity,
       entityId: log.entityId,
+      actorRole: log.actorId ? (actorRoles.get(log.actorId) ?? null) : null,
       ipAddress: log.ipAddress,
       userAgent: log.userAgent,
       before: log.before,
