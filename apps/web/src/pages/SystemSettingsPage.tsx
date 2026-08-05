@@ -20,6 +20,14 @@ import {
   UserX,
   ShieldAlert,
   CheckCircle2,
+  Pencil,
+  Ban,
+  Trash2,
+  Info,
+  Mail,
+  IdCard,
+  Building2,
+  ChevronRight,
 } from "lucide-react";
 import {
   listUsers,
@@ -35,6 +43,7 @@ import {
   type Role,
   type Permission,
   type AuditLogEntry,
+  type UpdateUserData,
 } from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState } from "../components/ui/PageStates";
@@ -139,6 +148,42 @@ const ROLE_TEMPLATES: Record<string, string[]> = {
     "invoices:create", "invoices:read",
   ],
 };
+
+/* ─── Role cards for the Add/Edit modal ────────────────────────────── */
+const ROLE_CARDS: { slug: string; blurb: string }[] = [
+  { slug: "lab_admin", blurb: "Full system control — users, roles, billing and every module" },
+  { slug: "lab_manager", blurb: "Day-to-day oversight, verification and reporting" },
+  { slug: "pathologist", blurb: "Verify & sign off results, produce clinical reports" },
+  { slug: "technician", blurb: "Result entry and slide verification at the bench" },
+  { slug: "receptionist", blurb: "Patient registration, order entry and billing desk" },
+];
+
+/* ─── Segregation-of-duties conflicts (CLIA §493.1449) ────────────── */
+const CONFLICT_RULES: { a: string; b: string; message: string }[] = [
+  {
+    a: "results:verify",
+    b: "results:approve",
+    message:
+      "Same person can verify and approve results — CLIA requires a second reviewer for sign-off.",
+  },
+  {
+    a: "results:create",
+    b: "results:approve",
+    message:
+      "Same person can enter and approve results — results should be approved by a different reviewer.",
+  },
+];
+
+function findConflicts(checked: Set<string>, permissions: Permission[]): string[] {
+  const keys = new Set(
+    permissions.filter((p) => checked.has(p.id)).map((p) => `${p.resource}:${p.action}`),
+  );
+  return CONFLICT_RULES.filter((r) => keys.has(r.a) && keys.has(r.b)).map((r) => r.message);
+}
+
+function genTempPassword() {
+  return `Thulir@${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /* ─── Edit Permissions modal ───────────────────────────────────────── */
 function PermissionsModal({
@@ -372,32 +417,86 @@ function PermissionsModal({
   );
 }
 
-/* ─── Add User modal ───────────────────────────────────────────────── */
-function AddUserModal({
+/* ─── Add / Edit User modal (tabs: Profile · Access & Role · Security) ─ */
+function AddEditUserModal({
+  user,
+  users,
   roles,
+  permissions,
   onClose,
-  onCreated,
+  onSaved,
 }: {
+  user: AdminUser | null; // null → create mode
+  users: AdminUser[];
   roles: Role[];
+  permissions: Permission[];
   onClose: () => void;
-  onCreated: (u: AdminUser) => void;
+  onSaved: (u: AdminUser) => void;
 }) {
+  const isEdit = !!user;
+  const [tab, setTab] = useState<"profile" | "access" | "security">("profile");
   const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
+    firstName: user?.firstName ?? "",
+    lastName: user?.lastName ?? "",
+    email: user?.email ?? "",
+    phone: user?.phone ?? "",
     password: "",
-    roleId: "",
+  });
+  const [roleId, setRoleId] = useState<string>(user?.role?.id ?? "");
+  const [checked, setChecked] = useState<Set<string>>(() => {
+    const role = roles.find((r) => r.id === user?.role?.id);
+    return new Set(
+      role?.rolePermissions.filter((rp) => rp.isAllowed).map((rp) => rp.permissionId) ?? [],
+    );
   });
   const [saving, setSaving] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
   const [error, setError] = useState("");
+  const [showReset, setShowReset] = useState(false);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const applyTemplate = (slug: string) => {
-    const role = roles.find((r) => r.slug === slug);
-    if (role) set("roleId", role.id);
+  /* Duplicate detection — suggests existing users while typing an email */
+  const duplicate = users.find(
+    (u) =>
+      u.email.toLowerCase() === form.email.trim().toLowerCase() &&
+      u.id !== user?.id,
+  );
+
+  const selectedRole = roles.find((r) => r.id === roleId) ?? null;
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, Permission[]>();
+    for (const p of permissions) {
+      const list = map.get(p.resource) ?? [];
+      list.push(p);
+      map.set(p.resource, list);
+    }
+    return [...map.entries()];
+  }, [permissions]);
+
+  const conflicts = useMemo(
+    () => findConflicts(checked, permissions),
+    [checked, permissions],
+  );
+
+  const togglePerm = (id: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectRole = (id: string) => {
+    setRoleId(id);
+    const role = roles.find((r) => r.id === id);
+    setChecked(
+      new Set(
+        role?.rolePermissions.filter((rp) => rp.isAllowed).map((rp) => rp.permissionId) ?? [],
+      ),
+    );
   };
 
   const submit = async () => {
@@ -405,48 +504,128 @@ function AddUserModal({
       setError("Name and email are required");
       return;
     }
-    if (!form.roleId) {
-      setError("Assign a role");
+    if (duplicate) {
+      setError("That email already belongs to another user — edit that account instead.");
+      return;
+    }
+    if (!roleId) {
+      setError("Assign a role before saving");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const user = await createUser({
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim() || undefined,
-        password: form.password || "Thulir@12345",
-        roleId: form.roleId,
-      });
-      onCreated(user);
+      /* Sync the selected role's permission set when the admin changed it */
+      const currentAllowed = new Set(
+        selectedRole?.rolePermissions.filter((rp) => rp.isAllowed).map((rp) => rp.permissionId) ??
+          [],
+      );
+      const permChanged =
+        permissions.length > 0 &&
+        (checked.size !== currentAllowed.size ||
+          [...checked].some((id) => !currentAllowed.has(id)));
+      if (permChanged && selectedRole) {
+        await setRolePermissions(selectedRole.id, [...checked]);
+      }
+
+      if (isEdit && user) {
+        const body: UpdateUserData = {};
+        if (form.firstName.trim() !== user.firstName) body.firstName = form.firstName.trim();
+        if (form.lastName.trim() !== user.lastName) body.lastName = form.lastName.trim();
+        if (form.phone.trim() !== (user.phone ?? "")) body.phone = form.phone.trim();
+        if (roleId !== user.role?.id) body.roleId = roleId;
+        if (form.password.trim()) body.password = form.password.trim();
+        const updated = await updateUser(user.id, body);
+        onSaved({
+          ...user,
+          ...updated,
+          role: roles.find((r) => r.id === roleId) ?? user.role,
+        });
+      } else {
+        const created = await createUser({
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim() || undefined,
+          password: form.password.trim() || genTempPassword(),
+          roleId,
+        });
+        onSaved(created);
+      }
       onClose();
     } catch (e) {
       const msg =
         (e as { response?: { data?: { message?: string } } }).response?.data
-          ?.message ?? "Failed to create user.";
+          ?.message ?? "Failed to save user.";
       setError(msg);
     } finally {
       setSaving(false);
     }
   };
 
+  const deactivate = async () => {
+    if (!user) return;
+    if (
+      !window.confirm(
+        `Deactivate ${user.firstName} ${user.lastName}? Access is revoked instantly while history and audit trail are preserved.`,
+      )
+    )
+      return;
+    setDeactivating(true);
+    setError("");
+    try {
+      await deactivateUser(user.id);
+      onSaved({ ...user, isActive: false });
+      onClose();
+    } catch {
+      setError("Failed to deactivate user.");
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
+  const reactivate = async () => {
+    if (!user) return;
+    setDeactivating(true);
+    setError("");
+    try {
+      await updateUser(user.id, { isActive: true });
+      onSaved({ ...user, isActive: true });
+      onClose();
+    } catch {
+      setError("Failed to reactivate user.");
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
   const inputCls =
     "w-full rounded-md border border-line-300 bg-surface-0 px-3 py-2 text-sm text-ink-950 transition-all duration-fast focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400 placeholder:text-ink-300";
+  const labelCls = "mb-1 block text-xs font-medium text-ink-600";
+
+  const TABS: { key: "profile" | "access" | "security"; label: string; icon: typeof UserPlus }[] = [
+    { key: "profile", label: "Profile", icon: IdCard },
+    { key: "access", label: "Access & Role", icon: ShieldCheck },
+    { key: "security", label: "Security", icon: Fingerprint },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4">
-      <div className="w-full max-w-md rounded-lg bg-surface-0 p-6 shadow-overlay">
-        <div className="mb-5 flex items-center justify-between">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-surface-0 shadow-overlay">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-line-200 px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-md bg-accent-100 text-accent-700">
-              <UserPlus className="size-4.5" />
+              {isEdit ? <Pencil className="size-4.5" /> : <UserPlus className="size-4.5" />}
             </div>
             <div>
-              <h3 className="text-base font-bold text-ink-950">Add User</h3>
+              <h3 className="text-base font-bold text-ink-950">
+                {isEdit ? "Edit User" : "Add User"}
+              </h3>
               <p className="text-xs text-ink-400">
-                Onboard staff with a role template
+                {isEdit
+                  ? `${user!.firstName} ${user!.lastName} · ${user!.email}`
+                  : "Onboard staff with role templates and granular permissions"}
               </p>
             </div>
           </div>
@@ -458,130 +637,530 @@ function AddUserModal({
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-              Default role templates
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {(["lab_admin", "lab_manager", "pathologist", "technician", "receptionist"] as const).map(
-                (slug) => {
-                  const active = roles.find((r) => r.id === form.roleId)?.slug === slug;
-                  return (
-                    <button
-                      key={slug}
-                      onClick={() => applyTemplate(slug)}
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors duration-fast ${
-                        active
-                          ? "border-accent-500 bg-accent-100 text-accent-700"
-                          : "border-line-300 bg-surface-0 text-ink-600 hover:border-accent-300 hover:text-accent-700"
-                      }`}
-                    >
-                      {roleLabel(slug)}
-                    </button>
-                  );
-                },
-              )}
-            </div>
-          </div>
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-line-200 px-6 pt-3">
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1 text-sm font-medium transition-colors duration-fast ${
+                  active
+                    ? "border-accent-700 text-accent-700"
+                    : "border-transparent text-ink-400 hover:text-ink-600"
+                }`}
+              >
+                <t.icon className="size-4" />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-ink-600">
-                First name <span className="text-status-critical">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.firstName}
-                onChange={(e) => set("firstName", e.target.value)}
-                className={inputCls}
-                placeholder="Priya"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-ink-600">
-                Last name <span className="text-status-critical">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.lastName}
-                onChange={(e) => set("lastName", e.target.value)}
-                className={inputCls}
-                placeholder="Rajendran"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-ink-600">
-              Email <span className="text-status-critical">*</span>
-            </label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => set("email", e.target.value)}
-              className={inputCls}
-              placeholder="priya@thulir03.com"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-ink-600">
-              Phone
-            </label>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => set("phone", e.target.value)}
-              className={inputCls}
-              placeholder="+91 98765 43210"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-ink-600">
-              Temporary password
-            </label>
-            <input
-              type="text"
-              value={form.password}
-              onChange={(e) => set("password", e.target.value)}
-              className={`${inputCls} font-mono`}
-              placeholder="Leave blank for auto-generated"
-            />
-            <p className="mt-1 text-[11px] text-ink-400">
-              Share securely — the user should change it on first login.
-            </p>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-ink-600">
-              Role <span className="text-status-critical">*</span>
-            </label>
-            <select
-              value={form.roleId}
-              onChange={(e) => set("roleId", e.target.value)}
-              className={inputCls}
-            >
-              <option value="">Select a role…</option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           {error && (
-            <div className="rounded-md border border-status-critical/30 bg-status-critical/10 px-3 py-2 text-xs text-status-critical">
+            <div className="mb-4 rounded-md border border-status-critical/30 bg-status-critical/10 px-3 py-2 text-xs text-status-critical">
               {error}
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-2">
+          {/* ─── Tab: Profile ─── */}
+          {tab === "profile" && (
+            <div className="space-y-4">
+              {duplicate && (
+                <div className="flex items-start gap-2.5 rounded-md border border-amber-300/60 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Duplicate email detected</p>
+                    <p className="mt-0.5 text-amber-700">
+                      {form.email.trim()} already belongs to{" "}
+                      <span className="font-medium">
+                        {duplicate.firstName} {duplicate.lastName}
+                      </span>{" "}
+                      ({duplicate.role?.name ?? "no role"}). Edit that account instead to avoid
+                      duplicate records.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>
+                    First name <span className="text-status-critical">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.firstName}
+                    onChange={(e) => set("firstName", e.target.value)}
+                    className={inputCls}
+                    placeholder="Priya"
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    Last name <span className="text-status-critical">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.lastName}
+                    onChange={(e) => set("lastName", e.target.value)}
+                    className={inputCls}
+                    placeholder="Rajendran"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>
+                  Email <span className="text-status-critical">*</span>
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => set("email", e.target.value)}
+                    className={`${inputCls} pl-9`}
+                    placeholder="priya@thulir03.com"
+                  />
+                </div>
+                {form.email.trim().length >= 3 && !duplicate && (
+                  <p className="mt-1 text-[11px] text-ink-400">
+                    No existing account uses this email — safe to create.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className={labelCls}>Phone</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                  className={inputCls}
+                  placeholder="+91 98765 43210"
+                />
+              </div>
+
+              {isEdit && user && (
+                <div className="grid grid-cols-2 gap-3 rounded-md border border-line-200 bg-surface-100/50 p-3.5">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-ink-400">
+                      Department / Branch
+                    </p>
+                    <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-ink-950">
+                      <Building2 className="size-3.5 text-accent-600" />
+                      {user.branch?.name ?? "Not assigned"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-ink-400">
+                      Employee ID
+                    </p>
+                    <p className="mt-1 flex items-center gap-1.5 font-mono text-sm text-ink-600">
+                      <IdCard className="size-3.5 text-ink-300" />
+                      HR-{user.id.slice(0, 6).toUpperCase()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <p className="flex items-center gap-1.5 text-[11px] text-ink-400">
+                <Info className="size-3.5" />
+                HR employee-ID integration not configured — employee details are not auto-filled.
+              </p>
+            </div>
+          )}
+
+          {/* ─── Tab: Access & Role ─── */}
+          {tab === "access" && (
+            <div className="space-y-5">
+              <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+                  Role <span className="text-status-critical">*</span>
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {ROLE_CARDS.map((c) => {
+                    const role = roles.find((r) => r.slug === c.slug);
+                    const active = roleId === role?.id;
+                    const permsCount = role?.rolePermissions.filter((rp) => rp.isAllowed).length ?? 0;
+                    return (
+                      <button
+                        key={c.slug}
+                        onClick={() => role && selectRole(role.id)}
+                        disabled={!role}
+                        className={`relative rounded-md border p-3 text-left transition-all duration-fast ${
+                          active
+                            ? "border-accent-500 bg-accent-50 shadow-sm"
+                            : "border-line-200 bg-surface-0 hover:border-accent-300 hover:bg-surface-100/60"
+                        } ${!role ? "opacity-40 cursor-not-allowed" : ""}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-ink-950">
+                            {roleLabel(c.slug)}
+                          </span>
+                          <span
+                            className={`flex size-4 items-center justify-center rounded-sm border ${
+                              active
+                                ? "border-accent-600 bg-accent-700 text-surface-0"
+                                : "border-line-300"
+                            }`}
+                          >
+                            {active && <Check className="size-3" />}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[11px] leading-snug text-ink-400">
+                          {c.blurb}
+                        </p>
+                        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-surface-100 px-2 py-0.5 text-[10px] font-semibold text-ink-500 border border-line-200">
+                          <ShieldCheck className="size-3" />
+                          {permsCount} permissions
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {permissions.length > 0 && selectedRole && (
+                <div className="rounded-md border border-line-200 overflow-hidden">
+                  <div className="flex items-center justify-between border-b border-line-200 bg-surface-100/70 px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="size-4 text-accent-600" />
+                      <span className="text-xs font-semibold text-ink-950">
+                        Granular permissions — {selectedRole.name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-ink-400">
+                      {checked.size} / {permissions.length} granted
+                    </span>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto px-4 py-3">
+                    <div className="space-y-3">
+                      {grouped.map(([resource, list]) => {
+                        const onCount = list.filter((p) => checked.has(p.id)).length;
+                        const allOn = onCount === list.length;
+                        return (
+                          <div key={resource}>
+                            <div className="mb-1.5 flex items-center justify-between">
+                              <span className="text-[11px] font-semibold capitalize text-ink-950">
+                                {resource}
+                              </span>
+                              <button
+                                onClick={() =>
+                                  setChecked((prev) => {
+                                    const next = new Set(prev);
+                                    for (const p of list) {
+                                      if (allOn) next.delete(p.id);
+                                      else next.add(p.id);
+                                    }
+                                    return next;
+                                  })
+                                }
+                                className="text-[10px] font-medium text-accent-600 hover:text-accent-700"
+                              >
+                                {allOn ? "Clear all" : "Select all"}
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                              {list.map((p) => {
+                                const on = checked.has(p.id);
+                                return (
+                                  <button
+                                    key={p.id}
+                                    onClick={() => togglePerm(p.id)}
+                                    className={`flex items-center gap-2 rounded-sm border px-2 py-1.5 text-left text-[11px] transition-colors duration-fast ${
+                                      on
+                                        ? "border-accent-300 bg-accent-100/60 text-accent-700"
+                                        : "border-line-200 bg-surface-0 text-ink-600 hover:border-line-300"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`flex size-3.5 shrink-0 items-center justify-center rounded-sm border ${
+                                        on
+                                          ? "border-accent-500 bg-accent-700 text-surface-0"
+                                          : "border-line-300 bg-surface-0"
+                                      }`}
+                                    >
+                                      {on && <Check className="size-2.5" />}
+                                    </span>
+                                    <span className="capitalize">{p.action}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 border-t border-line-200 bg-surface-100/40 px-4 py-2.5">
+                    <Info className="mt-0.5 size-3.5 shrink-0 text-ink-300" />
+                    <p className="text-[10px] leading-relaxed text-ink-400">
+                      Permission changes apply to the{" "}
+                      <span className="font-semibold text-ink-600">{selectedRole.name}</span> role
+                      and affect everyone holding it — toggling is a role-level change, not
+                      per-user.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {permissions.length === 0 && (
+                <div className="rounded-md border border-status-borderline/30 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <AlertTriangle className="size-4" />
+                    No permissions defined yet
+                  </div>
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    Seed default permissions from the Security centre, then configure role access
+                    here.
+                  </p>
+                </div>
+              )}
+
+              {conflicts.length > 0 && (
+                <div className="space-y-2">
+                  {conflicts.map((msg, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-2.5 rounded-md border border-amber-300/60 bg-amber-50 px-3.5 py-3 text-xs text-amber-800"
+                      title="Segregation of duties risk"
+                    >
+                      <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                      <div>
+                        <p className="font-semibold">Permission conflict detected</p>
+                        <p className="mt-0.5 text-amber-700">{msg}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Tab: Security ─── */}
+          {tab === "security" && (
+            <div className="space-y-4">
+              {/* MFA */}
+              <div className="rounded-md border border-line-200 overflow-hidden">
+                <div className="flex items-center justify-between border-b border-line-200 bg-surface-100/50 px-4 py-2.5">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-ink-950">
+                    <Fingerprint className="size-4 text-accent-600" />
+                    Multi-Factor Authentication
+                  </span>
+                  {user ? (
+                    user.totpEnabled ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-status-normal/10 px-2 py-0.5 text-[10px] font-semibold text-status-normal">
+                        <BadgeCheck className="size-3" />
+                        Enabled
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-status-critical/10 px-2 py-0.5 text-[10px] font-semibold text-status-critical">
+                        <Ban className="size-3" />
+                        Not enabled
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-[10px] text-ink-400">Set after first login</span>
+                  )}
+                </div>
+                <div className="px-4 py-3">
+                  {!user?.totpEnabled ? (
+                    <div className="flex items-start gap-2.5 rounded-sm border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-[11px] text-amber-800">
+                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                      <p>
+                        <span className="font-semibold">Compliance risk:</span> this account has no
+                        second factor. {isEdit ? "The user" : "They"} must self-enrol 2FA (TOTP app)
+                        from their profile before full system access is granted. 2FA cannot be
+                        force-enabled by an admin without a user-verified code.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-ink-400">
+                      2FA is enforced on this account — sign-in requires a one-time TOTP code.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="rounded-md border border-line-200 overflow-hidden">
+                <div className="flex items-center justify-between border-b border-line-200 bg-surface-100/50 px-4 py-2.5">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-ink-950">
+                    <KeyRound className="size-4 text-accent-600" />
+                    {isEdit ? "Password reset" : "Temporary password"}
+                  </span>
+                  {isEdit && (
+                    <button
+                      onClick={() => setShowReset((s) => !s)}
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent-600 hover:text-accent-700"
+                    >
+                      <ChevronRight className={`size-3 transition-transform duration-fast ${showReset ? "rotate-90" : ""}`} />
+                      {showReset ? "Hide" : "Reset password"}
+                    </button>
+                  )}
+                </div>
+                <div className="px-4 py-3">
+                  {isEdit && !showReset ? (
+                    <p className="text-[11px] leading-relaxed text-ink-400">
+                      Admins never view existing passwords. Use “Reset password” to assign a new
+                      temporary password that the user changes on next login.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={form.password}
+                          onChange={(e) => set("password", e.target.value)}
+                          className={`${inputCls} font-mono`}
+                          placeholder={isEdit ? "New temporary password" : "Auto-generated if left blank"}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => set("password", genTempPassword())}
+                          className="shrink-0 rounded-md border border-line-300 bg-surface-0 px-3 py-2 text-xs font-medium text-ink-600 transition-colors duration-fast hover:bg-surface-100"
+                          title="Generate a strong temporary password"
+                        >
+                          Generate
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-ink-400">
+                        Share securely out-of-band — the user is forced to change it on first login.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Account activity */}
+              {isEdit && user && (
+                <div className="rounded-md border border-line-200 overflow-hidden">
+                  <div className="border-b border-line-200 bg-surface-100/50 px-4 py-2.5">
+                    <span className="flex items-center gap-2 text-xs font-semibold text-ink-950">
+                      <History className="size-4 text-accent-600" />
+                      Account activity
+                    </span>
+                  </div>
+                  <dl className="divide-y divide-line-200 text-[11px]">
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <dt className="text-ink-400">Last login</dt>
+                      <dd className="font-mono text-ink-950">
+                        {user.lastLoginAt
+                          ? `${timeAgo(user.lastLoginAt)} · ${new Date(user.lastLoginAt).toLocaleString()}`
+                          : "Never"}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <dt className="text-ink-400">Created</dt>
+                      <dd className="font-mono text-ink-950">
+                        {new Date(user.createdAt).toLocaleString()}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <dt className="text-ink-400">Status</dt>
+                      <dd>
+                        {user.isActive ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-status-normal/10 px-2 py-0.5 font-semibold text-status-normal">
+                            <span className="size-1.5 rounded-full bg-status-normal" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-status-critical/10 px-2 py-0.5 font-semibold text-status-critical">
+                            <span className="size-1.5 rounded-full bg-status-critical" />
+                            Inactive
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+
+              {/* Danger zone */}
+              {isEdit && user && (
+                <div className="rounded-md border border-status-critical/25 overflow-hidden">
+                  <div className="border-b border-status-critical/25 bg-status-critical/5 px-4 py-2.5">
+                    <span className="flex items-center gap-2 text-xs font-semibold text-status-critical">
+                      <ShieldAlert className="size-4" />
+                      Danger zone
+                    </span>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="max-w-sm">
+                        <p className="text-xs font-medium text-ink-950">
+                          {user.isActive ? "Deactivate account" : "Reactivate account"}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-ink-400">
+                          {user.isActive
+                            ? "Instantly revokes access while preserving all historical data and the audit trail for legal compliance."
+                            : "Restores sign-in access; history and audit trail are retained."}
+                        </p>
+                      </div>
+                      <button
+                        onClick={user.isActive ? deactivate : reactivate}
+                        disabled={deactivating}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-xs font-semibold transition-colors duration-fast disabled:opacity-50 ${
+                          user.isActive
+                            ? "bg-status-critical/10 text-status-critical hover:bg-status-critical/20"
+                            : "bg-status-normal/10 text-status-normal hover:bg-status-normal/20"
+                        }`}
+                      >
+                        {deactivating ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : user.isActive ? (
+                          <UserX className="size-3.5" />
+                        ) : (
+                          <CheckCircle2 className="size-3.5" />
+                        )}
+                        {user.isActive ? "Deactivate" : "Reactivate"}
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-line-200 pt-3">
+                      <p className="text-[11px] text-ink-400">
+                        Permanent deletion is not available — records are soft-deleted to preserve
+                        compliance history.
+                      </p>
+                      <button
+                        disabled
+                        title="Soft-delete only — records preserved for audit compliance"
+                        className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-line-200 px-3 py-1.5 text-[11px] font-medium text-ink-300"
+                      >
+                        <Trash2 className="size-3.5" />
+                        Delete permanently
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 border-t border-line-200 px-6 py-4">
+          <div className="text-[11px] text-ink-400">
+            {tab === "access" && selectedRole ? (
+              <span>
+                {checked.size} permissions for{" "}
+                <span className="font-semibold text-ink-600">{selectedRole.name}</span>
+              </span>
+            ) : (
+              <span>
+                {isEdit ? "Editing" : "Creating"}{" "}
+                {roleId ? roleLabel(selectedRole?.slug) : "— no role selected"}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="rounded-md px-4 py-2 text-sm font-medium text-ink-500 transition-colors hover:bg-surface-100"
+              className="rounded-md border border-line-300 bg-surface-0 px-4 py-2 text-sm font-medium text-ink-600 transition-colors hover:bg-surface-100"
             >
               Cancel
             </button>
@@ -590,8 +1169,14 @@ function AddUserModal({
               disabled={saving}
               className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-5 py-2 text-sm font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-800 disabled:opacity-50"
             >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
-              {saving ? "Creating…" : "Create User"}
+              {saving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : isEdit ? (
+                <Check className="size-4" />
+              ) : (
+                <UserPlus className="size-4" />
+              )}
+              {saving ? "Saving…" : isEdit ? "Save Changes" : "Create User"}
             </button>
           </div>
         </div>
@@ -611,6 +1196,7 @@ export default function SystemSettingsPage() {
   const [search, setSearch] = useState("");
   const [permsRole, setPermsRole] = useState<Role | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -796,7 +1382,10 @@ export default function SystemSettingsPage() {
                   Export User List
                 </button>
                 <button
-                  onClick={() => setAddOpen(true)}
+                  onClick={() => {
+                    setEditUser(null);
+                    setAddOpen(true);
+                  }}
                   className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-3.5 py-2 text-sm font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-800"
                 >
                   <Plus className="size-4" />
@@ -959,6 +1548,14 @@ export default function SystemSettingsPage() {
                             </td>
                             <td className="px-5 py-3">
                               <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => setEditUser(u)}
+                                  title="Edit user — profile, role & security"
+                                  className="inline-flex items-center gap-1.5 rounded-md border border-line-200 px-2.5 py-1.5 text-[11px] font-medium text-ink-600 transition-colors duration-fast hover:border-accent-300 hover:bg-accent-50 hover:text-accent-700"
+                                >
+                                  <Pencil className="size-3.5" />
+                                  Edit
+                                </button>
                                 <button
                                   onClick={() => role && setPermsRole(role)}
                                   title="Edit permissions"
@@ -1205,13 +1802,26 @@ export default function SystemSettingsPage() {
           }}
         />
       )}
-      {addOpen && (
-        <AddUserModal
+      {(addOpen || editUser) && (
+        <AddEditUserModal
+          user={editUser}
+          users={users}
           roles={roles}
-          onClose={() => setAddOpen(false)}
-          onCreated={(u) => {
-            setUsers((prev) => [u, ...prev]);
-            setToast(`${u.firstName} ${u.lastName} created — invitation ready.`);
+          permissions={permissions}
+          onClose={() => {
+            setAddOpen(false);
+            setEditUser(null);
+          }}
+          onSaved={(u) => {
+            setUsers((prev) => {
+              const exists = prev.some((x) => x.id === u.id);
+              return exists ? prev.map((x) => (x.id === u.id ? u : x)) : [u, ...prev];
+            });
+            setToast(
+              `${u.firstName} ${u.lastName} ${editUser ? "updated" : "created — invitation ready"}.`,
+            );
+            setAddOpen(false);
+            setEditUser(null);
           }}
         />
       )}
