@@ -25,6 +25,7 @@ import ReportPage from "./pages/ReportPage";
 import InvoicePage from "./pages/InvoicePage";
 import ReportsPage from "./pages/ReportsPage";
 import LabSettingsPage from "./pages/LabSettingsPage";
+import GeneralSettingsPage from "./pages/GeneralSettingsPage";
 import SystemSettingsPage from "./pages/SystemSettingsPage";
 import PartiesPage from "./pages/PartiesPage";
 import PartyFormPage from "./pages/PartyFormPage";
@@ -151,6 +152,10 @@ export default function App() {
         <Route
           path="/settings"
           element={<ProtectedRoute>{shell(<LabSettingsPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/general-settings"
+          element={<ProtectedRoute>{shell(<GeneralSettingsPage />)}</ProtectedRoute>}
         />
         <Route
           path="/system-settings"

@@ -90,9 +90,10 @@ const PARTIES_ITEMS = [
 
 const PARTIES_ROLES = new Set(["lab_admin", "lab_manager"]);
 
-// Settings — lab (org) details printed on reports & invoices
+// Settings — central hub: lab details, QC rules, notifications,
+// integrations & compliance (org fields print on reports & invoices)
 const SETTINGS_ITEMS = [
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/general-settings", label: "Settings", icon: Settings },
 ];
 
 const SETTINGS_ROLES = new Set(["lab_admin", "lab_manager"]);
