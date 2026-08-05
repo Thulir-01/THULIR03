@@ -10,6 +10,7 @@ import PatientRegistrationPage from "./pages/PatientRegistrationPage";
 import PatientRegistrationFlow from "./pages/PatientRegistrationFlow";
 import OrdersPage from "./pages/OrdersPage";
 import TestResultPage from "./pages/TestResultPage";
+import QcPage from "./pages/QcPage";
 import Dashboard from "./pages/Dashboard";
 import PatientsPage from "./pages/PatientsPage";
 import PatientFormPage from "./pages/PatientFormPage";
@@ -117,6 +118,10 @@ export default function App() {
         <Route
           path="/results"
           element={<ProtectedRoute>{shell(<TestResultPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/qc"
+          element={<ProtectedRoute>{shell(<QcPage />)}</ProtectedRoute>}
         />
         <Route
           path="/audit"

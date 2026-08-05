@@ -1142,6 +1142,91 @@ export async function getInventoryAlerts() {
   return data as InventoryAlerts;
 }
 
+// ─── QC — manual Westgard control runs ────────────────────────────────
+
+export type QcLevel = "LOW" | "NORMAL" | "HIGH";
+export type QcStatus = "PASS" | "WARN" | "REJECT";
+
+export interface QcControl {
+  id: string;
+  testName: string;
+  testCode: string | null;
+  level: QcLevel;
+  name: string;
+  unit: string | null;
+  assignedMean: number;
+  assignedSd: number;
+  isActive: boolean;
+  runCount: number;
+}
+
+export interface QcRun {
+  id: string;
+  controlId: string;
+  controlName: string;
+  testName: string;
+  measuredValue: number;
+  sdDeviation: number | null;
+  status: QcStatus;
+  violations: string[];
+  note: string | null;
+  runDate: string;
+}
+
+export interface QcSummary {
+  controls: number;
+  today: { runs: number; PASS: number; WARN: number; REJECT: number };
+  latest: {
+    id: string;
+    controlName: string;
+    testName: string;
+    measuredValue: number;
+    status: QcStatus;
+    violations: string[];
+    runDate: string;
+  } | null;
+}
+
+export async function getQcControls(search?: string) {
+  const { data } = await api.get("/qc/controls", {
+    params: search ? { search } : {},
+  });
+  return data as QcControl[];
+}
+
+export async function createQcControl(body: {
+  testName: string;
+  testCode?: string;
+  level?: QcLevel;
+  unit?: string;
+  assignedMean: number;
+  assignedSd: number;
+}) {
+  const { data } = await api.post("/qc/controls", body);
+  return data as QcControl;
+}
+
+export async function getQcRuns(controlId?: string, limit = 50) {
+  const { data } = await api.get("/qc/runs", {
+    params: { ...(controlId ? { controlId } : {}), limit },
+  });
+  return data as QcRun[];
+}
+
+export async function enterQcRun(body: { controlId: string; value: number; note?: string }) {
+  const { data } = await api.post("/qc/runs", body);
+  return data as {
+    run: QcRun;
+    control: { id: string; name: string; testName: string; unit: string | null; mean: number; sd: number };
+    evaluation: { status: QcStatus; violations: string[]; sdDeviation: number };
+  };
+}
+
+export async function getQcSummary() {
+  const { data } = await api.get("/qc/summary");
+  return data as QcSummary;
+}
+
 export async function getInventorySuppliers(search?: string) {
   const { data } = await api.get("/inventory/suppliers", {
     params: search ? { search } : {},

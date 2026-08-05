@@ -39,6 +39,7 @@ const OPERATIONS_ITEMS = [
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/orders", label: "Orders", icon: ClipboardList },
   { to: "/results", label: "Result Entry", icon: Beaker },
+  { to: "/qc", label: "QC", icon: FlaskConical },
 ];
 
 const QUICK_ACTIONS = [

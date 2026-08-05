@@ -17,6 +17,7 @@ import { MastersModule } from './masters/masters.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { QcModule } from './qc/qc.module';
 import { PortalsModule } from './portals/portals.module';
 import { TenantInterceptor } from './common/interceptors/tenant.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -48,6 +49,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     ReportsModule,
     SettingsModule,
     InventoryModule,
+    QcModule,
     PortalsModule,
   ],
   controllers: [AppController],

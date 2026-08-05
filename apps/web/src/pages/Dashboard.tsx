@@ -323,7 +323,7 @@ export default function Dashboard() {
   }, [activity]);
 
   const shortcuts = [
-    { icon: FlaskConical, label: "Manual QC Entry", desc: "Control charts & QC alerts", to: "/alerts" },
+    { icon: FlaskConical, label: "Manual QC Entry", desc: "Enter control values · Westgard", to: "/qc" },
     { icon: ClipboardCheck, label: "Result Entry", desc: "Manual entry · auto flags", to: "/results" },
     { icon: FileBarChart2, label: "Generate Report", desc: "Daily summary", to: "/reports" },
     { icon: Settings, label: "Settings", desc: "Lab configuration", to: "/general-settings" },

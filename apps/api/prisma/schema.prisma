@@ -644,3 +644,49 @@ model TestInventoryRequirement {
   @@index([tenantId])
   @@map("test_inventory_requirements")
 }
+
+// ─── QC — manual control runs (Westgard) ──────────────────────────────
+// Manual-first quality control for small/medium labs with semi-automated
+// or manual testing. A QcControl is a control material (one level) assigned
+// to a test; technicians enter daily measured values by hand and the Westgard
+// engine evaluates them server-side. Instrument streaming is post-V1.
+
+model QcControl {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  testName     String   @map("test_name")
+  testCode     String?  @map("test_code")
+  level        String   @default("NORMAL") // LOW | NORMAL | HIGH
+  name         String // e.g. "Glucose Low Control"
+  unit         String?
+  assignedMean Decimal  @map("assigned_mean") @db.Decimal(12, 4)
+  assignedSd   Decimal  @map("assigned_sd") @db.Decimal(12, 4)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  runs QcRun[]
+
+  @@index([tenantId])
+  @@index([tenantId, testName])
+  @@map("qc_controls")
+}
+
+model QcRun {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  controlId     String   @map("control_id") @db.Uuid
+  measuredValue Decimal  @map("measured_value") @db.Decimal(12, 4)
+  sdDeviation   Decimal? @map("sd_deviation") @db.Decimal(8, 2)
+  status        String   @default("PASS") // PASS | WARN | REJECT
+  violations    Json? // string[] of Westgard rule ids hit
+  note          String?
+  enteredById   String?  @map("entered_by_id") @db.Uuid
+  runDate       DateTime @default(now()) @map("run_date")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  control QcControl @relation(fields: [controlId], references: [id])
+
+  @@index([tenantId, controlId, createdAt])
+  @@map("qc_runs")
+}
