@@ -20,6 +20,7 @@ import StaffPage from "./pages/StaffPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
 import PathologistReviewPage from "./pages/PathologistReviewPage";
 import MobileReviewPage from "./pages/MobileReviewPage";
+import AlertsPage from "./pages/AlertsPage";
 import VerifyPage from "./pages/VerifyPage";
 import ReportPage from "./pages/ReportPage";
 import InvoicePage from "./pages/InvoicePage";
@@ -72,6 +73,10 @@ export default function App() {
         <Route
           path="/dashboard"
           element={<ProtectedRoute>{shell(<Dashboard />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/alerts"
+          element={<ProtectedRoute>{shell(<AlertsPage />)}</ProtectedRoute>}
         />
         <Route
           path="/patients"

@@ -25,6 +25,7 @@ import {
   Settings,
   Boxes,
   UserCog,
+  Bell,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
@@ -33,6 +34,7 @@ import { useAuth } from "../lib/useAuth";
 // role-gated Verify (technician) and Approvals (pathologist) queues.
 const OPERATIONS_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/patient-registration", label: "Registration", icon: FilePlus2 },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/orders", label: "Orders", icon: ClipboardList },
