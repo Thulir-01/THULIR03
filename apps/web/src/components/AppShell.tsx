@@ -19,6 +19,7 @@ import {
   ClipboardSignature,
   ShieldCheck,
   BadgeCheck,
+  Smartphone,
   TrendingUp,
   Building2,
   Settings,
@@ -61,6 +62,7 @@ const STAFF_ROLES = new Set(["lab_admin", "lab_manager"]);
 // Approvals — pathologist queue of verified orders awaiting sign-off
 const APPROVALS_ITEMS = [
   { to: "/approvals", label: "Pathologist", icon: ShieldCheck },
+  { to: "/mobile-review", label: "Mobile Review", icon: Smartphone },
 ];
 
 const APPROVALS_ROLES = new Set(["pathologist", "lab_admin", "lab_manager"]);

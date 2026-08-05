@@ -19,6 +19,7 @@ import AuditLogsPage from "./pages/AuditLogsPage";
 import StaffPage from "./pages/StaffPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
 import PathologistReviewPage from "./pages/PathologistReviewPage";
+import MobileReviewPage from "./pages/MobileReviewPage";
 import VerifyPage from "./pages/VerifyPage";
 import ReportPage from "./pages/ReportPage";
 import InvoicePage from "./pages/InvoicePage";
@@ -130,6 +131,10 @@ export default function App() {
         <Route
           path="/approvals/:id"
           element={<ProtectedRoute>{shell(<PathologistReviewPage />)}</ProtectedRoute>}
+        />
+        <Route
+          path="/mobile-review"
+          element={<ProtectedRoute>{shell(<MobileReviewPage />)}</ProtectedRoute>}
         />
         <Route
           path="/orders/:orderId/report"
