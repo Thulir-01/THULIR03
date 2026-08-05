@@ -15,19 +15,13 @@ import {
   ChevronUp,
   ChevronDown,
   Copy,
-  KeyRound,
   Cpu,
-  Plus,
-  X,
   FlaskConical,
   Activity,
   AlertTriangle,
   Clock,
   Database,
-  Link2,
   History,
-  Power,
-  Radio,
   Zap,
   User,
   Eye,
@@ -103,24 +97,6 @@ function Toggle({
   );
 }
 
-function StatusDot({ tone }: { tone: "green" | "amber" | "red" | "gray" }) {
-  const map = {
-    green: "bg-status-normal",
-    amber: "bg-amber-500",
-    red: "bg-status-critical",
-    gray: "bg-ink-300",
-  };
-  return (
-    <span className="relative inline-flex size-2.5">
-      {tone !== "gray" && (
-        <span
-          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 ${map[tone]}`}
-        />
-      )}
-      <span className={`relative inline-flex size-2.5 rounded-full ${map[tone]}`} />
-    </span>
-  );
-}
 
 function LocalNote({ text }: { text: string }) {
   return (
@@ -194,31 +170,6 @@ const ANALYZERS = [
   { id: "I-112", name: "Immunoassay Analyzer", materialId: "MAT-1004" },
 ];
 
-/* ─── Integrations catalogue ───────────────────────────────────────── */
-interface Integration {
-  id: string;
-  name: string;
-  full: string;
-  protocol: string;
-  status: "green" | "amber" | "red" | "gray";
-  statusLabel: string;
-  lastSync: string;
-  lastSyncDetail: string;
-}
-const INTEGRATIONS: Integration[] = [
-  { id: "lis", name: "LIS", full: "Laboratory Information System", protocol: "HL7 v2.4", status: "green", statusLabel: "Connected", lastSync: "2 min ago", lastSyncDetail: "12 orders · 34 results synced" },
-  { id: "ehr", name: "EHR", full: "Electronic Health Record", protocol: "FHIR R4", status: "amber", statusLabel: "Degraded", lastSync: "1 h ago", lastSyncDetail: "Retries: 3 · last error HL7-ERR-221" },
-  { id: "hl7", name: "Instruments", full: "Instrument Interface", protocol: "HL7 v2.5", status: "green", statusLabel: "Connected", lastSync: "Just now", lastSyncDetail: "4 analyzers online" },
-  { id: "fhir", name: "FHIR Gateway", full: "External FHIR Gateway", protocol: "FHIR R4", status: "red", statusLabel: "Disconnected", lastSync: "3 d ago", lastSyncDetail: "No heartbeat since 3 days" },
-];
-
-const SYNC_LOG = [
-  { time: "10:42:11", system: "Instruments", level: "ok", msg: "ORU message accepted from H-124 (MAT-1001)" },
-  { time: "10:38:04", system: "EHR", level: "warn", msg: "ADT retry 3/5 — timeout on patient update" },
-  { time: "10:31:27", system: "LIS", level: "ok", msg: "Bulk result upload — 34 results queued" },
-  { time: "10:12:55", system: "FHIR Gateway", level: "err", msg: "Connection refused — no heartbeat response" },
-];
-
 /* ─── Page ─────────────────────────────────────────────────────────── */
 type TabKey = "lab" | "qc" | "notify" | "integrations" | "audit";
 
@@ -263,26 +214,6 @@ export default function GeneralSettingsPage() {
     criticalThreshold: "1-3s",
     quietHours: { enabled: false, from: "20:00", to: "06:00", criticalStillAlerts: true },
   });
-
-  /* Integrations */
-  const [apiKeys, setApiKeys] = useLocalConfig<{
-    keys: { id: string; name: string; masked: string; created: string; lastUsed: string; active: boolean }[];
-  }>("integration-keys", {
-    keys: [
-      { id: "k1", name: "LIS HL7 Bridge", masked: "thl3_••••••••a4f2", created: "12 Mar 2026", lastUsed: "2 min ago", active: true },
-      { id: "k2", name: "EHR FHIR Gateway", masked: "thl3_••••••••9c01", created: "02 Feb 2026", lastUsed: "1 h ago", active: true },
-    ],
-  });
-  const [newKeyName, setNewKeyName] = useState("");
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [addingSource, setAddingSource] = useState(false);
-  const [hl7Form, setHl7Form] = useState({ name: "", host: "", port: "2575", protocol: "HL7 v2.5" });
-  const [testingConn, setTestingConn] = useState(false);
-  const [testResult, setTestResult] = useState<"ok" | "fail" | null>(null);
-  const [hl7Sources, setHl7Sources] = useLocalConfig<{ name: string; host: string; port: string; protocol: string }[]>("hl7-sources", [
-    { name: "Hematology bench", host: "10.0.4.21", port: "2575", protocol: "HL7 v2.5" },
-  ]);
 
   /* Audit & Compliance */
   const [auditCfg, setAuditCfg] = useLocalConfig<{
@@ -383,69 +314,11 @@ export default function GeneralSettingsPage() {
 
   const overrideCount = ANALYZERS.filter((a) => qcRules.overrides[a.id]).length;
 
-  /* ── Integration helpers ── */
-  const testConnection = () => {
-    setTestingConn(true);
-    setTestResult(null);
-    setTimeout(() => {
-      setTestingConn(false);
-      setTestResult("ok");
-      setHl7Sources((prev) => [
-        ...prev,
-        { name: hl7Form.name, host: hl7Form.host, port: hl7Form.port, protocol: hl7Form.protocol },
-      ]);
-      setAddingSource(false);
-      setToast(`HL7 source "${hl7Form.name}" connected & saved.`);
-    }, 900);
-  };
-
-  const generateKey = () => {
-    if (!newKeyName.trim()) {
-      setToast("Name the API key first.");
-      return;
-    }
-    const raw = `thl3_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
-    setRevealedKey(raw);
-    setApiKeys((prev) => ({
-      keys: [
-        {
-          id: `k${Date.now()}`,
-          name: newKeyName.trim(),
-          masked: `${raw.slice(0, 5)}••••••${raw.slice(-4)}`,
-          created: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-          lastUsed: "Never",
-          active: true,
-        },
-        ...prev.keys,
-      ],
-    }));
-    setNewKeyName("");
-    setCopied(false);
-  };
-
-  const revokeKey = (id: string) => {
-    setApiKeys((prev) => ({
-      keys: prev.keys.map((k) => (k.id === id ? { ...k, active: false } : k)),
-    }));
-    setToast("API key revoked — integration can no longer authenticate.");
-  };
-
-  const copyKey = async () => {
-    if (!revealedKey) return;
-    try {
-      await navigator.clipboard.writeText(revealedKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setToast("Copy failed — select the key manually.");
-    }
-  };
-
   const TABS: { key: TabKey; label: string; icon: typeof Building2; blurb: string }[] = [
     { key: "lab", label: "General Lab Info", icon: Building2, blurb: "Name, location, regulatory bodies & contacts" },
     { key: "qc", label: "QC Rules & Westgard", icon: SlidersHorizontal, blurb: "Global rule engine + per-analyzer overrides" },
     { key: "notify", label: "Notifications & Alerts", icon: Bell, blurb: "Channels, thresholds & quiet hours" },
-    { key: "integrations", label: "Integrations", icon: Plug, blurb: "LIS · EHR · Instruments + API keys" },
+    { key: "integrations", label: "Integrations", icon: Plug, blurb: "Enterprise · coming soon (post-V1)" },
     { key: "audit", label: "Audit & Compliance", icon: ShieldCheck, blurb: "Retention, log visibility & exports" },
   ];
 
@@ -465,7 +338,7 @@ export default function GeneralSettingsPage() {
         <div className="mb-6">
           <PageHeader
             title="System Settings & General Configuration"
-            subtitle="Global rules, workflows and integration points governing the QC system"
+            subtitle="Global rules & workflows for the lab — built manual-first for small & medium labs"
             actions={
               <span className="inline-flex items-center gap-1.5 rounded-full border border-line-200 bg-surface-0 px-3 py-1 text-xs font-medium text-ink-600">
                 <ShieldCheck className="size-3.5 text-accent-700" />
@@ -990,274 +863,68 @@ export default function GeneralSettingsPage() {
 
             {tab === "integrations" && (
               <div className="space-y-5">
-                {/* Health dashboard */}
-                <div className="rounded-md border border-line-200 bg-surface-0 p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Plug className="size-4 text-accent-600" />
-                    <h2 className="font-semibold text-ink-950">Integration Health</h2>
-                  </div>
-                  <div className="grid gap-2.5 sm:grid-cols-2">
-                    {INTEGRATIONS.map((i) => {
-                      const tone = i.status;
-                      return (
-                        <div key={i.id} className="flex items-center gap-3 rounded-md border border-line-200 px-3.5 py-3">
-                          <StatusDot tone={tone} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-ink-950">{i.name}</span>
-                              <span className="data-mono rounded-sm bg-surface-100 px-1.5 py-0.5 text-[9px] text-ink-400">
-                                {i.protocol}
-                              </span>
-                            </div>
-                            <div className="truncate text-[11px] text-ink-400">{i.full}</div>
-                            <div className="mt-0.5 truncate text-[10px] text-ink-400">
-                              Synced {i.lastSync} · {i.lastSyncDetail}
-                            </div>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              tone === "green"
-                                ? "bg-status-normal/10 text-status-normal"
-                                : tone === "amber"
-                                  ? "bg-amber-50 text-amber-700"
-                                  : tone === "red"
-                                    ? "bg-status-critical/10 text-status-critical"
-                                    : "bg-surface-100 text-ink-400"
-                            }`}
-                          >
-                            {i.statusLabel}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Sync log preview */}
-                <div className="rounded-md border border-line-200 bg-surface-0 overflow-hidden">
-                  <div className="flex items-center gap-2 border-b border-line-200 px-5 py-3">
-                    <History className="size-4 text-accent-600" />
-                    <h2 className="text-sm font-semibold text-ink-950">Sync Log</h2>
-                    <span className="ml-auto text-[10px] text-ink-400">last 4 events</span>
-                  </div>
-                  <div className="divide-y divide-line-200">
-                    {SYNC_LOG.map((e, i) => (
-                      <div key={i} className="flex items-center gap-3 px-5 py-2.5">
-                        <span className="data-mono shrink-0 text-[10px] text-ink-400">{e.time}</span>
-                        <span className="w-24 shrink-0 text-xs font-medium text-ink-950">{e.system}</span>
-                        <span
-                          className={`size-1.5 shrink-0 rounded-full ${
-                            e.level === "ok"
-                              ? "bg-status-normal"
-                              : e.level === "warn"
-                                ? "bg-amber-500"
-                                : "bg-status-critical"
-                          }`}
-                        />
-                        <span className="min-w-0 truncate text-xs text-ink-500">{e.msg}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-between border-t border-line-200 bg-surface-100/40 px-5 py-2">
-                    <span className="text-[10px] text-ink-400">
-                      <Link2 className="mr-1 inline size-3" />
-                      Streaming from the middleware agent on 0.0.0.0:2575
+                {/* Enterprise · coming soon — V1 is manual-first */}
+                <div className="rounded-md border border-dashed border-line-300 bg-surface-100/60 p-8">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-surface-0 text-ink-400 shadow-raised">
+                      <Plug className="size-5" />
                     </span>
-                    <button className="text-[10px] font-semibold text-accent-600 hover:text-accent-700">
-                      Open full log
-                    </button>
-                  </div>
-                </div>
-
-                {/* Add HL7 source */}
-                <div className="rounded-md border border-line-200 bg-surface-0 p-6">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Radio className="size-4 text-accent-600" />
-                      <h2 className="font-semibold text-ink-950">Instrument Sources</h2>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-ink-950">Integrations</h2>
+                        <span className="rounded-full border border-line-300 bg-surface-0 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+                          Enterprise · Coming soon
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-ink-500">
+                        V1 is built for small &amp; medium labs using manual and semi-automated analyzers.
+                      </p>
                     </div>
-                    <button
-                      onClick={() => setAddingSource((s) => !s)}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-line-300 bg-surface-0 px-3 py-1.5 text-xs font-medium text-accent-600 transition-colors duration-fast hover:bg-accent-50"
-                    >
-                      {addingSource ? <X className="size-3.5" /> : <Plus className="size-3.5" />}
-                      {addingSource ? "Cancel" : "Add HL7 source"}
-                    </button>
                   </div>
 
-                  <div className="space-y-2">
-                    {hl7Sources.map((s) => (
-                      <div key={s.name + s.host} className="flex items-center gap-3 rounded-md border border-line-200 px-3.5 py-2.5">
-                        <FlaskConical className="size-4 shrink-0 text-accent-600" />
+                  <p className="mt-5 max-w-2xl text-[13px] leading-relaxed text-ink-600">
+                    System integrations (LIS, EHR, HL7 instrument interfaces) target large automated labs
+                    and ship <span className="font-semibold text-ink-950">after V1</span>. For manual-first
+                    labs, daily work is fully covered here:{" "}
+                    <span className="font-semibold text-ink-950">manual result entry</span> (Result Entry) and{" "}
+                    <span className="font-semibold text-ink-950">manual QC entry</span> (QC module — next build)
+                    need no machine link.
+                  </p>
+
+                  <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+                    {[
+                      { name: "LIS", detail: "Laboratory Information System", protocol: "HL7 v2.x" },
+                      { name: "EHR", detail: "Electronic Health Record", protocol: "FHIR R4" },
+                      { name: "Instrument Interface", detail: "Live analyzer result streaming", protocol: "HL7 v2.5" },
+                      { name: "FHIR Gateway", detail: "External care-ecosystem exchange", protocol: "FHIR R4" },
+                    ].map((i) => (
+                      <div key={i.name} className="flex items-center gap-3 rounded-md border border-line-200 bg-surface-0 px-3.5 py-3">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-100 text-ink-400">
+                          <Plug className="size-4" />
+                        </span>
                         <div className="min-w-0 flex-1">
-                          <span className="text-sm font-medium text-ink-950">{s.name}</span>
-                          <span className="data-mono ml-2 text-[11px] text-ink-400">
-                            {s.host}:{s.port} · {s.protocol}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-ink-950">{i.name}</span>
+                            <span className="data-mono rounded-sm bg-surface-100 px-1.5 py-0.5 text-[9px] text-ink-400">
+                              {i.protocol}
+                            </span>
+                          </div>
+                          <div className="truncate text-[11px] text-ink-400">{i.detail}</div>
                         </div>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-status-normal/10 px-2 py-0.5 text-[10px] font-semibold text-status-normal">
-                          <span className="size-1.5 rounded-full bg-status-normal" />
-                          Listening
+                        <span className="shrink-0 rounded-full bg-surface-100 px-2 py-0.5 text-[10px] font-semibold text-ink-400">
+                          Post-V1
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  {addingSource && (
-                    <div className="mt-3 rounded-md border border-accent-200 bg-accent-50/40 p-4">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className={labelCls}>Source name</label>
-                          <input
-                            value={hl7Form.name}
-                            onChange={(e) => setHl7Form((f) => ({ ...f, name: e.target.value }))}
-                            className={inputCls}
-                            placeholder="Biochemistry bench"
-                          />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Protocol</label>
-                          <select
-                            value={hl7Form.protocol}
-                            onChange={(e) => setHl7Form((f) => ({ ...f, protocol: e.target.value }))}
-                            className={inputCls}
-                          >
-                            <option>HL7 v2.5</option>
-                            <option>HL7 v2.4</option>
-                            <option>FHIR R4</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className={labelCls}>IP / host</label>
-                          <input
-                            value={hl7Form.host}
-                            onChange={(e) => setHl7Form((f) => ({ ...f, host: e.target.value }))}
-                            className={inputCls}
-                            placeholder="10.0.4.22"
-                          />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Port</label>
-                          <input
-                            value={hl7Form.port}
-                            onChange={(e) => setHl7Form((f) => ({ ...f, port: e.target.value }))}
-                            className={`${inputCls} font-mono`}
-                            placeholder="2575"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <button
-                          onClick={testConnection}
-                          disabled={testingConn || !hl7Form.name.trim() || !hl7Form.host.trim()}
-                          className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-4 py-2 text-sm font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500 disabled:opacity-50"
-                        >
-                          {testingConn ? <Loader2 className="size-4 animate-spin" /> : <Zap className="size-4" />}
-                          {testingConn ? "Testing…" : "Test Connection"}
-                        </button>
-                        {testResult === "ok" && (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-status-normal">
-                            <Check className="size-3.5" />
-                            Connected — ORU handshake successful
-                          </span>
-                        )}
-                        {testResult === "fail" && (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-status-critical">
-                            <AlertTriangle className="size-3.5" />
-                            Connection failed — check IP & port
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-3">
-                    <LocalNote text="Sources persist in this workspace; live instrument ingestion is wired by the middleware agent." />
-                  </div>
-                </div>
-
-                {/* API keys */}
-                <div className="rounded-md border border-line-200 bg-surface-0 p-6">
-                  <div className="mb-3 flex items-center gap-2">
-                    <KeyRound className="size-4 text-accent-600" />
-                    <h2 className="font-semibold text-ink-950">API Keys</h2>
-                    <span className="ml-auto text-[10px] text-ink-400">
-                      {apiKeys.keys.filter((k) => k.active).length} active
-                    </span>
-                  </div>
-                  <div className="mb-4 flex gap-2">
-                    <input
-                      value={newKeyName}
-                      onChange={(e) => setNewKeyName(e.target.value)}
-                      className={`${inputCls} max-w-xs`}
-                      placeholder="e.g. LIS HL7 Bridge v2"
-                    />
-                    <button
-                      onClick={generateKey}
-                      disabled={!newKeyName.trim()}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-4 py-2 text-sm font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500 disabled:opacity-50"
-                    >
-                      <Plus className="size-4" />
-                      Generate
-                    </button>
-                  </div>
-
-                  {revealedKey && (
-                    <div className="mb-4 rounded-md border border-accent-300 bg-accent-50 p-3.5">
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-accent-800">New key — copy it now, it won't be shown again</span>
-                        <button
-                          onClick={() => setRevealedKey(null)}
-                          className="text-accent-700 hover:text-accent-900"
-                          aria-label="Dismiss"
-                        >
-                          <X className="size-4" />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <code className="min-w-0 flex-1 truncate rounded-sm border border-accent-200 bg-surface-0 px-3 py-2 font-mono text-xs text-ink-950">
-                          {revealedKey}
-                        </code>
-                        <button
-                          onClick={copyKey}
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-accent-300 bg-surface-0 px-3 py-2 text-xs font-semibold text-accent-700 transition-colors hover:bg-accent-100"
-                        >
-                          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                          {copied ? "Copied" : "Copy"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    {apiKeys.keys.map((k) => (
-                      <div key={k.id} className={`flex items-center gap-3 rounded-md border px-3.5 py-2.5 ${k.active ? "border-line-200" : "border-line-200 opacity-50"}`}>
-                        <KeyRound className={`size-4 shrink-0 ${k.active ? "text-accent-600" : "text-ink-300"}`} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-ink-950">{k.name}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${k.active ? "bg-status-normal/10 text-status-normal" : "bg-surface-100 text-ink-400"}`}>
-                              {k.active ? "Active" : "Revoked"}
-                            </span>
-                          </div>
-                          <div className="data-mono text-[10px] text-ink-400">
-                            {k.masked} · created {k.created} · last used {k.lastUsed}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => revokeKey(k.id)}
-                          disabled={!k.active}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-line-300 bg-surface-0 px-3 py-1.5 text-xs font-medium text-status-critical transition-colors duration-fast hover:bg-status-critical/5 disabled:opacity-40"
-                        >
-                          <Power className="size-3.5" />
-                          Revoke
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-3">
-                    <LocalNote text="Keys persist in this workspace and are stored masked; server-side rotation ships with the integrations module." />
+                  <div className="mt-5 flex items-start gap-2 rounded-md border border-accent-200 bg-accent-50/60 px-3.5 py-3">
+                    <FlaskConical className="mt-0.5 size-4 shrink-0 text-accent-700" />
+                    <p className="text-xs leading-relaxed text-accent-800">
+                      Semi-automated analyzers? Enter results by hand in{" "}
+                      <span className="font-semibold">Result Entry</span> — flags, critical values and sign-off
+                      all work without any instrument link.
+                    </p>
                   </div>
                 </div>
               </div>

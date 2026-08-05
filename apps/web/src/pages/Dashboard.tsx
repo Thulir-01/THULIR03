@@ -11,7 +11,6 @@ import {
   Eye,
   ArrowRight,
   AlertTriangle,
-  ScanBarcode,
   FlaskConical,
   FileBarChart2,
   Settings,
@@ -21,8 +20,6 @@ import {
   Loader2,
   Calendar,
   Zap,
-  Camera,
-  X,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 import { pushExtraAlert } from "../lib/alerts-store";
@@ -197,82 +194,6 @@ function LockOverlay({
   );
 }
 
-// ─── Barcode scanner modal (simulated) ───────────────────────────────────
-
-function ScanModal({ onClose }: { onClose: () => void }) {
-  const [scanning, setScanning] = useState(false);
-  const [detected, setDetected] = useState<string | null>(null);
-  const navigate = useNavigate();
-
-  const simulate = () => {
-    setScanning(true);
-    setDetected(null);
-    setTimeout(() => {
-      setScanning(false);
-      setDetected("THL-2026-08142");
-    }, 1400);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink-950/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-lg border border-line-200 bg-surface-0 shadow-overlay">
-        <div className="flex items-center justify-between border-b border-line-200 px-4 py-3">
-          <p className="text-sm font-semibold text-ink-950">Scan Barcode</p>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1 text-ink-400 transition-colors duration-fast hover:bg-surface-100 hover:text-ink-950"
-            aria-label="Close"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="relative flex h-48 items-center justify-center overflow-hidden bg-ink-950">
-          <Camera className="size-10 text-ink-400" />
-          {scanning && (
-            <span className="absolute inset-x-6 top-1/2 h-0.5 animate-pulse rounded bg-accent-500 shadow-[0_0_12px_2px_rgba(13,148,136,0.8)]" />
-          )}
-          {detected && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink-950/80">
-              <CheckCircle2 className="size-8 text-status-normal" />
-              <p className="data-mono text-sm font-semibold text-surface-0">{detected}</p>
-            </div>
-          )}
-          <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-ink-400">
-            Simulated camera — demo only
-          </p>
-        </div>
-        <div className="p-4">
-          {detected ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => navigate("/results")}
-                className="flex-1 rounded-md bg-accent-700 px-3 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
-              >
-                Open Result Entry
-              </button>
-              <button
-                onClick={simulate}
-                className="flex-1 rounded-md border border-line-200 bg-surface-0 px-3 py-2 text-xs font-medium text-ink-700 transition-colors duration-fast hover:bg-surface-100"
-              >
-                Scan again
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={simulate}
-              disabled={scanning}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent-700 px-3 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {scanning ? <Loader2 className="size-4 animate-spin" /> : <ScanBarcode className="size-4" />}
-              {scanning ? "Scanning…" : "Simulate scan"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Activity feed ───────────────────────────────────────────────────────
 
 function activityText(a: AuditLogEntry) {
@@ -294,7 +215,6 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  const [scanOpen, setScanOpen] = useState(false);
   const [approveAllOpen, setApproveAllOpen] = useState(false);
   const [approvingAll, setApprovingAll] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -403,8 +323,8 @@ export default function Dashboard() {
   }, [activity]);
 
   const shortcuts = [
-    { icon: ScanBarcode, label: "Scan Barcode", desc: "Quick sample entry", onClick: () => setScanOpen(true) },
-    { icon: FlaskConical, label: "QC Data", desc: "Enter QC results", to: "/mobile-review" },
+    { icon: FlaskConical, label: "Manual QC Entry", desc: "Control charts & QC alerts", to: "/alerts" },
+    { icon: ClipboardCheck, label: "Result Entry", desc: "Manual entry · auto flags", to: "/results" },
     { icon: FileBarChart2, label: "Generate Report", desc: "Daily summary", to: "/reports" },
     { icon: Settings, label: "Settings", desc: "Lab configuration", to: "/general-settings" },
   ];
@@ -718,7 +638,7 @@ export default function Dashboard() {
                 {shortcuts.map((s) => (
                   <button
                     key={s.label}
-                    onClick={() => (s.onClick ? s.onClick() : s.to ? navigate(s.to) : undefined)}
+                    onClick={() => s.to && navigate(s.to)}
                     className="group flex items-center gap-3 rounded-md border border-line-200 bg-surface-0 p-4 text-left shadow-raised transition-all duration-fast hover:-translate-y-px hover:border-accent-500 hover:shadow-overlay"
                   >
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent-100 text-accent-700 transition-colors duration-fast group-hover:bg-accent-700 group-hover:text-surface-0">
@@ -742,8 +662,6 @@ export default function Dashboard() {
           {toast}
         </div>
       )}
-
-      {scanOpen && <ScanModal onClose={() => setScanOpen(false)} />}
 
       {/* Approve All confirm — NABL 2-person sign-off gate */}
       {approveAllOpen && (

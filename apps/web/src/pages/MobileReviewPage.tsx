@@ -1062,8 +1062,8 @@ export default function MobileReviewPage() {
                               ))}
                             </div>
                             <p className="mt-2 border-t border-line-200 pt-2 text-[10px] leading-relaxed text-ink-400">
-                              Simulated control data for the mockup — production QC
-                              (Sprint 12+) streams live control runs from instruments.
+                              Simulated control data for the mockup — the QC module (next
+                              build) records manual control runs; instrument streaming arrives post-V1.
                             </p>
                           </div>
                         </div>

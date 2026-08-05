@@ -117,10 +117,10 @@ function buildDemoAlerts(now: number): AlertItem[] {
       severity: "critical",
       kind: "maintenance",
       status: "in_progress",
-      title: "System Offline: XN-1000 Hematology",
+      title: "Analyzer Offline: Hematology Bench",
       detail:
-        "Heartbeat lost on Analyzer 1 — no instrument messages for 18 minutes. Pending runs are queued.",
-      analyzer: "Sysmex XN-1000 (A1)",
+        "Analyzer 1 not responding for 18 minutes — check power & connections before the next batch. Pending tests stay queued.",
+      analyzer: "Analyzer 1 (Hematology)",
       createdAt: iso(3 * h + 5 * m),
       roles: ["technician", "lab_admin", "lab_manager"],
       demo: true,
