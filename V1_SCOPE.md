@@ -71,22 +71,35 @@
 | 5.5 | QC failure → real alert + audit | 🆕 | Reuse alerts-store + audit module (closed loop) |
 | 5.6 | Settings rule config → real API | 🆕 | Move Westgard rule toggles from localStorage to backend |
 
-## 6. Admin & Compliance (P2 — exists)
+## 6. Masters & Configuration (NEW — unified LIMS master hub)
 
 | # | Capability | Status | V1 detail |
 |---|---|---|---|
-| 6.1 | Staff / users / roles / RBAC | ✅ | Pathologist, Tech, Manager, Viewer |
-| 6.2 | Audit log viewer | ✅ | Search, filters, before/after, export |
-| 6.3 | Lab settings (name, address, reg bodies) | ✅ | Real `/settings/lab` |
-| 6.4 | **Integrations tab** | 🔧 | **Mute to "Enterprise · Coming soon"** — no fake API keys UI |
-| 6.5 | System settings / user management | ✅ | MFA status, deactivate, permission matrix |
+| 6.1 | **Hospital / Clinic master** | 🆕 | Name, code, address lookup, contact matrix, PAN, report branding (header/footer images, margins), Options flags (inactive, upload results, no SMS/email, outsource, WhatsApp report…), Settings (auto-invoice + period, preferred doctor, collection boy, report display mode), billing (credit/cash, days, limit, web password delivery) |
+| 6.2 | **Sample Type master** | 🆕 | Collection method, container type/color, storage, shelf life, pre-analytical reqs, options (requires requisition, auto-ID, reject on hemolysis, composite) |
+| 6.3 | **Method master** | 🆕 | Standard body (ASTM/ISO/EPA/APHA), category, reference doc, version control, default parameter set, safety precautions |
+| 6.4 | **Instrument master** | 🆕 | Name, model, asset tag, location/status, assigned staff, calibration frequency/due dates, requires-QC, downtime warning |
+| 6.5 | **Client / Lab master (B2B)** | 🆕 | Contact, billing/shipping address, GST/PAN, payment terms, currency, outsource partner, credit, commission, custom branding, invoice template |
+| 6.6 | **Parameter master extension** | 🆕 | Acceptance criteria (limits + limit type), critical-value alert, auto-approve, requires approval, visible on report, calculation formula |
 
-## 7. Dashboards & Analytics (P2 — exists, extend)
+> All masters share one UI pattern: **Left = who/what they are (data entry) · Right = how the system treats them (options/settings/billing)**. Global search, active/inactive filter, auto code generation, referential-integrity delete checks, and audit trail per record.
+
+## 7. Admin & Compliance (P2 — exists)
 
 | # | Capability | Status | V1 detail |
 |---|---|---|---|
-| 7.1 | Command-center dashboard | ✅ | Health gauge, pending reviews, alerts |
-| 7.2 | Daily revenue / outstanding | ✅ | 🔧 extend: TAT by department, pending by status |
+| 7.1 | Staff / users / roles / RBAC | ✅ | Pathologist, Tech, Manager, Viewer |
+| 7.2 | Audit log viewer | ✅ | Search, filters, before/after, export |
+| 7.3 | Lab settings (name, address, reg bodies) | ✅ | Real `/settings/lab` |
+| 7.4 | **Integrations tab** | 🔧 | **Mute to "Enterprise · Coming soon"** — no fake API keys UI |
+| 7.5 | System settings / user management | ✅ | MFA status, deactivate, permission matrix |
+
+## 8. Dashboards & Analytics (P2 — exists, extend)
+
+| # | Capability | Status | V1 detail |
+|---|---|---|---|
+| 8.1 | Command-center dashboard | ✅ | Health gauge, pending reviews, alerts |
+| 8.2 | Daily revenue / outstanding | ✅ | 🔧 extend: TAT by department, pending by status |
 
 ---
 

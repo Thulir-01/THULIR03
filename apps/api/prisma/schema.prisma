@@ -209,6 +209,11 @@ model Party {
   primaryContactEmail String?  @map("primary_contact_email")
   bankDetails        Json?     @map("bank_details")
   documents          Json?
+  // Client/Lab master commercial config (JSON — mirrors the doctorDetail split):
+  // billingAddress, shippingAddress, paymentTerms, currency, discountPercent,
+  // commissionPercent, preferredLab, invoiceTemplate, outsourcePartner,
+  // creditAllowed, commissionApplicable, customBranding
+  commercial         Json?     @map("commercial")
   // active | inactive | blacklisted
   status    String   @default("active")
   // Optional portal login link — set when the lab enables referrer portal access.
@@ -305,6 +310,18 @@ model TestParameter {
   refLow  Decimal? @map("ref_low") @db.Decimal(10, 2)
   refHigh Decimal? @map("ref_high") @db.Decimal(10, 2)
   methodology     String?
+  // Master-config extensions: technical specs + acceptance criteria + workflow
+  testCategory       String?  @map("test_category")
+  detectionLimit     Decimal? @map("detection_limit") @db.Decimal(12, 4)
+  reportingLimit     Decimal? @map("reporting_limit") @db.Decimal(12, 4)
+  lowerLimit         Decimal? @map("lower_limit") @db.Decimal(12, 4)
+  upperLimit         Decimal? @map("upper_limit") @db.Decimal(12, 4)
+  limitType          String?  @map("limit_type") // RANGE | MIN_ONLY | MAX_ONLY | PASS_FAIL
+  criticalValueAlert Boolean  @default(false) @map("critical_value_alert")
+  autoApprove        Boolean  @default(false) @map("auto_approve")
+  requiresApproval   Boolean  @default(false) @map("requires_approval")
+  visibleOnReport    Boolean  @default(true) @map("visible_on_report")
+  calculationFormula String?  @map("calculation_formula")
   turnaroundHours Int?     @map("turnaround_hours")
   defaultPrice    Decimal  @default(0) @map("default_price") @db.Decimal(10, 2)
   isActive        Boolean  @default(true) @map("is_active")
@@ -689,4 +706,175 @@ model QcRun {
 
   @@index([tenantId, controlId, createdAt])
   @@map("qc_runs")
+}
+
+// ─── Master Configuration (full LIMS masters) ──────────────────────────────
+// Standard layout: Left panel = identity & details ("who they are"), Right
+// panel = options/settings/billing ("how we treat them"). Every write is
+// auto-audited by the global AuditInterceptor, and deletes are soft.
+
+model HospitalMaster {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+
+  // Address hierarchy (lookup-friendly)
+  country String?
+  state   String?
+  city    String?
+  place   String?
+  street  String?
+  pinCode String? @map("pin_code")
+  zone    String?
+
+  // Contact matrix
+  mobile   String?
+  phone1   String?
+  phone2   String?
+  fax      String?
+  whatsapp String?
+  email    String?
+  website  String?
+  panNo    String? @map("pan_no")
+
+  // Report customization
+  headerImagePath String? @map("header_image_path")
+  footerImagePath String? @map("footer_image_path")
+  reportName      String? @map("report_name")
+  headerMarginPx  Int?    @map("header_margin_px")
+  footerMarginPx  Int?    @map("footer_margin_px")
+
+  // Options (right panel · Tab A — boolean flags)
+  inactive            Boolean @default(false)
+  uploadResults       Boolean @default(false) @map("upload_results")
+  noSms               Boolean @default(false) @map("no_sms")
+  noEmail             Boolean @default(false) @map("no_email")
+  outsourceTests      Boolean @default(false) @map("outsource_tests")
+  footerInfo          Boolean @default(false) @map("footer_info")
+  monthWiseCommission Boolean @default(false) @map("month_wise_commission")
+  criticalEmail       Boolean @default(false) @map("critical_email")
+  whatsappReport      Boolean @default(false) @map("whatsapp_report")
+  enableOnlineBooking Boolean @default(false) @map("enable_online_booking")
+  blockPrintWhenDue   Boolean @default(false) @map("block_print_when_due")
+
+  // Settings (right panel · Tab B)
+  autoInvoice       Boolean @default(false) @map("auto_invoice")
+  autoInvoicePeriod String?  @map("auto_invoice_period") // DAILY | WEEKLY | MONTHLY
+  preferredDoctorId String?  @map("preferred_doctor_id") @db.Uuid
+  collectionBoyId   String?  @map("collection_boy_id") @db.Uuid
+  reportDisplayMode String?  @map("report_display_mode") // WITH_HF | WITHOUT_HF | BOTH
+
+  // Source / billing (right panel · Tab C)
+  creditBill  Boolean  @default(false) @map("credit_bill")
+  cashBill    Boolean  @default(false) @map("cash_bill")
+  creditDays  Int?     @map("credit_days")
+  creditLimit Decimal? @map("credit_limit") @db.Decimal(12, 2)
+  webPassword String?  @map("web_password")
+  sentChannels Json?   @map("sent_channels") // ["SMS","EMAIL","WHATSAPP"]
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("hospital_masters")
+}
+
+model SampleTypeMaster {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+
+  // Collection & logistics (left panel)
+  collectionMethod String? @map("collection_method")
+  containerType    String? @map("container_type")
+  containerColor   String? @map("container_color") // hex colour code
+  storageCondition String? @map("storage_condition")
+  shelfLifeHours   Int?    @map("shelf_life_hours")
+  preAnalytical    String? @map("pre_analytical")
+
+  // Options (right panel · Tab A)
+  active              Boolean @default(true)
+  requiresRequisition Boolean @default(false) @map("requires_requisition")
+  autoGenerateId      Boolean @default(false) @map("auto_generate_id")
+  rejectOnHemolysis   Boolean @default(false) @map("reject_on_hemolysis")
+  compositeSample     Boolean @default(false) @map("composite_sample")
+
+  // Settings (right panel · Tab B)
+  priorityDefault String? @map("priority_default") // ROUTINE | URGENT | STAT
+  tatHours        Int?    @map("tat_hours")
+  associatedTests Json?   @map("associated_tests") // string[] of parameter codes
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active])
+  @@map("sample_type_masters")
+}
+
+model TestMethod {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+
+  // Classification (left panel)
+  standardBody String? @map("standard_body") // ASTM | ISO | EPA | APHA | CUSTOM
+  category     String? // Physical | Chemical | Biological | Microbial
+  referenceDoc String? @map("reference_doc")
+  description  String?
+
+  // Options (right panel · Tab A)
+  active         Boolean @default(true)
+  mandatory      Boolean @default(false)
+  versionControl Boolean @default(false) @map("version_control")
+
+  // Settings (right panel · Tab B)
+  defaultParameters Json?  @map("default_parameters") // string[] of parameter codes
+  safetyPrecautions String? @map("safety_precautions")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active])
+  @@map("test_methods")
+}
+
+model Instrument {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+
+  // Identity (left panel)
+  modelName    String? @map("model_name")
+  manufacturer String?
+  assetTag     String? @map("asset_tag")
+  serialNo     String? @map("serial_no")
+  location     String  @default("Lab A") // Lab A | Lab B | Store
+  status       String  @default("ACTIVE") // ACTIVE | UNDER_REPAIR | DECOMMISSIONED
+  assignedTo   String? @map("assigned_to")
+
+  // Calibration (right panel · Tab A)
+  calibrationFrequency String?  @map("calibration_frequency") // DAILY|WEEKLY|MONTHLY|YEARLY
+  lastCalibratedAt     DateTime? @map("last_calibrated_at")
+  nextCalibrationDue   DateTime? @map("next_calibration_due")
+  calibrationStandard  String?  @map("calibration_standard")
+
+  // Options (right panel · Tab B)
+  active          Boolean @default(true)
+  requiresQc      Boolean @default(false) @map("requires_qc")
+  downtimeWarning Boolean @default(false) @map("downtime_warning")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active])
+  @@map("instruments")
 }

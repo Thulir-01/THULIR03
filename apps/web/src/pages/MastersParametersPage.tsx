@@ -40,6 +40,18 @@ interface ParamForm {
   turnaroundHours: string;
   defaultPrice: string;
   sortOrder: string;
+  // Master-config: technical specs + acceptance criteria + workflow
+  testCategory: string;
+  detectionLimit: string;
+  reportingLimit: string;
+  lowerLimit: string;
+  upperLimit: string;
+  limitType: string;
+  calculationFormula: string;
+  criticalValueAlert: boolean;
+  autoApprove: boolean;
+  requiresApproval: boolean;
+  visibleOnReport: boolean;
 }
 
 const EMPTY_FORM: ParamForm = {
@@ -54,6 +66,17 @@ const EMPTY_FORM: ParamForm = {
   turnaroundHours: "",
   defaultPrice: "",
   sortOrder: "0",
+  testCategory: "Physicochemical",
+  detectionLimit: "",
+  reportingLimit: "",
+  lowerLimit: "",
+  upperLimit: "",
+  limitType: "RANGE",
+  calculationFormula: "",
+  criticalValueAlert: false,
+  autoApprove: false,
+  requiresApproval: false,
+  visibleOnReport: true,
 };
 
 /**
@@ -128,6 +151,8 @@ export default function ParametersPanel() {
 
   const set = (field: keyof ParamForm, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
+  const toggleParam = (field: keyof ParamForm) =>
+    setForm((f) => ({ ...f, [field]: !f[field] }));
 
   const startCreate = () => {
     setForm({ ...EMPTY_FORM, categoryName: categories[0]?.name ?? "" });
@@ -155,6 +180,17 @@ export default function ParametersPanel() {
       turnaroundHours: p.turnaroundHours != null ? String(p.turnaroundHours) : "",
       defaultPrice: String(p.defaultPrice),
       sortOrder: String(p.sortOrder),
+      testCategory: p.testCategory ?? "Physicochemical",
+      detectionLimit: p.detectionLimit != null ? String(p.detectionLimit) : "",
+      reportingLimit: p.reportingLimit != null ? String(p.reportingLimit) : "",
+      lowerLimit: p.lowerLimit != null ? String(p.lowerLimit) : "",
+      upperLimit: p.upperLimit != null ? String(p.upperLimit) : "",
+      limitType: p.limitType ?? "RANGE",
+      calculationFormula: p.calculationFormula ?? "",
+      criticalValueAlert: p.criticalValueAlert,
+      autoApprove: p.autoApprove,
+      requiresApproval: p.requiresApproval,
+      visibleOnReport: p.visibleOnReport,
     });
     setError("");
   };
@@ -235,6 +271,21 @@ export default function ParametersPanel() {
           : undefined,
         defaultPrice: parseFloat(form.defaultPrice || "0"),
         sortOrder: parseInt(form.sortOrder || "0", 10),
+        testCategory: form.testCategory || undefined,
+        detectionLimit: form.detectionLimit
+          ? parseFloat(form.detectionLimit)
+          : undefined,
+        reportingLimit: form.reportingLimit
+          ? parseFloat(form.reportingLimit)
+          : undefined,
+        lowerLimit: form.lowerLimit ? parseFloat(form.lowerLimit) : undefined,
+        upperLimit: form.upperLimit ? parseFloat(form.upperLimit) : undefined,
+        limitType: form.limitType || undefined,
+        calculationFormula: form.calculationFormula || undefined,
+        criticalValueAlert: form.criticalValueAlert,
+        autoApprove: form.autoApprove,
+        requiresApproval: form.requiresApproval,
+        visibleOnReport: form.visibleOnReport,
       };
       if (id) {
         await updateMastersParameter(id, body);
@@ -427,6 +478,7 @@ export default function ParametersPanel() {
             <ParamFormFields
               form={form}
               set={set}
+              toggle={toggleParam}
               categories={categories}
               onCategoryChange={onCategoryChange}
               onGenerateCode={generateCodeNow}
@@ -679,6 +731,7 @@ export default function ParametersPanel() {
                             <ParamFormFields
                               form={form}
                               set={set}
+                              toggle={toggleParam}
                               categories={categories}
                               onCategoryChange={onCategoryChange}
                               onGenerateCode={generateCodeNow}
@@ -774,12 +827,14 @@ export default function ParametersPanel() {
 function ParamFormFields({
   form,
   set,
+  toggle,
   categories,
   onCategoryChange,
   onGenerateCode,
 }: {
   form: ParamForm;
   set: (f: keyof ParamForm, v: string) => void;
+  toggle: (f: keyof ParamForm) => void;
   categories: TestCategory[];
   onCategoryChange: (v: string) => void;
   onGenerateCode: () => void;
@@ -947,6 +1002,161 @@ function ParamFormFields({
           className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
         />
       </div>
+
+      {/* Acceptance criteria + workflow (master-config right panel) */}
+      <div className="sm:col-span-2 lg:col-span-3">
+        <div className="mt-3 flex items-center gap-2 border-t border-line-200 pt-4">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-accent-700">
+            Rules & Limits
+          </span>
+          <span className="h-px flex-1 bg-line-200" />
+        </div>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label className="block text-xs font-medium text-ink-600 mb-1">
+              Test Category
+            </label>
+            <select
+              value={form.testCategory}
+              onChange={(e) => set("testCategory", e.target.value)}
+              className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm bg-surface-0 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+            >
+              {["Physicochemical", "Microbiological", "Heavy Metal", "Hematology", "Biochemistry", "Immunology", "Other"].map(
+                (c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-600 mb-1">
+              Lower Limit
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={form.lowerLimit}
+              onChange={(e) => set("lowerLimit", e.target.value)}
+              className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-600 mb-1">
+              Upper Limit
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={form.upperLimit}
+              onChange={(e) => set("upperLimit", e.target.value)}
+              className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-600 mb-1">
+              Limit Type
+            </label>
+            <select
+              value={form.limitType}
+              onChange={(e) => set("limitType", e.target.value)}
+              className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm bg-surface-0 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+            >
+              {["RANGE", "MIN_ONLY", "MAX_ONLY", "PASS_FAIL"].map((t) => (
+                <option key={t} value={t}>
+                  {t.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-600 mb-1">
+              Detection Limit
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={form.detectionLimit}
+              onChange={(e) => set("detectionLimit", e.target.value)}
+              className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-600 mb-1">
+              Reporting Limit
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={form.reportingLimit}
+              onChange={(e) => set("reportingLimit", e.target.value)}
+              placeholder="Report as &lt; Limit below this"
+              className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+            />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <label className="block text-xs font-medium text-ink-600 mb-1">
+              Calculation Formula
+            </label>
+            <input
+              value={form.calculationFormula}
+              onChange={(e) => set("calculationFormula", e.target.value)}
+              placeholder="e.g. Alkalinity = Acidity + Hardness"
+              className="w-full px-3 py-2 rounded-sm border border-line-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ToggleChip
+            label="Critical Value Alert"
+            on={form.criticalValueAlert}
+            onClick={() => toggle("criticalValueAlert")}
+          />
+          <ToggleChip
+            label="Auto-Approve in range"
+            on={form.autoApprove}
+            onClick={() => toggle("autoApprove")}
+          />
+          <ToggleChip
+            label="Requires Approval"
+            on={form.requiresApproval}
+            onClick={() => toggle("requiresApproval")}
+          />
+          <ToggleChip
+            label="Visible on Report"
+            on={form.visibleOnReport}
+            onClick={() => toggle("visibleOnReport")}
+          />
+        </div>
+      </div>
     </div>
+  );
+}
+
+function ToggleChip({
+  label,
+  on,
+  onClick,
+}: {
+  label: string;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors duration-fast ${
+        on
+          ? "border-accent-500 bg-accent-700 text-surface-0"
+          : "border-line-200 bg-surface-0 text-ink-600 hover:bg-surface-100"
+      }`}
+    >
+      <span
+        className={`size-1.5 rounded-full ${on ? "bg-surface-0" : "bg-ink-300"}`}
+      />
+      {label}
+    </button>
   );
 }

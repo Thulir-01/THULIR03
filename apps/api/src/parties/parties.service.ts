@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type PartyType =
@@ -25,6 +26,10 @@ export interface CreatePartyDto {
   commission?: number;
   pricingMode?: string;
   discountPercent?: number | null;
+  // Client/Lab commercial config (billing/shipping, terms, currency,
+  // discount/commission %, preferred lab, invoice template + option flags)
+  commercial?: Record<string, unknown>;
+  status?: string;
 }
 
 export type UpdatePartyDto = Partial<CreatePartyDto>;
@@ -48,6 +53,7 @@ export interface PartyRow {
   commission: number | null;
   pricingMode: string | null;
   discountPercent: number | null;
+  commercial: Record<string, unknown> | null;
   _count?: { orders: number; referrerPrices: number };
 }
 
@@ -80,6 +86,7 @@ function toRow(party: {
     pricingMode: string | null;
     discountPercent: { toNumber?: () => number } | number | null;
   } | null;
+  commercial?: unknown;
   _count?: { orders: number; referrerPrices: number };
 }): PartyRow {
   const d = party.doctorDetail;
@@ -101,6 +108,7 @@ function toRow(party: {
     commission: num(d?.commissionPercent),
     pricingMode: d?.pricingMode ?? 'default',
     discountPercent: num(d?.discountPercent),
+    commercial: (party.commercial as Record<string, unknown> | null) ?? null,
     _count: party._count,
   };
 }
@@ -171,6 +179,7 @@ export class PartiesService {
         primaryContactName: data.primaryContactName ?? null,
         primaryContactPhone: data.primaryContactPhone ?? null,
         primaryContactEmail: data.primaryContactEmail ?? null,
+        commercial: data.commercial as Prisma.InputJsonObject | undefined,
         ...(isDoctor
           ? {
               doctorDetail: {
@@ -209,6 +218,8 @@ export class PartiesService {
       partyData.primaryContactPhone = data.primaryContactPhone;
     if (data.primaryContactEmail !== undefined)
       partyData.primaryContactEmail = data.primaryContactEmail;
+    if (data.commercial !== undefined) partyData.commercial = data.commercial;
+    if (data.status !== undefined) partyData.status = data.status;
 
     let detailUpsert: Record<string, unknown> | undefined;
     if (party.partyType === 'doctor' || data.partyType === 'doctor') {

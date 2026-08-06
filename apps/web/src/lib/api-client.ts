@@ -116,6 +116,7 @@ export interface Party {
   commission: number | null;
   pricingMode: string | null;
   discountPercent: number | null;
+  commercial: Record<string, unknown> | null;
   _count?: { orders: number; referrerPrices: number };
 }
 
@@ -135,6 +136,8 @@ export interface CreatePartyData {
   commission?: number;
   pricingMode?: string;
   discountPercent?: number | null;
+  commercial?: Record<string, unknown>;
+  status?: string;
 }
 
 export async function getParties(params?: {
@@ -569,6 +572,18 @@ export interface TestParameter {
   sortOrder: number;
   usageCount?: number;
   category?: { id: string; name: string };
+  // Master-config extensions (technical specs + acceptance criteria + workflow)
+  testCategory: string | null;
+  detectionLimit: number | null;
+  reportingLimit: number | null;
+  lowerLimit: number | null;
+  upperLimit: number | null;
+  limitType: string | null;
+  criticalValueAlert: boolean;
+  autoApprove: boolean;
+  requiresApproval: boolean;
+  visibleOnReport: boolean;
+  calculationFormula: string | null;
 }
 
 export interface TestPackageItem {
@@ -808,6 +823,264 @@ export async function setLookupMasterStatus(
 
 export async function generateLookupMasterCode(type: LookupMasterType) {
   const { data } = await api.get(`/masters/lookup/${type}/generate-code`);
+  return data as string;
+}
+
+// ─── Master Configuration (full LIMS masters) ─────────────────────────────
+// Four dedicated masters (hospital / sample type / method / instrument) plus
+// the client master reusing the Parties API. All writes are auto-audited.
+
+export interface HospitalMaster {
+  id: string;
+  code: string;
+  name: string;
+  country: string | null;
+  state: string | null;
+  city: string | null;
+  place: string | null;
+  street: string | null;
+  pinCode: string | null;
+  zone: string | null;
+  mobile: string | null;
+  phone1: string | null;
+  phone2: string | null;
+  fax: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  website: string | null;
+  panNo: string | null;
+  headerImagePath: string | null;
+  footerImagePath: string | null;
+  reportName: string | null;
+  headerMarginPx: number | null;
+  footerMarginPx: number | null;
+  inactive: boolean;
+  uploadResults: boolean;
+  noSms: boolean;
+  noEmail: boolean;
+  outsourceTests: boolean;
+  footerInfo: boolean;
+  monthWiseCommission: boolean;
+  criticalEmail: boolean;
+  whatsappReport: boolean;
+  enableOnlineBooking: boolean;
+  blockPrintWhenDue: boolean;
+  autoInvoice: boolean;
+  autoInvoicePeriod: string | null;
+  preferredDoctorId: string | null;
+  collectionBoyId: string | null;
+  reportDisplayMode: string | null;
+  creditBill: boolean;
+  cashBill: boolean;
+  creditDays: number | null;
+  creditLimit: number | null;
+  webPassword: string | null;
+  sentChannels: string[] | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SampleTypeMaster {
+  id: string;
+  code: string;
+  name: string;
+  collectionMethod: string | null;
+  containerType: string | null;
+  containerColor: string | null;
+  storageCondition: string | null;
+  shelfLifeHours: number | null;
+  preAnalytical: string | null;
+  active: boolean;
+  requiresRequisition: boolean;
+  autoGenerateId: boolean;
+  rejectOnHemolysis: boolean;
+  compositeSample: boolean;
+  priorityDefault: string | null;
+  tatHours: number | null;
+  associatedTests: string[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TestMethod {
+  id: string;
+  code: string;
+  name: string;
+  standardBody: string | null;
+  category: string | null;
+  referenceDoc: string | null;
+  description: string | null;
+  active: boolean;
+  mandatory: boolean;
+  versionControl: boolean;
+  defaultParameters: string[] | null;
+  safetyPrecautions: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Instrument {
+  id: string;
+  code: string;
+  name: string;
+  modelName: string | null;
+  manufacturer: string | null;
+  assetTag: string | null;
+  serialNo: string | null;
+  location: string;
+  status: string;
+  assignedTo: string | null;
+  calibrationFrequency: string | null;
+  lastCalibratedAt: string | null;
+  nextCalibrationDue: string | null;
+  calibrationStandard: string | null;
+  active: boolean;
+  requiresQc: boolean;
+  downtimeWarning: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Hospital
+
+export async function getHospitals(params?: {
+  search?: string;
+  isActive?: string;
+}) {
+  const { data } = await api.get("/master-config/hospitals", { params });
+  return data as HospitalMaster[];
+}
+export async function createHospital(body: Record<string, unknown>) {
+  const { data } = await api.post("/master-config/hospitals", body);
+  return data as HospitalMaster;
+}
+export async function updateHospital(
+  id: string,
+  body: Record<string, unknown>,
+) {
+  const { data } = await api.patch(`/master-config/hospitals/${id}`, body);
+  return data as HospitalMaster;
+}
+export async function setHospitalStatus(id: string, isActive: boolean) {
+  const { data } = await api.patch(
+    `/master-config/hospitals/${id}/status`,
+    { isActive },
+  );
+  return data as HospitalMaster;
+}
+export async function removeHospital(id: string) {
+  const { data } = await api.delete(`/master-config/hospitals/${id}`);
+  return data as HospitalMaster;
+}
+export async function generateHospitalCode() {
+  const { data } = await api.get("/master-config/hospitals/generate-code");
+  return data as string;
+}
+
+// Sample types
+
+export async function getSampleTypeMasters(params?: {
+  search?: string;
+  isActive?: string;
+}) {
+  const { data } = await api.get("/master-config/sample-types", { params });
+  return data as SampleTypeMaster[];
+}
+export async function createSampleTypeMaster(body: Record<string, unknown>) {
+  const { data } = await api.post("/master-config/sample-types", body);
+  return data as SampleTypeMaster;
+}
+export async function updateSampleTypeMaster(
+  id: string,
+  body: Record<string, unknown>,
+) {
+  const { data } = await api.patch(`/master-config/sample-types/${id}`, body);
+  return data as SampleTypeMaster;
+}
+export async function setSampleTypeMasterStatus(id: string, isActive: boolean) {
+  const { data } = await api.patch(
+    `/master-config/sample-types/${id}/status`,
+    { isActive },
+  );
+  return data as SampleTypeMaster;
+}
+export async function removeSampleTypeMaster(id: string) {
+  const { data } = await api.delete(`/master-config/sample-types/${id}`);
+  return data as SampleTypeMaster;
+}
+export async function generateSampleTypeMasterCode() {
+  const { data } = await api.get("/master-config/sample-types/generate-code");
+  return data as string;
+}
+
+// Methods
+
+export async function getTestMethods(params?: {
+  search?: string;
+  isActive?: string;
+}) {
+  const { data } = await api.get("/master-config/methods", { params });
+  return data as TestMethod[];
+}
+export async function createTestMethod(body: Record<string, unknown>) {
+  const { data } = await api.post("/master-config/methods", body);
+  return data as TestMethod;
+}
+export async function updateTestMethod(
+  id: string,
+  body: Record<string, unknown>,
+) {
+  const { data } = await api.patch(`/master-config/methods/${id}`, body);
+  return data as TestMethod;
+}
+export async function setTestMethodStatus(id: string, isActive: boolean) {
+  const { data } = await api.patch(`/master-config/methods/${id}/status`, {
+    isActive,
+  });
+  return data as TestMethod;
+}
+export async function removeTestMethod(id: string) {
+  const { data } = await api.delete(`/master-config/methods/${id}`);
+  return data as TestMethod;
+}
+export async function generateTestMethodCode() {
+  const { data } = await api.get("/master-config/methods/generate-code");
+  return data as string;
+}
+
+// Instruments
+
+export async function getInstruments(params?: {
+  search?: string;
+  isActive?: string;
+}) {
+  const { data } = await api.get("/master-config/instruments", { params });
+  return data as Instrument[];
+}
+export async function createInstrument(body: Record<string, unknown>) {
+  const { data } = await api.post("/master-config/instruments", body);
+  return data as Instrument;
+}
+export async function updateInstrument(
+  id: string,
+  body: Record<string, unknown>,
+) {
+  const { data } = await api.patch(`/master-config/instruments/${id}`, body);
+  return data as Instrument;
+}
+export async function setInstrumentStatus(id: string, isActive: boolean) {
+  const { data } = await api.patch(`/master-config/instruments/${id}/status`, {
+    isActive,
+  });
+  return data as Instrument;
+}
+export async function removeInstrument(id: string) {
+  const { data } = await api.delete(`/master-config/instruments/${id}`);
+  return data as Instrument;
+}
+export async function generateInstrumentCode() {
+  const { data } = await api.get("/master-config/instruments/generate-code");
   return data as string;
 }
 

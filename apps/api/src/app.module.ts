@@ -14,6 +14,7 @@ import { OrdersModule } from './orders/orders.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MastersModule } from './masters/masters.module';
+import { MasterConfigModule } from './master-config/master-config.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -46,6 +47,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     AuditLogsModule,
     DashboardModule,
     MastersModule,
+    MasterConfigModule,
     ReportsModule,
     SettingsModule,
     InventoryModule,

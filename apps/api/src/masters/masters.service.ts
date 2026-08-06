@@ -34,6 +34,18 @@ export interface CreateParameterDto {
   defaultPrice?: number;
   isActive?: boolean;
   sortOrder?: number;
+  // Master-config extensions (technical specs + acceptance criteria + workflow)
+  testCategory?: string;
+  detectionLimit?: number;
+  reportingLimit?: number;
+  lowerLimit?: number;
+  upperLimit?: number;
+  limitType?: string;
+  criticalValueAlert?: boolean;
+  autoApprove?: boolean;
+  requiresApproval?: boolean;
+  visibleOnReport?: boolean;
+  calculationFormula?: string;
 }
 
 export type UpdateParameterDto = Partial<CreateParameterDto>;
@@ -233,6 +245,17 @@ export class MastersService {
         defaultPrice: data.defaultPrice ?? 0,
         isActive: data.isActive ?? true,
         sortOrder: data.sortOrder ?? 0,
+        testCategory: data.testCategory ?? null,
+        detectionLimit: data.detectionLimit ?? null,
+        reportingLimit: data.reportingLimit ?? null,
+        lowerLimit: data.lowerLimit ?? null,
+        upperLimit: data.upperLimit ?? null,
+        limitType: data.limitType ?? null,
+        criticalValueAlert: data.criticalValueAlert ?? false,
+        autoApprove: data.autoApprove ?? false,
+        requiresApproval: data.requiresApproval ?? false,
+        visibleOnReport: data.visibleOnReport ?? true,
+        calculationFormula: data.calculationFormula ?? null,
       },
     });
   }
@@ -287,6 +310,33 @@ export class MastersService {
           : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
         ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
+        ...(data.testCategory !== undefined
+          ? { testCategory: data.testCategory }
+          : {}),
+        ...(data.detectionLimit !== undefined
+          ? { detectionLimit: data.detectionLimit }
+          : {}),
+        ...(data.reportingLimit !== undefined
+          ? { reportingLimit: data.reportingLimit }
+          : {}),
+        ...(data.lowerLimit !== undefined ? { lowerLimit: data.lowerLimit } : {}),
+        ...(data.upperLimit !== undefined ? { upperLimit: data.upperLimit } : {}),
+        ...(data.limitType !== undefined ? { limitType: data.limitType } : {}),
+        ...(data.criticalValueAlert !== undefined
+          ? { criticalValueAlert: data.criticalValueAlert }
+          : {}),
+        ...(data.autoApprove !== undefined
+          ? { autoApprove: data.autoApprove }
+          : {}),
+        ...(data.requiresApproval !== undefined
+          ? { requiresApproval: data.requiresApproval }
+          : {}),
+        ...(data.visibleOnReport !== undefined
+          ? { visibleOnReport: data.visibleOnReport }
+          : {}),
+        ...(data.calculationFormula !== undefined
+          ? { calculationFormula: data.calculationFormula }
+          : {}),
       },
     });
   }
