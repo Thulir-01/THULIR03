@@ -6,7 +6,6 @@ import {
   Mail,
   SlidersHorizontal,
   Bell,
-  Plug,
   ShieldCheck,
   FileText,
   Save,
@@ -171,7 +170,7 @@ const ANALYZERS = [
 ];
 
 /* ─── Page ─────────────────────────────────────────────────────────── */
-type TabKey = "lab" | "qc" | "notify" | "integrations" | "audit";
+type TabKey = "lab" | "qc" | "notify" | "audit";
 
 export default function GeneralSettingsPage() {
   const { user } = useAuth();
@@ -318,7 +317,6 @@ export default function GeneralSettingsPage() {
     { key: "lab", label: "General Lab Info", icon: Building2, blurb: "Name, location, regulatory bodies & contacts" },
     { key: "qc", label: "QC Rules & Westgard", icon: SlidersHorizontal, blurb: "Global rule engine + per-analyzer overrides" },
     { key: "notify", label: "Notifications & Alerts", icon: Bell, blurb: "Channels, thresholds & quiet hours" },
-    { key: "integrations", label: "Integrations", icon: Plug, blurb: "Enterprise · coming soon (post-V1)" },
     { key: "audit", label: "Audit & Compliance", icon: ShieldCheck, blurb: "Retention, log visibility & exports" },
   ];
 
@@ -856,75 +854,6 @@ export default function GeneralSettingsPage() {
                   )}
                   <div className="mt-4">
                     <LocalNote text="Notification preferences persist in this workspace; delivery (email/SMS) needs a messaging provider." />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {tab === "integrations" && (
-              <div className="space-y-5">
-                {/* Enterprise · coming soon — V1 is manual-first */}
-                <div className="rounded-md border border-dashed border-line-300 bg-surface-100/60 p-8">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-surface-0 text-ink-400 shadow-raised">
-                      <Plug className="size-5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-semibold text-ink-950">Integrations</h2>
-                        <span className="rounded-full border border-line-300 bg-surface-0 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-                          Enterprise · Coming soon
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-ink-500">
-                        V1 is built for small &amp; medium labs using manual and semi-automated analyzers.
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="mt-5 max-w-2xl text-[13px] leading-relaxed text-ink-600">
-                    System integrations (LIS, EHR, HL7 instrument interfaces) target large automated labs
-                    and ship <span className="font-semibold text-ink-950">after V1</span>. For manual-first
-                    labs, daily work is fully covered here:{" "}
-                    <span className="font-semibold text-ink-950">manual result entry</span> (Result Entry) and{" "}
-                    <span className="font-semibold text-ink-950">manual QC entry</span> (QC module — next build)
-                    need no machine link.
-                  </p>
-
-                  <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
-                    {[
-                      { name: "LIS", detail: "Laboratory Information System", protocol: "HL7 v2.x" },
-                      { name: "EHR", detail: "Electronic Health Record", protocol: "FHIR R4" },
-                      { name: "Instrument Interface", detail: "Live analyzer result streaming", protocol: "HL7 v2.5" },
-                      { name: "FHIR Gateway", detail: "External care-ecosystem exchange", protocol: "FHIR R4" },
-                    ].map((i) => (
-                      <div key={i.name} className="flex items-center gap-3 rounded-md border border-line-200 bg-surface-0 px-3.5 py-3">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-100 text-ink-400">
-                          <Plug className="size-4" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-ink-950">{i.name}</span>
-                            <span className="data-mono rounded-sm bg-surface-100 px-1.5 py-0.5 text-[9px] text-ink-400">
-                              {i.protocol}
-                            </span>
-                          </div>
-                          <div className="truncate text-[11px] text-ink-400">{i.detail}</div>
-                        </div>
-                        <span className="shrink-0 rounded-full bg-surface-100 px-2 py-0.5 text-[10px] font-semibold text-ink-400">
-                          Post-V1
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 flex items-start gap-2 rounded-md border border-accent-200 bg-accent-50/60 px-3.5 py-3">
-                    <FlaskConical className="mt-0.5 size-4 shrink-0 text-accent-700" />
-                    <p className="text-xs leading-relaxed text-accent-800">
-                      Semi-automated analyzers? Enter results by hand in{" "}
-                      <span className="font-semibold">Result Entry</span> — flags, critical values and sign-off
-                      all work without any instrument link.
-                    </p>
                   </div>
                 </div>
               </div>

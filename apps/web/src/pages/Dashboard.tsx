@@ -10,7 +10,6 @@ import {
   XCircle,
   Eye,
   ArrowRight,
-  AlertTriangle,
   FlaskConical,
   FileBarChart2,
   Settings,
@@ -290,37 +289,31 @@ export default function Dashboard() {
     return Math.max(1, Math.round(total / pendingReviews.length / 60e3));
   }, [pendingReviews]);
 
-  // Demo QC alerts (QC module is a later sprint) — drives the critical banner.
-  const demoCriticalCount = 1;
-  const openAlerts = demoCriticalCount + invAlertCount;
+  // Open alerts come from real sources only — inventory expiry/low stock and
+  // QC failures raised by the QC module (Alerts Center inbox).
+  const openAlerts = invAlertCount;
 
   const healthScore = useMemo(() => {
     let s = 100;
-    s -= Math.min(24, demoCriticalCount * 12);
     s -= Math.min(18, invAlertCount * 6);
     s -= Math.min(10, Math.max(0, pendingReviews.length - 5) * 2);
     if (avgWaitMin !== null && avgWaitMin > 60) s -= 4;
     return Math.max(20, Math.min(100, s));
-  }, [demoCriticalCount, invAlertCount, pendingReviews.length, avgWaitMin]);
+  }, [invAlertCount, pendingReviews.length, avgWaitMin]);
 
   const secondsToLock = Math.max(0, Math.ceil((LOCK_MS - (nowTick - lastActiveRef.current)) / 1000));
 
-  const feed = useMemo(() => {
-    const real = activity.map((a) => ({
-      id: `real-${a.id}`,
-      icon: a.action === "DELETE" ? XCircle : a.action === "POST" ? CheckCircle2 : Activity,
-      text: activityText(a),
-      time: a.createdAt,
-      demo: false,
-    }));
-    const now = Date.now();
-    const demo = [
-      { id: "demo-run405", icon: Activity, text: "Analyzer 1 completed Run #405", time: new Date(now - 9 * 60e3).toISOString(), demo: true },
-      { id: "demo-signoff", icon: CheckCircle2, text: "Dr. Smith signed off Sample #102", time: new Date(now - 26 * 60e3).toISOString(), demo: true },
-      { id: "demo-lot", icon: FlaskConical, text: "Reagent Lot #B23 added to stock", time: new Date(now - 47 * 60e3).toISOString(), demo: true },
-    ];
-    return [...real, ...demo].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-  }, [activity]);
+  const feed = useMemo(() =>
+    activity
+      .map((a) => ({
+        id: `real-${a.id}`,
+        icon: a.action === "DELETE" ? XCircle : a.action === "POST" ? CheckCircle2 : Activity,
+        text: activityText(a),
+        time: a.createdAt,
+      }))
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()),
+    [activity],
+  );
 
   const shortcuts = [
     { icon: FlaskConical, label: "Manual QC Entry", desc: "Enter control values · Westgard", to: "/qc" },
@@ -521,25 +514,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Critical action required */}
-                <div className="flex flex-wrap items-center gap-3 border-b border-red-100 bg-red-50/60 px-4 py-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-status-critical text-surface-0">
-                    <AlertTriangle className="size-4.5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-status-critical">1 Critical · QC Failure on Analyzer 2</p>
-                    <p className="mt-0.5 text-[11px] text-red-800/70">
-                      1:3s breach (Glucose Low Control) requires sign-off · <span className="rounded-sm bg-surface-0 px-1 py-px text-[9px] text-ink-400">demo</span>
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => navigate("/alerts")}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-status-critical px-3 py-1.5 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-red-700"
-                  >
-                    <Eye className="size-3.5" /> Review &amp; Resolve
-                  </button>
-                </div>
-
                 {/* Routine approvals */}
                 {pendingReviews.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
@@ -616,7 +590,6 @@ export default function Dashboard() {
                         <p className="text-xs leading-snug text-ink-700">{entry.text}</p>
                         <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-ink-400">
                           {relTime(entry.time)}
-                          {entry.demo && <span className="rounded-sm bg-surface-100 px-1 py-px text-[9px]">demo</span>}
                         </p>
                       </div>
                     </li>

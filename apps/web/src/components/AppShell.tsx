@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, memo } from "react";
-import { NavLink, useNavigate } from "react-router";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard,
   FilePlus2,
@@ -19,7 +19,6 @@ import {
   ClipboardSignature,
   ShieldCheck,
   BadgeCheck,
-  Smartphone,
   TrendingUp,
   Building2,
   Settings,
@@ -28,13 +27,15 @@ import {
   Bell,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
+import { loadExtraAlerts } from "../lib/alerts-store";
+import { getInventoryAlerts } from "../lib/api-client";
 
 // Operations — the patient/sample journey, in the order it happens:
 // Dashboard → Registration → Patients → Orders → Result Entry, then the
 // role-gated Verify (technician) and Approvals (pathologist) queues.
+// Alerts is not a sidebar item — it lives as the bell icon at the top edge.
 const OPERATIONS_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/patient-registration", label: "Registration", icon: FilePlus2 },
   { to: "/patients", label: "Patients", icon: Users },
   { to: "/orders", label: "Orders", icon: ClipboardList },
@@ -62,10 +63,11 @@ const STAFF_ITEMS = [
 
 const STAFF_ROLES = new Set(["lab_admin", "lab_manager"]);
 
-// Approvals — pathologist queue of verified orders awaiting sign-off
+// Approvals — pathologist queue of verified orders awaiting sign-off.
+// Mobile Review is deliberately not a sidebar item — the app itself is
+// responsive, so the same review flows adapt to the device automatically.
 const APPROVALS_ITEMS = [
   { to: "/approvals", label: "Pathologist", icon: ShieldCheck },
-  { to: "/mobile-review", label: "Mobile Review", icon: Smartphone },
 ];
 
 const APPROVALS_ROLES = new Set(["pathologist", "lab_admin", "lab_manager"]);
@@ -245,6 +247,47 @@ const CommandPalette = memo(function CommandPalette({
         </div>
       </div>
     </div>
+  );
+});
+
+// ─── Alerts bell (top edge) ─────────────────────────────────────────────
+// Alerts is not a sidebar item — it lives as a bell icon in the top bar so
+// it is always one tap away, on every screen size.
+const AlertsBell = memo(function AlertsBell() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [openCount, setOpenCount] = useState(0);
+
+  const refresh = useCallback(() => {
+    const extra = loadExtraAlerts().filter(
+      (a) => a.status === "unread" || a.status === "in_progress"
+    ).length;
+    void getInventoryAlerts()
+      .then((inv) => {
+        const invCount =
+          (inv.expired?.length ?? 0) + (inv.expiring?.length ?? 0) + (inv.lowStock?.length ?? 0);
+        setOpenCount(extra + invCount);
+      })
+      .catch(() => setOpenCount(extra));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh, location.pathname]);
+
+  return (
+    <button
+      onClick={() => navigate("/alerts")}
+      title="Alerts & Notifications"
+      className="relative flex size-9 items-center justify-center rounded-full border border-line-200 bg-surface-0 text-ink-600 transition-colors duration-fast hover:border-accent-300 hover:text-accent-700"
+    >
+      <Bell className="size-4" />
+      {openCount > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-critical px-1 text-[9px] font-bold text-surface-0">
+          {openCount > 99 ? "99+" : openCount}
+        </span>
+      )}
+    </button>
   );
 });
 
@@ -479,9 +522,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile top bar */}
-      <div className="md:hidden sticky top-0 z-40 flex h-14 items-center justify-between border-b border-line-200 bg-surface-0 px-4">
-        <div className="flex items-center gap-2.5">
+      {/* Global top bar — brand on mobile, search + alerts bell at the edge.
+          On desktop it sits to the right of the fixed icon rail (same left
+          padding), so the bell is always at the top-right corner. */}
+      <div className={`sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line-200 bg-surface-0 px-4 ${contentPad}`}>
+        <div className="flex items-center gap-2.5 md:hidden">
           <div className="size-8 rounded-md bg-accent-700 text-surface-0 flex items-center justify-center">
             <FlaskConical className="size-4" />
           </div>
@@ -489,12 +534,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             THULIR03
           </span>
         </div>
-        <button
-          onClick={() => setPaletteOpen(true)}
-          className="flex items-center gap-1.5 rounded-sm border border-line-200 px-2.5 py-1.5 text-xs text-ink-600"
-        >
-          <Search className="size-3.5" /> Search
-        </button>
+        <div className="hidden text-[10px] uppercase tracking-[0.14em] text-ink-400 md:block">
+          {collapsed ? "THULIR03" : "THULIR03 · Lab LIMS"}
+        </div>
+        <div className="flex items-center gap-2">
+          <AlertsBell />
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="flex items-center gap-1.5 rounded-sm border border-line-200 px-2.5 py-1.5 text-xs text-ink-600 md:hidden"
+          >
+            <Search className="size-3.5" /> Search
+          </button>
+        </div>
       </div>
 
       {/* Content */}

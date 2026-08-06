@@ -21,12 +21,18 @@ if [ -f /tmp/thulir-api.pid ] && kill -0 "$(cat /tmp/thulir-api.pid)" 2>/dev/nul
   echo "API already running (pid $(cat /tmp/thulir-api.pid)) on :3001"
 else
   cd "$ROOT/apps/api"
+  # Fresh checkouts have no compiled output (dist is gitignored) — build once
+  # so the preview always has its backend available.
+  if [ ! -f dist/src/main.js ]; then
+    echo "API dist missing — building first…"
+    npm run build
+  fi
   nohup node dist/src/main.js > /tmp/thulir-api.log 2>&1 &
   echo $! > /tmp/thulir-api.pid
   echo "API starting on :3001 (pid $(cat /tmp/thulir-api.pid); log: /tmp/thulir-api.log)"
   sleep 5
 fi
 
-# 2) Foreground: web dev server on 5173
+# 2) Foreground: web dev server, pinned to the registered preview port 5173
 cd "$ROOT/apps/web"
-exec npm run dev
+exec npm run dev -- --port 5173

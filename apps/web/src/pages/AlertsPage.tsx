@@ -32,7 +32,7 @@ import PageHeader from "../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
 import { QcPlot, TrendSpark } from "../components/ui/QcChart";
 
-// ─── Persistence (localStorage — demo layer for non-server-backed alerts) ──
+// ─── Persistence (localStorage — alert status/comments survive reloads) ──
 
 const STATUS_KEY = "thulir03-alerts-status";
 const COMMENTS_KEY = "thulir03-alerts-comments";
@@ -81,128 +81,6 @@ function fmtTime(iso: string) {
 }
 
 const ALL_ROLES = ["technician", "pathologist", "lab_admin", "lab_manager"];
-
-// ─── Demo alerts (QC/system — QC module is a later sprint; clearly labeled) ─
-
-function buildDemoAlerts(now: number): AlertItem[] {
-  const h = 3600e3;
-  const m = 60e3;
-  const iso = (msAgo: number) => new Date(now - msAgo).toISOString();
-
-  // Glucose Low Control run series — one point punches through ±3 SD.
-  const base: number[] = [101, 103, 99, 102, 104, 100, 101, 98, 103, 102, 100, 99, 101, 100, 112, 103, 102, 101];
-  const history = [99, 101, 100, 102, 98, 101, 100, 99, 102, 101];
-
-  return [
-    {
-      id: "demo-qc-1-3s",
-      severity: "critical",
-      kind: "qc",
-      status: "unread",
-      title: "QC Failure: Glucose Low Control",
-      detail:
-        "1:3s breach on Analyzer 2 — one control point exceeded ±3 SD. Run must be reviewed before sign-off.",
-      analyzer: "Sysmex XN-1000 (A2)",
-      lot: "LOT-A123",
-      rule: "1:3s",
-      test: "Glucose · Low Control",
-      createdAt: iso(2 * h + 12 * m),
-      roles: ALL_ROLES,
-      demo: true,
-      qc: { mean: 102, sd: 3.2, unit: "mg/dL", points: base, flaggedIndex: 14 },
-      history,
-    },
-    {
-      id: "demo-system-offline",
-      severity: "critical",
-      kind: "maintenance",
-      status: "in_progress",
-      title: "Analyzer Offline: Hematology Bench",
-      detail:
-        "Analyzer 1 not responding for 18 minutes — check power & connections before the next batch. Pending tests stay queued.",
-      analyzer: "Analyzer 1 (Hematology)",
-      createdAt: iso(3 * h + 5 * m),
-      roles: ["technician", "lab_admin", "lab_manager"],
-      demo: true,
-    },
-    {
-      id: "demo-qc-2-2s",
-      severity: "warning",
-      kind: "qc",
-      status: "unread",
-      title: "QC Trend: 2:2s on Potassium",
-      detail:
-        "Two consecutive points on the same side of the mean beyond ±2 SD — trending, not yet out of control.",
-      analyzer: "Roche Cobas c501",
-      lot: "LOT-B221",
-      rule: "2:2s",
-      test: "Potassium · Level 1",
-      createdAt: iso(55 * m),
-      roles: ALL_ROLES,
-      demo: true,
-      qc: { mean: 4.1, sd: 0.12, unit: "mmol/L", points: [4.05, 4.1, 4.28, 4.24, 4.31, 4.08, 4.12, 4.26, 4.29, 4.22], flaggedIndex: 8 },
-      history: [4.08, 4.11, 4.09, 4.12, 4.3, 4.26, 4.31],
-    },
-    {
-      id: "demo-sigma-drop",
-      severity: "warning",
-      kind: "qc",
-      status: "unread",
-      title: "Sigma Metric Drop: HbA1c",
-      detail: "Sigma fell to 3.1 (target ≥ 4.0). Review bias/CV contribution before next run batch.",
-      analyzer: "Tosoh G8",
-      test: "HbA1c",
-      createdAt: iso(3 * h + 40 * m),
-      roles: ["pathologist", "lab_admin", "lab_manager"],
-      demo: true,
-    },
-    {
-      id: "demo-cal-due",
-      severity: "warning",
-      kind: "maintenance",
-      status: "acknowledged",
-      title: "Calibration Due: Electrolyte Module",
-      detail: "Calibration overdue by 1 day — results may be flagged until recalibrated.",
-      analyzer: "Roche Cobas c501",
-      createdAt: iso(26 * h),
-      roles: ALL_ROLES,
-      demo: true,
-    },
-    {
-      id: "demo-signoff-fail",
-      severity: "warning",
-      kind: "system",
-      status: "unread",
-      title: "Sign-off Failure: Order THL-10429",
-      detail: "Electronic signature could not be captured — pathologist must re-authenticate to sign off.",
-      createdAt: iso(4 * h + 20 * m),
-      roles: ["pathologist", "lab_admin", "lab_manager"],
-      demo: true,
-    },
-    {
-      id: "demo-info-user",
-      severity: "info",
-      kind: "info",
-      status: "unread",
-      title: "New User Added",
-      detail: "A new staff account was created with the Lab Technician role and an invitation was sent.",
-      createdAt: iso(40 * m),
-      roles: ALL_ROLES,
-      demo: true,
-    },
-    {
-      id: "demo-info-summary",
-      severity: "info",
-      kind: "info",
-      status: "acknowledged",
-      title: "Daily Summary Generated",
-      detail: "342 tests processed · 3 pending verification · 2 awaiting sign-off · revenue ₹1,84,500.",
-      createdAt: iso(8 * h),
-      roles: ALL_ROLES,
-      demo: true,
-    },
-  ];
-}
 
 // ─── Real inventory alerts (from /inventory/alerts) ───────────────────────
 
@@ -351,11 +229,7 @@ function AlertCard({
                 <BellRing className="size-3 animate-pulse" /> SLA · Escalated
               </span>
             )}
-            {item.demo && (
-              <span className="rounded-full border border-line-200 bg-surface-100 px-1.5 py-px text-[10px] font-medium text-ink-400">
-                demo
-              </span>
-            )}
+
           </div>
           <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-600">{item.detail}</p>
 
@@ -539,9 +413,7 @@ function DetailPanel({
             )}
             <div className="rounded-md border border-line-200 p-2.5">
               <p className="field-label">Source</p>
-              <p className="mt-0.5 text-xs font-medium text-ink-950">
-                {item.demo ? "QC demo data" : "Inventory module"}
-              </p>
+              <p className="mt-0.5 text-xs font-medium text-ink-950">System inbox</p>
             </div>
           </div>
 
@@ -674,7 +546,6 @@ function DetailPanel({
         </div>
         <p className="shrink-0 border-t border-line-200 px-5 py-2 text-[10px] text-ink-400">
           Every acknowledgment, resolution &amp; comment is captured in the Audit Trail (Setup → Audit Log).
-          {item.demo && " QC/system alerts are simulated demo data — the QC module ships in a later sprint."}
         </p>
       </aside>
     </div>
@@ -719,11 +590,11 @@ export default function AlertsPage() {
         const inv = await getInventoryAlerts();
         if (!alive) return;
         setError("");
-        setDemoAlerts(buildInventoryAlerts(inv));
+        setAlerts([...loadExtraAlerts(), ...buildInventoryAlerts(inv)]);
       } catch {
         if (!alive) return;
-        setError("Inventory alert feed unavailable — showing QC/system demo alerts.");
-        setDemoAlerts(null);
+        setError("Inventory alert feed unavailable.");
+        setAlerts(loadExtraAlerts());
       } finally {
         if (alive) setLoading(false);
       }
@@ -732,14 +603,6 @@ export default function AlertsPage() {
       alive = false;
     };
   }, []);
-
-  // Demo alerts regenerate with now-relative timestamps on each load; their
-  // status/comments persist via localStorage.
-  const setDemoAlerts = (inv: ReturnType<typeof buildInventoryAlerts> | null) => {
-    // Extra alerts (raised by other modules, e.g. rejected results under
-    // investigation) lead the inbox, then demo QC/system + real inventory.
-    setAlerts([...loadExtraAlerts(), ...buildDemoAlerts(Date.now()), ...(inv ?? [])]);
-  };
 
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
 

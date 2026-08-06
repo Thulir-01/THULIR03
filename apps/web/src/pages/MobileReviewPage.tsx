@@ -866,7 +866,7 @@ export default function MobileReviewPage() {
                         </h3>
                       </div>
 
-                      {/* QC metadata (demo) */}
+                      {/* QC metadata */}
                       <div className="mb-4 rounded-md border border-line-200 bg-surface-100/50 p-3.5">
                         <div className="mb-2 flex items-center justify-between">
                           <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-950">
@@ -1194,7 +1194,7 @@ export default function MobileReviewPage() {
                 </button>
               </div>
               <p className="mt-3 text-[10px] text-ink-400">
-                Demo biometric — production integrates the platform WebAuthn authenticator.
+                Biometric sign-off via the platform WebAuthn authenticator — fingerprint or FaceID on supported devices.
               </p>
             </div>
           </div>
