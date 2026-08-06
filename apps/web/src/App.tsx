@@ -1,5 +1,5 @@
 import "./index.css";
-import { Routes, Route } from "react-router";
+import { Routes, Route, Navigate } from "react-router";
 import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppShell from "./components/AppShell";
@@ -26,7 +26,6 @@ import VerifyPage from "./pages/VerifyPage";
 import ReportPage from "./pages/ReportPage";
 import InvoicePage from "./pages/InvoicePage";
 import ReportsPage from "./pages/ReportsPage";
-import LabSettingsPage from "./pages/LabSettingsPage";
 import GeneralSettingsPage from "./pages/GeneralSettingsPage";
 import SystemSettingsPage from "./pages/SystemSettingsPage";
 import PartiesPage from "./pages/PartiesPage";
@@ -159,10 +158,7 @@ export default function App() {
           path="/reports"
           element={<ProtectedRoute>{shell(<ReportsPage />)}</ProtectedRoute>}
         />
-        <Route
-          path="/settings"
-          element={<ProtectedRoute>{shell(<LabSettingsPage />)}</ProtectedRoute>}
-        />
+        <Route path="/settings" element={<Navigate to="/general-settings" replace />} />
         <Route
           path="/general-settings"
           element={<ProtectedRoute>{shell(<GeneralSettingsPage />)}</ProtectedRoute>}

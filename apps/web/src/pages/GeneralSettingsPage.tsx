@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
   MapPin,
@@ -25,7 +25,6 @@ import {
   User,
   Eye,
   Download,
-  ExternalLink,
 } from "lucide-react";
 import { getLabSettings, updateLabSettings } from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
@@ -226,6 +225,21 @@ export default function GeneralSettingsPage() {
   });
 
   const [toast, setToast] = useState("");
+  const [autoSaved, setAutoSaved] = useState(false);
+  const firstLocalRender = useRef(true);
+
+  /* Local tabs (QC rules, notifications, audit config, lab extras) persist to
+   * localStorage the instant they change — flash a subtle confirmation so it's
+   * clear nothing here needs a manual "save" button.                    */
+  useEffect(() => {
+    if (firstLocalRender.current) {
+      firstLocalRender.current = false;
+      return;
+    }
+    setAutoSaved(true);
+    const t = setTimeout(() => setAutoSaved(false), 1600);
+    return () => clearTimeout(t);
+  }, [qcRules, notify, auditCfg, localExtras]);
 
   /* ── Lab tab (real API) ── */
   const loadLab = useCallback(async () => {
@@ -323,7 +337,7 @@ export default function GeneralSettingsPage() {
   if (labLoading && tab === "lab") {
     return (
       <div className="h-full overflow-y-auto bg-surface-100">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
           <LoadingState label="Loading system settings…" rows={4} />
         </div>
       </div>
@@ -332,15 +346,23 @@ export default function GeneralSettingsPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-surface-100">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <div className="mb-6">
           <PageHeader
             title="System Settings & General Configuration"
             subtitle="Global rules & workflows for the lab — built manual-first for small & medium labs"
             actions={
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line-200 bg-surface-0 px-3 py-1 text-xs font-medium text-ink-600">
-                <ShieldCheck className="size-3.5 text-accent-700" />
-                Lab Admin · {user?.firstName} {user?.lastName ?? ""}
+              <span className="inline-flex items-center gap-2">
+                {autoSaved && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-status-normal/30 bg-status-normal/10 px-3 py-1 text-xs font-medium text-status-normal">
+                    <Check className="size-3.5" />
+                    Auto-saved
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-line-200 bg-surface-0 px-3 py-1 text-xs font-medium text-ink-600">
+                  <ShieldCheck className="size-3.5 text-accent-700" />
+                  Lab Admin · {user?.firstName} {user?.lastName ?? ""}
+                </span>
               </span>
             }
           />
@@ -958,18 +980,14 @@ export default function GeneralSettingsPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <a
                       href="/audit"
-                      className="inline-flex items-center gap-2 rounded-md border border-line-300 bg-surface-0 px-4 py-2 text-sm font-medium text-ink-600 transition-colors duration-fast hover:bg-surface-100"
-                    >
-                      <ExternalLink className="size-4" />
-                      Open Audit Trail
-                    </a>
-                    <button
-                      onClick={() => setToast(`Audit log exported as ${auditCfg.exportFormat.toUpperCase()} — ${auditCfg.retentionYears}-year window.`)}
                       className="inline-flex items-center gap-2 rounded-md bg-accent-700 px-4 py-2 text-sm font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
                     >
                       <Download className="size-4" />
-                      Export now
-                    </button>
+                      Export audit trail
+                    </a>
+                    <p className="text-[10px] text-ink-400">
+                      Exports ({auditCfg.exportFormat.toUpperCase()} etc.) run inside the Audit Trail viewer with your filters applied.
+                    </p>
                   </div>
                   <div className="mt-4">
                     <LocalNote text="Retention & tracking persist in this workspace; retention enforcement ships with the compliance module." />
