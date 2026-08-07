@@ -13,6 +13,7 @@ export interface CreateQcControlDto {
   unit?: string;
   assignedMean: number;
   assignedSd: number;
+  instrumentId?: string;
 }
 
 export interface EnterQcRunDto {
@@ -32,6 +33,8 @@ export interface QcControlRow {
   assignedSd: number;
   isActive: boolean;
   runCount: number;
+  instrumentId: string | null;
+  instrumentName: string | null;
 }
 
 export interface QcRunRow {
@@ -95,6 +98,50 @@ export function evaluateWestgard(
   return { status, violations: unique, sdDeviation: Math.round(z * 100) / 100 };
 }
 
+// ─── Rule configuration (server-persisted via LabConfig "qc-rules") ───────
+// The settings page stores enabled rule ids with hyphens (1-2s, 1-3s, …); the
+// engine reports canonical colons (1:2s, …). Map + whitelist keep them aligned.
+const RULE_ID_CANON: Record<string, string> = {
+  '1-2s': '1:2s',
+  '1-3s': '1:3s',
+  '2-2s': '2:2s',
+  'R-4s': 'R:4s',
+  '4-1s': '4:1s',
+  '10x': '10x',
+};
+const ALL_RULE_IDS = new Set(Object.values(RULE_ID_CANON));
+const REJECT_RULES = new Set(['1:3s', '2:2s', 'R:4s', '4:1s', '10x']);
+
+interface QcRulesConfig {
+  /** Hyphen-form ids; undefined when no config row exists (default = all rules). */
+  enabled?: string[];
+  /** instrumentId → hyphen-form rule ids (null entry = follow global). */
+  overrides?: Record<string, string[] | null>;
+}
+
+function canonRuleIds(ids: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const id of ids) {
+    const canon = RULE_ID_CANON[id] ?? id;
+    if (ALL_RULE_IDS.has(canon)) out.add(canon);
+  }
+  return out;
+}
+
+function applyEnabledRules(
+  evalResult: { status: QcStatus; violations: string[]; sdDeviation: number },
+  enabledSet: Set<string> | null,
+): { status: QcStatus; violations: string[]; sdDeviation: number } {
+  if (!enabledSet) return evalResult;
+  const violations = evalResult.violations.filter((v) => enabledSet.has(v));
+  const status: QcStatus = violations.some((r) => REJECT_RULES.has(r))
+    ? 'REJECT'
+    : violations.length > 0
+      ? 'WARN'
+      : 'PASS';
+  return { ...evalResult, violations, status };
+}
+
 // ─── Service ───────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -115,7 +162,10 @@ export class QcService {
             }
           : {}),
       },
-      include: { _count: { select: { runs: true } } },
+      include: {
+        instrument: { select: { id: true, code: true, name: true } },
+        _count: { select: { runs: true } },
+      },
       orderBy: [{ testName: 'asc' }, { level: 'asc' }],
     });
     return controls.map((c) => ({
@@ -129,6 +179,8 @@ export class QcService {
       assignedSd: Number(c.assignedSd),
       isActive: c.isActive,
       runCount: c._count.runs,
+      instrumentId: c.instrumentId,
+      instrumentName: c.instrument ? c.instrument.name : null,
     }));
   }
 
@@ -149,6 +201,16 @@ export class QcService {
     });
     if (dup) throw new BadRequestException(`A ${level} control already exists for ${testName}`);
 
+    let instrumentId: string | null = null;
+    if (dto.instrumentId?.trim()) {
+      const inst = await this.prisma.client.instrument.findFirst({
+        where: { id: dto.instrumentId.trim(), tenantId: orgId },
+        select: { id: true, name: true },
+      });
+      if (!inst) throw new BadRequestException('instrument not found');
+      instrumentId = inst.id;
+    }
+
     const c = await this.prisma.client.qcControl.create({
       data: {
         tenantId: orgId,
@@ -159,7 +221,9 @@ export class QcService {
         unit: dto.unit?.trim() || null,
         assignedMean: dto.assignedMean,
         assignedSd: dto.assignedSd,
+        instrumentId,
       },
+      include: { instrument: { select: { id: true, name: true } } },
     });
     return {
       id: c.id,
@@ -172,6 +236,8 @@ export class QcService {
       assignedSd: Number(c.assignedSd),
       isActive: c.isActive,
       runCount: 0,
+      instrumentId: c.instrumentId,
+      instrumentName: c.instrument ? c.instrument.name : null,
     };
   }
 
@@ -199,10 +265,30 @@ export class QcService {
     }));
   }
 
+  /** Server-persisted Westgard rule configuration (see settings page). */
+  private async loadQcRulesConfig(orgId: string): Promise<QcRulesConfig> {
+    const row = await this.prisma.client.labConfig.findFirst({
+      where: { tenantId: orgId, key: 'qc-rules' },
+      select: { value: true },
+    });
+    if (!row) return {};
+    const v = row.value as Record<string, unknown>;
+    return {
+      enabled: Array.isArray(v.enabled)
+        ? (v.enabled as string[]).filter((x): x is string => typeof x === 'string')
+        : undefined,
+      overrides:
+        v.overrides && typeof v.overrides === 'object' && !Array.isArray(v.overrides)
+          ? (v.overrides as Record<string, string[] | null>)
+          : undefined,
+    };
+  }
+
   async enterRun(orgId: string, userId: string, dto: EnterQcRunDto) {
     if (!Number.isFinite(dto.value)) throw new BadRequestException('value is required');
     const control = await this.prisma.client.qcControl.findFirst({
       where: { id: dto.controlId, tenantId: orgId },
+      include: { instrument: { select: { id: true, name: true } } },
     });
     if (!control) throw new NotFoundException('Control not found');
 
@@ -215,7 +301,18 @@ export class QcService {
       select: { measuredValue: true },
     });
     const prev = prevRuns.map((p) => Number(p.measuredValue));
-    const evalResult = evaluateWestgard(mean, sd, dto.value, prev);
+    const raw = evaluateWestgard(mean, sd, dto.value, prev);
+
+    // Apply the server-persisted rule set: global enabled rules, or the
+    // instrument-specific override when this control is linked to an analyzer.
+    const cfg = await this.loadQcRulesConfig(orgId);
+    let enabledSet: Set<string> | null = null;
+    if (Array.isArray(cfg.enabled)) enabledSet = canonRuleIds(cfg.enabled);
+    const override = control.instrumentId
+      ? cfg.overrides?.[control.instrumentId]
+      : undefined;
+    if (Array.isArray(override)) enabledSet = canonRuleIds(override);
+    const evalResult = applyEnabledRules(raw, enabledSet);
 
     const run = await this.prisma.client.qcRun.create({
       data: {

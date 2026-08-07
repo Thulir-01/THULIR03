@@ -18,11 +18,13 @@ import {
   getQcRuns,
   enterQcRun,
   getQcSummary,
+  getInstruments,
   type QcControl,
   type QcLevel,
   type QcRun,
   type QcStatus,
   type QcSummary,
+  type Instrument,
 } from "../lib/api-client";
 import { pushExtraAlert } from "../lib/alerts-store";
 import { QcPlot } from "../components/ui/QcChart";
@@ -66,7 +68,8 @@ export default function QcPage() {
 
   // New control form
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ testName: "", testCode: "", level: "NORMAL" as QcLevel, unit: "", assignedMean: "", assignedSd: "" });
+  const [form, setForm] = useState({ testName: "", testCode: "", level: "NORMAL" as QcLevel, unit: "", assignedMean: "", assignedSd: "", instrumentId: "" });
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Run entry
@@ -74,6 +77,15 @@ export default function QcPage() {
   const [note, setNote] = useState("");
   const [entering, setEntering] = useState(false);
   const [lastEval, setLastEval] = useState<{ status: QcStatus; violations: string[]; sdDeviation: number } | null>(null);
+
+  const loadInstruments = useCallback(async () => {
+    try {
+      const list = await getInstruments({ isActive: "true" });
+      setInstruments(list);
+    } catch {
+      /* analyzer list is optional — controls work without an instrument link */
+    }
+  }, []);
 
   const loadAll = useCallback(() => {
     Promise.all([getQcControls(), getQcSummary()])
@@ -95,7 +107,8 @@ export default function QcPage() {
 
   useEffect(() => {
     loadAll();
-  }, [loadAll]);
+    void loadInstruments();
+  }, [loadAll, loadInstruments]);
 
   useEffect(() => {
     if (selectedId) loadRuns(selectedId);
@@ -139,11 +152,12 @@ export default function QcPage() {
         unit: form.unit.trim() || undefined,
         assignedMean: mean,
         assignedSd: sd,
+        instrumentId: form.instrumentId || undefined,
       });
       setControls((prev) => [...prev, created]);
       setSelectedId(created.id);
       setShowForm(false);
-      setForm({ testName: "", testCode: "", level: "NORMAL", unit: "", assignedMean: "", assignedSd: "" });
+      setForm({ testName: "", testCode: "", level: "NORMAL", unit: "", assignedMean: "", assignedSd: "", instrumentId: "" });
       setToast(`Control "${created.name}" created — ready for daily entry.`);
       setSummary((prev) => (prev ? { ...prev, controls: prev.controls + 1 } : prev));
     } catch (e) {
@@ -268,6 +282,24 @@ export default function QcPage() {
                       className="w-full rounded-md border border-line-200 bg-surface-0 px-2.5 py-1.5 text-xs text-ink-950 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-accent-100"
                       placeholder="e.g. Glucose"
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="field-label">Analyzer (optional)</label>
+                    <select
+                      value={form.instrumentId}
+                      onChange={(e) => setForm((f) => ({ ...f, instrumentId: e.target.value }))}
+                      className="w-full rounded-md border border-line-200 bg-surface-0 px-2.5 py-1.5 text-xs text-ink-950 focus:outline-none focus:ring-2 focus:ring-accent-100"
+                    >
+                      <option value="">No analyzer — uses global rule set</option>
+                      {instruments.map((inst) => (
+                        <option key={inst.id} value={inst.id}>
+                          {inst.code} · {inst.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[10px] text-ink-400">
+                      Linked analyzers use their per-analyzer rule override from Settings → QC Rules.
+                    </p>
                   </div>
                   <div>
                     <label className="field-label">Test code</label>

@@ -19,50 +19,52 @@ import {
   Activity,
   AlertTriangle,
   Clock,
-  Database,
+  Cloud,
   History,
   Zap,
   User,
   Eye,
   Download,
+  Wrench,
 } from "lucide-react";
-import { getLabSettings, updateLabSettings } from "../lib/api-client";
+import {
+  getLabSettings,
+  updateLabSettings,
+  getLabConfig,
+  setLabConfig,
+  getInstruments,
+  type Instrument,
+} from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState } from "../components/ui/PageStates";
 import { useAuth } from "../lib/useAuth";
 
-/* ─── Local config persistence ───────────────────────────────────────
- * QC rules, notifications, integrations and audit settings have no
- * backend model yet (QC module is a later sprint), so they persist to
- * localStorage under the thulir03-config:* namespace. Every non-API tab
- * labels itself accordingly — the values are real in this workspace but
- * are not yet server-synced.                                        */
-function useLocalConfig<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const raw = localStorage.getItem(`thulir03-config:${key}`);
-      if (!raw) return initial;
-      const parsed = JSON.parse(raw) as Partial<T>;
-      return { ...initial, ...parsed };
-    } catch {
-      return initial;
+/* ─── Server-backed config persistence ───────────────────────────────
+ * Every tab below persists to the backend LabConfig store via
+ * /settings/config (GET all / PUT one key). Values are tenant-scoped,
+ * shared across all users of the lab, and survive refresh/logout. The
+ * QC rule set is consumed by the QC evaluation engine server-side, so
+ * toggles here change real run evaluation immediately.              */
+
+type SaveState = { state: "idle" | "saving" | "saved" | "error"; error?: string };
+
+function deepMerge<T>(base: T, patch: Partial<T>): T {
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(patch)) {
+    if (
+      v &&
+      typeof v === "object" &&
+      !Array.isArray(v) &&
+      out[k] &&
+      typeof out[k] === "object" &&
+      !Array.isArray(out[k])
+    ) {
+      out[k] = deepMerge(out[k] as Record<string, unknown>, v as Record<string, unknown>);
+    } else if (v !== undefined) {
+      out[k] = v;
     }
-  });
-
-  const update = useCallback((next: T | ((prev: T) => T)) => {
-    setValue((prev) => {
-      const resolved =
-        typeof next === "function" ? (next as (p: T) => T)(prev) : next;
-      try {
-        localStorage.setItem(`thulir03-config:${key}`, JSON.stringify(resolved));
-      } catch {
-        /* storage unavailable — keep in-memory */
-      }
-      return resolved;
-    });
-  }, [key]);
-
-  return [value, update] as const;
+  }
+  return out as T;
 }
 
 /* ─── Small shared UI primitives ───────────────────────────────────── */
@@ -95,11 +97,10 @@ function Toggle({
   );
 }
 
-
-function LocalNote({ text }: { text: string }) {
+function ServerNote({ text }: { text: string }) {
   return (
     <p className="flex items-center gap-1.5 text-[10px] text-ink-400">
-      <Database className="size-3 shrink-0" />
+      <Cloud className="size-3 shrink-0" />
       {text}
     </p>
   );
@@ -160,16 +161,54 @@ function simulateFlags(ruleIds: string[]): { total: number; flagged: number; byR
   return { total: n, flagged, byRule };
 }
 
-/* ─── Analyzer catalogue for per-analyzer overrides ────────────────── */
-const ANALYZERS = [
-  { id: "H-124", name: "Hematology Analyzer", materialId: "MAT-1001" },
-  { id: "B-208", name: "Biochemistry Analyzer", materialId: "MAT-1002" },
-  { id: "C-301", name: "Coagulation Analyzer", materialId: "MAT-1003" },
-  { id: "I-112", name: "Immunoassay Analyzer", materialId: "MAT-1004" },
-];
-
 /* ─── Page ─────────────────────────────────────────────────────────── */
 type TabKey = "lab" | "qc" | "notify" | "audit";
+
+interface QcRulesShape {
+  enabled: string[];
+  order: string[];
+  testMode: boolean;
+  overrides: Record<string, string[] | null>;
+}
+interface NotifyShape {
+  channels: { email: boolean; sms: boolean; inApp: boolean };
+  warnThreshold: string;
+  criticalThreshold: string;
+  quietHours: { enabled: boolean; from: string; to: string; criticalStillAlerts: boolean };
+}
+interface AuditShape {
+  retentionYears: number;
+  track: { userActivity: boolean; authEvents: boolean; resultEdits: boolean; reportSignoffs: boolean };
+  exportFormat: "csv" | "pdf" | "json";
+}
+interface LabExtrasShape {
+  regulatoryBodies: string[];
+  contactName: string;
+  contactRole: string;
+}
+
+const DEFAULT_QC: QcRulesShape = {
+  enabled: ["1-2s", "1-3s", "R-4s"],
+  order: ["1-2s", "1-3s", "2-2s", "R-4s", "4-1s", "10x"],
+  testMode: false,
+  overrides: {},
+};
+const DEFAULT_NOTIFY: NotifyShape = {
+  channels: { email: true, sms: true, inApp: true },
+  warnThreshold: "1-2s",
+  criticalThreshold: "1-3s",
+  quietHours: { enabled: false, from: "20:00", to: "06:00", criticalStillAlerts: true },
+};
+const DEFAULT_AUDIT: AuditShape = {
+  retentionYears: 7,
+  track: { userActivity: true, authEvents: true, resultEdits: true, reportSignoffs: true },
+  exportFormat: "csv",
+};
+const DEFAULT_EXTRAS: LabExtrasShape = {
+  regulatoryBodies: ["NABL", "ISO 15189"],
+  contactName: "",
+  contactRole: "",
+};
 
 export default function GeneralSettingsPage() {
   const { user } = useAuth();
@@ -181,65 +220,127 @@ export default function GeneralSettingsPage() {
   const [labError, setLabError] = useState("");
   const [labSaved, setLabSaved] = useState(false);
   const [labForm, setLabForm] = useState({ name: "", address: "", phone: "", email: "" });
-  const [localExtras, setLocalExtras] = useLocalConfig<{
-    regulatoryBodies: string[];
-    contactName: string;
-    contactRole: string;
-  }>("lab-extras", { regulatoryBodies: ["NABL", "ISO 15189"], contactName: "", contactRole: "" });
 
-  /* QC Rules & Westgard */
-  const [qcRules, setQcRules] = useLocalConfig<{
-    enabled: string[];
-    order: string[];
-    testMode: boolean;
-    overrides: Record<string, string[] | null>; // analyzer id → custom rule ids, null = global
-  }>("qc-rules", {
-    enabled: ["1-2s", "1-3s", "R-4s"],
-    order: ["1-2s", "1-3s", "2-2s", "R-4s", "4-1s", "10x"],
-    testMode: false,
-    overrides: {},
-  });
+  /* Server-backed config slices */
+  const [configLoading, setConfigLoading] = useState(true);
+  const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
-  /* Notifications & Alerts */
-  const [notify, setNotify] = useLocalConfig<{
-    channels: { email: boolean; sms: boolean; inApp: boolean };
-    warnThreshold: string;
-    criticalThreshold: string;
-    quietHours: { enabled: boolean; from: string; to: string; criticalStillAlerts: boolean };
-  }>("notifications", {
-    channels: { email: true, sms: true, inApp: true },
-    warnThreshold: "1-2s",
-    criticalThreshold: "1-3s",
-    quietHours: { enabled: false, from: "20:00", to: "06:00", criticalStillAlerts: true },
-  });
+  const [qcRules, setQcRulesState] = useState<QcRulesShape>(DEFAULT_QC);
+  const [notify, setNotifyState] = useState<NotifyShape>(DEFAULT_NOTIFY);
+  const [auditCfg, setAuditCfgState] = useState<AuditShape>(DEFAULT_AUDIT);
+  const [localExtras, setLabExtrasState] = useState<LabExtrasShape>(DEFAULT_EXTRAS);
 
-  /* Audit & Compliance */
-  const [auditCfg, setAuditCfg] = useLocalConfig<{
-    retentionYears: number;
-    track: { userActivity: boolean; authEvents: boolean; resultEdits: boolean; reportSignoffs: boolean };
-    exportFormat: "csv" | "pdf" | "json";
-  }>("audit-compliance", {
-    retentionYears: 7,
-    track: { userActivity: true, authEvents: true, resultEdits: true, reportSignoffs: true },
-    exportFormat: "csv",
-  });
+  /* Real analyzers from the Instrument master — drive per-analyzer overrides */
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
 
   const [toast, setToast] = useState("");
-  const [autoSaved, setAutoSaved] = useState(false);
-  const firstLocalRender = useRef(true);
 
-  /* Local tabs (QC rules, notifications, audit config, lab extras) persist to
-   * localStorage the instant they change — flash a subtle confirmation so it's
-   * clear nothing here needs a manual "save" button.                    */
+  const updateSaveState = useCallback((key: string, st: SaveState) => {
+    setSaveStates((prev) => ({ ...prev, [key]: st }));
+  }, []);
+
+  /* Debounced server write for a config key. Shows live Saving… / Saved /
+   * Save failed states in the header instead of a silent localStorage write. */
+  const saveConfig = useCallback(
+    (key: string, value: unknown) => {
+      updateSaveState(key, { state: "saving" });
+      if (saveTimers.current[key]) clearTimeout(saveTimers.current[key]);
+      saveTimers.current[key] = setTimeout(() => {
+        setLabConfig(key, value)
+          .then(() => {
+            updateSaveState(key, { state: "saved" });
+            saveTimers.current[key] = setTimeout(
+              () => updateSaveState(key, { state: "idle" }),
+              2500,
+            );
+          })
+          .catch(() =>
+            updateSaveState(key, { state: "error", error: "Save failed — try again" }),
+          );
+      }, 700);
+    },
+    [updateSaveState],
+  );
+
+  /* Wrappers used by every control on the page: update state + persist. */
+  const setQcRules = useCallback(
+    (next: QcRulesShape | ((p: QcRulesShape) => QcRulesShape)) => {
+      setQcRulesState((prev) => {
+        const resolved =
+          typeof next === "function" ? (next as (p: QcRulesShape) => QcRulesShape)(prev) : next;
+        saveConfig("qc-rules", resolved);
+        return resolved;
+      });
+    },
+    [saveConfig],
+  );
+  const setNotify = useCallback(
+    (next: NotifyShape | ((p: NotifyShape) => NotifyShape)) => {
+      setNotifyState((prev) => {
+        const resolved =
+          typeof next === "function" ? (next as (p: NotifyShape) => NotifyShape)(prev) : next;
+        saveConfig("notifications", resolved);
+        return resolved;
+      });
+    },
+    [saveConfig],
+  );
+  const setAuditCfg = useCallback(
+    (next: AuditShape | ((p: AuditShape) => AuditShape)) => {
+      setAuditCfgState((prev) => {
+        const resolved =
+          typeof next === "function" ? (next as (p: AuditShape) => AuditShape)(prev) : next;
+        saveConfig("audit-compliance", resolved);
+        return resolved;
+      });
+    },
+    [saveConfig],
+  );
+  const setLabExtras = useCallback(
+    (next: LabExtrasShape | ((p: LabExtrasShape) => LabExtrasShape)) => {
+      setLabExtrasState((prev) => {
+        const resolved =
+          typeof next === "function"
+            ? (next as (p: LabExtrasShape) => LabExtrasShape)(prev)
+            : next;
+        saveConfig("lab-extras", resolved);
+        return resolved;
+      });
+    },
+    [saveConfig],
+  );
+
+  /* Load everything the server has for this tenant on mount. */
   useEffect(() => {
-    if (firstLocalRender.current) {
-      firstLocalRender.current = false;
-      return;
+    let alive = true;
+    (async () => {
+      try {
+        const cfg = await getLabConfig();
+        if (!alive) return;
+        const qc = cfg["qc-rules"] as Partial<QcRulesShape> | undefined;
+        if (qc) setQcRulesState((prev) => deepMerge(prev, qc));
+        const nt = cfg["notifications"] as Partial<NotifyShape> | undefined;
+        if (nt) setNotifyState((prev) => deepMerge(prev, nt));
+        const au = cfg["audit-compliance"] as Partial<AuditShape> | undefined;
+        if (au) setAuditCfgState((prev) => deepMerge(prev, au));
+        const ex = cfg["lab-extras"] as Partial<LabExtrasShape> | undefined;
+        if (ex) setLabExtrasState((prev) => deepMerge(prev, ex));
+      } catch {
+        /* server unreachable — defaults remain usable */
+      } finally {
+        if (alive) setConfigLoading(false);
+      }
+    })();
+    try {
+      getInstruments({ isActive: "true" }).then(setInstruments).catch(() => setInstruments([]));
+    } catch {
+      setInstruments([]);
     }
-    setAutoSaved(true);
-    const t = setTimeout(() => setAutoSaved(false), 1600);
-    return () => clearTimeout(t);
-  }, [qcRules, notify, auditCfg, localExtras]);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   /* ── Lab tab (real API) ── */
   const loadLab = useCallback(async () => {
@@ -269,6 +370,15 @@ export default function GeneralSettingsPage() {
     const t = setTimeout(() => setToast(""), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    const timers = saveTimers.current;
+    return () => {
+      for (const t of Object.values(timers)) {
+        if (t) clearTimeout(t);
+      }
+    };
+  }, []);
 
   const saveLab = async () => {
     if (!labForm.name.trim()) {
@@ -325,7 +435,16 @@ export default function GeneralSettingsPage() {
     }));
   };
 
-  const overrideCount = ANALYZERS.filter((a) => qcRules.overrides[a.id]).length;
+  const overrideCount = instruments.filter((a) => qcRules.overrides[a.id]).length;
+
+  /* Combined server-save status for the header */
+  const saveStatus = useMemo(() => {
+    const states = Object.values(saveStates);
+    if (states.some((s) => s.state === "error")) return { kind: "error" as const };
+    if (states.some((s) => s.state === "saving")) return { kind: "saving" as const };
+    if (states.some((s) => s.state === "saved")) return { kind: "saved" as const };
+    return { kind: "idle" as const };
+  }, [saveStates]);
 
   const TABS: { key: TabKey; label: string; icon: typeof Building2; blurb: string }[] = [
     { key: "lab", label: "General Lab Info", icon: Building2, blurb: "Name, location, regulatory bodies & contacts" },
@@ -334,7 +453,7 @@ export default function GeneralSettingsPage() {
     { key: "audit", label: "Audit & Compliance", icon: ShieldCheck, blurb: "Retention, log visibility & exports" },
   ];
 
-  if (labLoading && tab === "lab") {
+  if (configLoading || (labLoading && tab === "lab")) {
     return (
       <div className="h-full overflow-y-auto bg-surface-100">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
@@ -350,13 +469,25 @@ export default function GeneralSettingsPage() {
         <div className="mb-6">
           <PageHeader
             title="System Settings & General Configuration"
-            subtitle="Global rules & workflows for the lab — built manual-first for small & medium labs"
+            subtitle="Global rules & workflows for the lab — every option is saved to the server and applies immediately"
             actions={
               <span className="inline-flex items-center gap-2">
-                {autoSaved && (
+                {saveStatus.kind === "saving" && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-300 bg-accent-100/60 px-3 py-1 text-xs font-medium text-accent-700">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Saving to server…
+                  </span>
+                )}
+                {saveStatus.kind === "saved" && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-status-normal/30 bg-status-normal/10 px-3 py-1 text-xs font-medium text-status-normal">
-                    <Check className="size-3.5" />
-                    Auto-saved
+                    <Cloud className="size-3.5" />
+                    Saved to server
+                  </span>
+                )}
+                {saveStatus.kind === "error" && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-status-critical/30 bg-status-critical/10 px-3 py-1 text-xs font-medium text-status-critical">
+                    <AlertTriangle className="size-3.5" />
+                    Save failed — check connection
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-line-200 bg-surface-0 px-3 py-1 text-xs font-medium text-ink-600">
@@ -487,7 +618,7 @@ export default function GeneralSettingsPage() {
                         <button
                           key={b}
                           onClick={() =>
-                            setLocalExtras((prev) => ({
+                            setLabExtras((prev) => ({
                               ...prev,
                               regulatoryBodies: on
                                 ? prev.regulatoryBodies.filter((x) => x !== b)
@@ -513,7 +644,7 @@ export default function GeneralSettingsPage() {
                       </label>
                       <input
                         value={localExtras.contactName}
-                        onChange={(e) => setLocalExtras((prev) => ({ ...prev, contactName: e.target.value }))}
+                        onChange={(e) => setLabExtras((prev) => ({ ...prev, contactName: e.target.value }))}
                         className={inputCls}
                         placeholder="Dr. S. Rajendran"
                       />
@@ -522,14 +653,14 @@ export default function GeneralSettingsPage() {
                       <label className={labelCls}>Contact role</label>
                       <input
                         value={localExtras.contactRole}
-                        onChange={(e) => setLocalExtras((prev) => ({ ...prev, contactRole: e.target.value }))}
+                        onChange={(e) => setLabExtras((prev) => ({ ...prev, contactRole: e.target.value }))}
                         className={inputCls}
                         placeholder="Lab Director"
                       />
                     </div>
                   </div>
                   <div className="mt-4">
-                    <LocalNote text="Regulatory bodies & contacts persist in this workspace; org name/address/phone/email save via the API." />
+                    <ServerNote text="Regulatory bodies & contacts are saved to the server and appear on report footers across all stations." />
                   </div>
                 </div>
               </div>
@@ -559,6 +690,7 @@ export default function GeneralSettingsPage() {
                   <p className="mb-4 text-xs text-ink-500">
                     Toggle multi-rules and set their evaluation priority. Rules flagged{" "}
                     <span className="font-semibold text-status-critical">reject</span> stop the run.
+                    Changes are saved to the server and applied to every QC run entered from now on.
                   </p>
 
                   <div className="space-y-2">
@@ -655,7 +787,7 @@ export default function GeneralSettingsPage() {
                   )}
 
                   <div className="mt-4">
-                    <LocalNote text="Rule sets persist in this workspace; server-side QC enforcement ships with the QC module." />
+                    <ServerNote text="Rule set is enforced server-side on every QC run entry — no per-browser config." />
                   </div>
                 </div>
 
@@ -670,87 +802,105 @@ export default function GeneralSettingsPage() {
                   </div>
                   <p className="mb-4 text-xs text-ink-500">
                     Analyzers marked <span className="font-semibold text-accent-700">Custom</span> use their own
-                    rule set; others inherit the global engine. Cloning the global set is safe — it never changes
-                    the global defaults.
+                    rule set; others inherit the global engine. Link a control to its analyzer in{" "}
+                    <span className="font-semibold">QC → New Control</span> for the override to apply.
                   </p>
-                  <div className="space-y-2.5">
-                    {ANALYZERS.map((a) => {
-                      const custom = qcRules.overrides[a.id] !== undefined && qcRules.overrides[a.id] !== null;
-                      const rules = custom ? (qcRules.overrides[a.id] ?? []) : qcRules.enabled;
-                      return (
-                        <div key={a.id} className="rounded-md border border-line-200 p-3.5">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex size-9 items-center justify-center rounded-md bg-surface-100 text-accent-700">
-                              <Cpu className="size-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
+                  {instruments.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-line-300 bg-surface-100/50 p-6 text-center">
+                      <Wrench className="mx-auto mb-2 size-6 text-ink-300" />
+                      <p className="text-sm font-medium text-ink-700">No analyzers configured yet</p>
+                      <p className="mx-auto mt-1 max-w-md text-xs text-ink-500">
+                        Add your instruments in <span className="font-semibold">Masters → Instruments</span> to assign
+                        per-analyzer Westgard rule sets. Until then, every QC run uses the global rule engine above.
+                      </p>
+                      <a
+                        href="/masters"
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-4 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
+                      >
+                        <Wrench className="size-3.5" /> Open Masters
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {instruments.map((inst) => {
+                        const custom = qcRules.overrides[inst.id] !== undefined && qcRules.overrides[inst.id] !== null;
+                        const rules = custom ? (qcRules.overrides[inst.id] ?? []) : qcRules.enabled;
+                        return (
+                          <div key={inst.id} className="rounded-md border border-line-200 p-3.5">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <div className="flex size-9 items-center justify-center rounded-md bg-surface-100 text-accent-700">
+                                <Cpu className="size-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-ink-950">{inst.name}</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${custom ? "bg-accent-100 text-accent-700" : "bg-surface-100 text-ink-400 border border-line-200"}`}>
+                                    {custom ? "Custom" : "Global"}
+                                  </span>
+                                </div>
+                                <div className="data-mono text-[10px] text-ink-400">
+                                  {inst.code} · {inst.modelName ?? inst.manufacturer ?? "Instrument"}
+                                  {inst.status !== "ACTIVE" ? ` · ${inst.status.replaceAll("_", " ")}` : ""}
+                                </div>
+                              </div>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-ink-950">{a.name}</span>
-                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${custom ? "bg-accent-100 text-accent-700" : "bg-surface-100 text-ink-400 border border-line-200"}`}>
-                                  {custom ? "Custom" : "Global"}
-                                </span>
-                              </div>
-                              <div className="data-mono text-[10px] text-ink-400">
-                                {a.id} · material {a.materialId}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {!custom ? (
-                                <button
-                                  onClick={() => setOverride(a.id, [...qcRules.enabled])}
-                                  className="inline-flex items-center gap-1.5 rounded-md border border-line-300 bg-surface-0 px-3 py-1.5 text-xs font-medium text-accent-600 transition-colors duration-fast hover:bg-accent-50"
-                                >
-                                  <Copy className="size-3.5" />
-                                  Clone global
-                                </button>
-                              ) : (
-                                <>
+                                {!custom ? (
                                   <button
-                                    onClick={() => setOverride(a.id, null)}
-                                    className="inline-flex items-center gap-1.5 rounded-md border border-line-300 bg-surface-0 px-3 py-1.5 text-xs font-medium text-ink-600 transition-colors duration-fast hover:bg-surface-100"
-                                  >
-                                    <History className="size-3.5" />
-                                    Reset to global
-                                  </button>
-                                  <button
-                                    onClick={() => setOverride(a.id, [...qcRules.enabled])}
+                                    onClick={() => setOverride(inst.id, [...qcRules.enabled])}
                                     className="inline-flex items-center gap-1.5 rounded-md border border-line-300 bg-surface-0 px-3 py-1.5 text-xs font-medium text-accent-600 transition-colors duration-fast hover:bg-accent-50"
                                   >
                                     <Copy className="size-3.5" />
-                                    Re-clone
+                                    Clone global
                                   </button>
-                                </>
-                              )}
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => setOverride(inst.id, null)}
+                                      className="inline-flex items-center gap-1.5 rounded-md border border-line-300 bg-surface-0 px-3 py-1.5 text-xs font-medium text-ink-600 transition-colors duration-fast hover:bg-surface-100"
+                                    >
+                                      <History className="size-3.5" />
+                                      Reset to global
+                                    </button>
+                                    <button
+                                      onClick={() => setOverride(inst.id, [...qcRules.enabled])}
+                                      className="inline-flex items-center gap-1.5 rounded-md border border-line-300 bg-surface-0 px-3 py-1.5 text-xs font-medium text-accent-600 transition-colors duration-fast hover:bg-accent-50"
+                                    >
+                                      <Copy className="size-3.5" />
+                                      Re-clone
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                              {WESTGARD_RULES.map((r) => {
+                                const on = rules.includes(r.id);
+                                return (
+                                  <button
+                                    key={r.id}
+                                    onClick={() => {
+                                      const next = on ? rules.filter((x) => x !== r.id) : [...rules, r.id];
+                                      setOverride(inst.id, custom ? next : [...next]);
+                                    }}
+                                    className={`data-mono rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors duration-fast ${
+                                      on
+                                        ? "border-accent-400 bg-accent-100 text-accent-700"
+                                        : "border-line-200 bg-surface-0 text-ink-400 hover:border-accent-200"
+                                    }`}
+                                  >
+                                    {r.name}
+                                  </button>
+                                );
+                              })}
+                              <span className="ml-auto text-[10px] text-ink-400">
+                                {rules.length} rules
+                              </span>
                             </div>
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                            {WESTGARD_RULES.map((r) => {
-                              const on = rules.includes(r.id);
-                              return (
-                                <button
-                                  key={r.id}
-                                  onClick={() => {
-                                    const next = on ? rules.filter((x) => x !== r.id) : [...rules, r.id];
-                                    setOverride(a.id, custom ? next : [...next]);
-                                  }}
-                                  className={`data-mono rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors duration-fast ${
-                                    on
-                                      ? "border-accent-400 bg-accent-100 text-accent-700"
-                                      : "border-line-200 bg-surface-0 text-ink-400 hover:border-accent-200"
-                                  }`}
-                                >
-                                  {r.name}
-                                </button>
-                              );
-                            })}
-                            <span className="ml-auto text-[10px] text-ink-400">
-                              {rules.length} rules
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -875,7 +1025,7 @@ export default function GeneralSettingsPage() {
                     </div>
                   )}
                   <div className="mt-4">
-                    <LocalNote text="Notification preferences persist in this workspace; delivery (email/SMS) needs a messaging provider." />
+                    <ServerNote text="Notification preferences are stored on the server for every station — delivery (email/SMS) activates when a messaging provider is connected." />
                   </div>
                 </div>
               </div>
@@ -990,7 +1140,7 @@ export default function GeneralSettingsPage() {
                     </p>
                   </div>
                   <div className="mt-4">
-                    <LocalNote text="Retention & tracking persist in this workspace; retention enforcement ships with the compliance module." />
+                    <ServerNote text="Retention & tracking preferences are saved to the server — the Audit Trail viewer already records every action immutably." />
                   </div>
                 </div>
               </div>

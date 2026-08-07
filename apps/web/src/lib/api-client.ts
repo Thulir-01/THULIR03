@@ -1117,6 +1117,16 @@ export async function updateLabSettings(body: Partial<LabSettings>) {
   return data as LabSettings;
 }
 
+export async function getLabConfig() {
+  const { data } = await api.get("/settings/config");
+  return data as Record<string, unknown>;
+}
+
+export async function setLabConfig(key: string, value: unknown) {
+  const { data } = await api.put(`/settings/config/${encodeURIComponent(key)}`, { value });
+  return data as { key: string; updatedAt: string };
+}
+
 // ─── Staff / NABL Sign-off Details ─────────────────────────────────────────
 
 export interface StaffDetail {
@@ -1445,6 +1455,8 @@ export interface QcControl {
   assignedSd: number;
   isActive: boolean;
   runCount: number;
+  instrumentId: string | null;
+  instrumentName: string | null;
 }
 
 export interface QcRun {
@@ -1488,6 +1500,7 @@ export async function createQcControl(body: {
   unit?: string;
   assignedMean: number;
   assignedSd: number;
+  instrumentId?: string;
 }) {
   const { data } = await api.post("/qc/controls", body);
   return data as QcControl;

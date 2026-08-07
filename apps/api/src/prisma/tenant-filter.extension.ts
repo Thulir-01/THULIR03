@@ -34,6 +34,7 @@ export const TENANT_SCOPED_MODELS = new Set([
   'inventoryitem',
   'inventorytransaction',
   'testinventoryrequirement',
+  'labconfig',
 ]);
 
 const READ_OPS = new Set([

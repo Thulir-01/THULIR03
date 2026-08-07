@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SettingsService, type LabSettingsDto } from './settings.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -33,5 +33,25 @@ export class SettingsController {
     @CurrentUser('organizationId') orgId: string,
   ) {
     return this.settingsService.updateLab(orgId, body);
+  }
+
+  @Get('config')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({
+    summary: 'All lab configuration values (QC rules, notifications, audit, extras)',
+  })
+  getConfig(@CurrentUser('organizationId') orgId: string) {
+    return this.settingsService.getConfig(orgId);
+  }
+
+  @Put('config/:key')
+  @Roles(...ADMIN_MANAGER)
+  @ApiOperation({ summary: 'Upsert one lab configuration value' })
+  setConfig(
+    @Param('key') key: string,
+    @Body('value') value: unknown,
+    @CurrentUser('organizationId') orgId: string,
+  ) {
+    return this.settingsService.setConfig(orgId, key, value);
   }
 }
