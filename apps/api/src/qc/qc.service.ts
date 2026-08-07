@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -81,11 +85,13 @@ export function evaluateWestgard(
   }
   if (all.length >= 4) {
     const last4 = all.slice(-4);
-    if (last4.every((x) => x > 1) || last4.every((x) => x < -1)) violations.push('4:1s');
+    if (last4.every((x) => x > 1) || last4.every((x) => x < -1))
+      violations.push('4:1s');
   }
   if (all.length >= 10) {
     const last10 = all.slice(-10);
-    if (last10.every((x) => x > 0) || last10.every((x) => x < 0)) violations.push('10x');
+    if (last10.every((x) => x > 0) || last10.every((x) => x < 0))
+      violations.push('10x');
   }
 
   const unique = [...new Set(violations)];
@@ -184,10 +190,15 @@ export class QcService {
     }));
   }
 
-  async createControl(orgId: string, _userId: string, dto: CreateQcControlDto): Promise<QcControlRow> {
+  async createControl(
+    orgId: string,
+    _userId: string,
+    dto: CreateQcControlDto,
+  ): Promise<QcControlRow> {
     const testName = dto.testName.trim();
     if (!testName) throw new BadRequestException('testName is required');
-    if (!Number.isFinite(dto.assignedMean)) throw new BadRequestException('assignedMean is required');
+    if (!Number.isFinite(dto.assignedMean))
+      throw new BadRequestException('assignedMean is required');
     if (!Number.isFinite(dto.assignedSd) || dto.assignedSd <= 0) {
       throw new BadRequestException('assignedSd must be a positive number');
     }
@@ -199,7 +210,10 @@ export class QcService {
     const dup = await this.prisma.client.qcControl.findFirst({
       where: { tenantId: orgId, testName, level },
     });
-    if (dup) throw new BadRequestException(`A ${level} control already exists for ${testName}`);
+    if (dup)
+      throw new BadRequestException(
+        `A ${level} control already exists for ${testName}`,
+      );
 
     let instrumentId: string | null = null;
     if (dto.instrumentId?.trim()) {
@@ -241,7 +255,11 @@ export class QcService {
     };
   }
 
-  async listRuns(orgId: string, controlId?: string, limit?: number): Promise<QcRunRow[]> {
+  async listRuns(
+    orgId: string,
+    controlId?: string,
+    limit?: number,
+  ): Promise<QcRunRow[]> {
     const take = Number.isFinite(Number(limit))
       ? Math.min(Math.max(Math.floor(Number(limit)), 1), 200)
       : 50;
@@ -275,17 +293,22 @@ export class QcService {
     const v = row.value as Record<string, unknown>;
     return {
       enabled: Array.isArray(v.enabled)
-        ? (v.enabled as string[]).filter((x): x is string => typeof x === 'string')
+        ? (v.enabled as string[]).filter(
+            (x): x is string => typeof x === 'string',
+          )
         : undefined,
       overrides:
-        v.overrides && typeof v.overrides === 'object' && !Array.isArray(v.overrides)
+        v.overrides &&
+        typeof v.overrides === 'object' &&
+        !Array.isArray(v.overrides)
           ? (v.overrides as Record<string, string[] | null>)
           : undefined,
     };
   }
 
   async enterRun(orgId: string, userId: string, dto: EnterQcRunDto) {
-    if (!Number.isFinite(dto.value)) throw new BadRequestException('value is required');
+    if (!Number.isFinite(dto.value))
+      throw new BadRequestException('value is required');
     const control = await this.prisma.client.qcControl.findFirst({
       where: { id: dto.controlId, tenantId: orgId },
       include: { instrument: { select: { id: true, name: true } } },
@@ -321,7 +344,8 @@ export class QcService {
         measuredValue: dto.value,
         sdDeviation: evalResult.sdDeviation,
         status: evalResult.status,
-        violations: evalResult.violations.length > 0 ? evalResult.violations : undefined,
+        violations:
+          evalResult.violations.length > 0 ? evalResult.violations : undefined,
         note: dto.note?.trim() || null,
         enteredById: userId,
       },
@@ -334,11 +358,20 @@ export class QcService {
         measuredValue: Number(run.measuredValue),
         sdDeviation: run.sdDeviation === null ? null : Number(run.sdDeviation),
         status: run.status as QcStatus,
-        violations: Array.isArray(run.violations) ? (run.violations as string[]) : [],
+        violations: Array.isArray(run.violations)
+          ? (run.violations as string[])
+          : [],
         note: run.note,
         runDate: run.runDate,
       },
-      control: { id: control.id, name: control.name, testName: control.testName, unit: control.unit, mean, sd },
+      control: {
+        id: control.id,
+        name: control.name,
+        testName: control.testName,
+        unit: control.unit,
+        mean,
+        sd,
+      },
       evaluation: evalResult,
     };
   }
@@ -346,7 +379,9 @@ export class QcService {
   async summary(orgId: string) {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-    const controls = await this.prisma.client.qcControl.count({ where: { tenantId: orgId } });
+    const controls = await this.prisma.client.qcControl.count({
+      where: { tenantId: orgId },
+    });
     const todayRuns = await this.prisma.client.qcRun.findMany({
       where: { tenantId: orgId, createdAt: { gte: start } },
       select: { status: true },
@@ -371,7 +406,9 @@ export class QcService {
             testName: latest.control.testName,
             measuredValue: Number(latest.measuredValue),
             status: latest.status as QcStatus,
-            violations: Array.isArray(latest.violations) ? (latest.violations as string[]) : [],
+            violations: Array.isArray(latest.violations)
+              ? (latest.violations as string[])
+              : [],
             runDate: latest.runDate,
           }
         : null,

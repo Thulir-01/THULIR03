@@ -319,8 +319,12 @@ export class MastersService {
         ...(data.reportingLimit !== undefined
           ? { reportingLimit: data.reportingLimit }
           : {}),
-        ...(data.lowerLimit !== undefined ? { lowerLimit: data.lowerLimit } : {}),
-        ...(data.upperLimit !== undefined ? { upperLimit: data.upperLimit } : {}),
+        ...(data.lowerLimit !== undefined
+          ? { lowerLimit: data.lowerLimit }
+          : {}),
+        ...(data.upperLimit !== undefined
+          ? { upperLimit: data.upperLimit }
+          : {}),
         ...(data.limitType !== undefined ? { limitType: data.limitType } : {}),
         ...(data.criticalValueAlert !== undefined
           ? { criticalValueAlert: data.criticalValueAlert }

@@ -195,7 +195,9 @@ export class MasterConfigService {
     if (data.panNo) {
       const pan = data.panNo.toUpperCase().replace(/\s/g, '');
       if (!PAN_RE.test(pan)) {
-        throw new BadRequestException('PAN No must match the format AAAAA9999A');
+        throw new BadRequestException(
+          'PAN No must match the format AAAAA9999A',
+        );
       }
       data.panNo = pan;
     }
@@ -316,11 +318,7 @@ export class MasterConfigService {
     });
   }
 
-  async updateHospital(
-    tenantId: string,
-    id: string,
-    data: UpdateHospitalDto,
-  ) {
+  async updateHospital(tenantId: string, id: string, data: UpdateHospitalDto) {
     this.validateHospital(data);
     const row = await this.prisma.client.hospitalMaster.findFirst({
       where: { id, tenantId },
@@ -352,7 +350,9 @@ export class MasterConfigService {
         ...(data.phone1 !== undefined ? { phone1: clean(data.phone1) } : {}),
         ...(data.phone2 !== undefined ? { phone2: clean(data.phone2) } : {}),
         ...(data.fax !== undefined ? { fax: clean(data.fax) } : {}),
-        ...(data.whatsapp !== undefined ? { whatsapp: clean(data.whatsapp) } : {}),
+        ...(data.whatsapp !== undefined
+          ? { whatsapp: clean(data.whatsapp) }
+          : {}),
         ...(data.email !== undefined ? { email: clean(data.email) } : {}),
         ...(data.website !== undefined ? { website: clean(data.website) } : {}),
         ...(data.panNo !== undefined ? { panNo: clean(data.panNo) } : {}),
@@ -380,7 +380,9 @@ export class MasterConfigService {
         ...(data.outsourceTests !== undefined
           ? { outsourceTests: data.outsourceTests }
           : {}),
-        ...(data.footerInfo !== undefined ? { footerInfo: data.footerInfo } : {}),
+        ...(data.footerInfo !== undefined
+          ? { footerInfo: data.footerInfo }
+          : {}),
         ...(data.monthWiseCommission !== undefined
           ? { monthWiseCommission: data.monthWiseCommission }
           : {}),
@@ -396,7 +398,9 @@ export class MasterConfigService {
         ...(data.blockPrintWhenDue !== undefined
           ? { blockPrintWhenDue: data.blockPrintWhenDue }
           : {}),
-        ...(data.noWhatsapp !== undefined ? { noWhatsapp: data.noWhatsapp } : {}),
+        ...(data.noWhatsapp !== undefined
+          ? { noWhatsapp: data.noWhatsapp }
+          : {}),
         ...(data.onlySplAmountBilling !== undefined
           ? { onlySplAmountBilling: data.onlySplAmountBilling }
           : {}),
@@ -409,7 +413,9 @@ export class MasterConfigService {
         ...(data.ignoreCreditLimit !== undefined
           ? { ignoreCreditLimit: data.ignoreCreditLimit }
           : {}),
-        ...(data.noReportDate !== undefined ? { noReportDate: data.noReportDate } : {}),
+        ...(data.noReportDate !== undefined
+          ? { noReportDate: data.noReportDate }
+          : {}),
         ...(data.showPatientTrendGraph !== undefined
           ? { showPatientTrendGraph: data.showPatientTrendGraph }
           : {}),
@@ -425,8 +431,12 @@ export class MasterConfigService {
         ...(data.onlySplAmountOnline !== undefined
           ? { onlySplAmountOnline: data.onlySplAmountOnline }
           : {}),
-        ...(data.noDueEmail !== undefined ? { noDueEmail: data.noDueEmail } : {}),
-        ...(data.autoInvoice !== undefined ? { autoInvoice: data.autoInvoice } : {}),
+        ...(data.noDueEmail !== undefined
+          ? { noDueEmail: data.noDueEmail }
+          : {}),
+        ...(data.autoInvoice !== undefined
+          ? { autoInvoice: data.autoInvoice }
+          : {}),
         ...(data.autoInvoicePeriod !== undefined
           ? { autoInvoicePeriod: clean(data.autoInvoicePeriod) }
           : {}),
@@ -439,9 +449,13 @@ export class MasterConfigService {
         ...(data.reportDisplayMode !== undefined
           ? { reportDisplayMode: clean(data.reportDisplayMode) }
           : {}),
-        ...(data.creditBill !== undefined ? { creditBill: data.creditBill } : {}),
+        ...(data.creditBill !== undefined
+          ? { creditBill: data.creditBill }
+          : {}),
         ...(data.cashBill !== undefined ? { cashBill: data.cashBill } : {}),
-        ...(data.creditDays !== undefined ? { creditDays: num(data.creditDays) } : {}),
+        ...(data.creditDays !== undefined
+          ? { creditDays: num(data.creditDays) }
+          : {}),
         ...(data.creditLimit !== undefined
           ? { creditLimit: num(data.creditLimit) }
           : {}),
@@ -456,11 +470,7 @@ export class MasterConfigService {
     });
   }
 
-  async setHospitalStatus(
-    tenantId: string,
-    id: string,
-    isActive: boolean,
-  ) {
+  async setHospitalStatus(tenantId: string, id: string, isActive: boolean) {
     const row = await this.prisma.client.hospitalMaster.findFirst({
       where: { id, tenantId },
     });
@@ -598,7 +608,9 @@ export class MasterConfigService {
         ...(data.priorityDefault !== undefined
           ? { priorityDefault: clean(data.priorityDefault) }
           : {}),
-        ...(data.tatHours !== undefined ? { tatHours: num(data.tatHours) } : {}),
+        ...(data.tatHours !== undefined
+          ? { tatHours: num(data.tatHours) }
+          : {}),
         ...(data.associatedTests !== undefined
           ? { associatedTests: data.associatedTests }
           : {}),
@@ -606,11 +618,7 @@ export class MasterConfigService {
     });
   }
 
-  async setSampleTypeStatus(
-    tenantId: string,
-    id: string,
-    active: boolean,
-  ) {
+  async setSampleTypeStatus(tenantId: string, id: string, active: boolean) {
     const row = await this.prisma.client.sampleTypeMaster.findFirst({
       where: { id, tenantId },
     });
@@ -701,7 +709,12 @@ export class MasterConfigService {
     });
     if (!row) throw new NotFoundException('Method not found');
     if (data.code) {
-      await this.assertUnique(tenantId, 'testMethod', data.code.toUpperCase(), id);
+      await this.assertUnique(
+        tenantId,
+        'testMethod',
+        data.code.toUpperCase(),
+        id,
+      );
     }
     return this.prisma.client.testMethod.update({
       where: { id },
@@ -711,7 +724,9 @@ export class MasterConfigService {
         ...(data.standardBody !== undefined
           ? { standardBody: clean(data.standardBody) }
           : {}),
-        ...(data.category !== undefined ? { category: clean(data.category) } : {}),
+        ...(data.category !== undefined
+          ? { category: clean(data.category) }
+          : {}),
         ...(data.referenceDoc !== undefined
           ? { referenceDoc: clean(data.referenceDoc) }
           : {}),
@@ -837,7 +852,12 @@ export class MasterConfigService {
     });
     if (!row) throw new NotFoundException('Instrument not found');
     if (data.code) {
-      await this.assertUnique(tenantId, 'instrument', data.code.toUpperCase(), id);
+      await this.assertUnique(
+        tenantId,
+        'instrument',
+        data.code.toUpperCase(),
+        id,
+      );
     }
     return this.prisma.client.instrument.update({
       where: { id },
@@ -850,10 +870,18 @@ export class MasterConfigService {
         ...(data.manufacturer !== undefined
           ? { manufacturer: clean(data.manufacturer) }
           : {}),
-        ...(data.assetTag !== undefined ? { assetTag: clean(data.assetTag) } : {}),
-        ...(data.serialNo !== undefined ? { serialNo: clean(data.serialNo) } : {}),
-        ...(data.location !== undefined ? { location: clean(data.location) ?? 'Lab A' } : {}),
-        ...(data.status !== undefined ? { status: clean(data.status) ?? 'ACTIVE' } : {}),
+        ...(data.assetTag !== undefined
+          ? { assetTag: clean(data.assetTag) }
+          : {}),
+        ...(data.serialNo !== undefined
+          ? { serialNo: clean(data.serialNo) }
+          : {}),
+        ...(data.location !== undefined
+          ? { location: clean(data.location) ?? 'Lab A' }
+          : {}),
+        ...(data.status !== undefined
+          ? { status: clean(data.status) ?? 'ACTIVE' }
+          : {}),
         ...(data.assignedTo !== undefined
           ? { assignedTo: clean(data.assignedTo) }
           : {}),
@@ -878,7 +906,9 @@ export class MasterConfigService {
           ? { calibrationStandard: clean(data.calibrationStandard) }
           : {}),
         ...(data.active !== undefined ? { active: data.active } : {}),
-        ...(data.requiresQc !== undefined ? { requiresQc: data.requiresQc } : {}),
+        ...(data.requiresQc !== undefined
+          ? { requiresQc: data.requiresQc }
+          : {}),
         ...(data.downtimeWarning !== undefined
           ? { downtimeWarning: data.downtimeWarning }
           : {}),

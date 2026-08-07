@@ -151,7 +151,9 @@ export class MasterConfigController {
 
   @Delete('sample-types/:id')
   @Roles(...ADMIN_MANAGER)
-  @ApiOperation({ summary: 'Soft-delete a sample type master (blocked if in use)' })
+  @ApiOperation({
+    summary: 'Soft-delete a sample type master (blocked if in use)',
+  })
   removeSampleType(
     @CurrentUser('organizationId') orgId: string,
     @Param('id') id: string,
