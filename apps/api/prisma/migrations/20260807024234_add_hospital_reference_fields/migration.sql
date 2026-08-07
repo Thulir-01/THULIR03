@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "hospital_masters" ADD COLUMN     "allow_due_report_online" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "critical_value_sms" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "ignore_credit_limit" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "isd_code" TEXT,
+ADD COLUMN     "no_due_email" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "no_report_date" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "no_whatsapp" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "only_spl_amount_billing" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "only_spl_amount_online" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "show_patient_trend_graph" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "special_discount_applicable" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "std_code" TEXT,
+ADD COLUMN     "stop_report_printing" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "whatsapp_report_for_patient" BOOLEAN NOT NULL DEFAULT false;

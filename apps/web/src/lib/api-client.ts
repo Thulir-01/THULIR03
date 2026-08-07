@@ -840,6 +840,8 @@ export interface HospitalMaster {
   place: string | null;
   street: string | null;
   pinCode: string | null;
+  stdCode: string | null;
+  isdCode: string | null;
   zone: string | null;
   mobile: string | null;
   phone1: string | null;
@@ -865,6 +867,18 @@ export interface HospitalMaster {
   whatsappReport: boolean;
   enableOnlineBooking: boolean;
   blockPrintWhenDue: boolean;
+  noWhatsapp: boolean;
+  onlySplAmountBilling: boolean;
+  specialDiscountApplicable: boolean;
+  stopReportPrinting: boolean;
+  ignoreCreditLimit: boolean;
+  noReportDate: boolean;
+  showPatientTrendGraph: boolean;
+  whatsappReportForPatient: boolean;
+  criticalValueSms: boolean;
+  allowDueReportOnline: boolean;
+  onlySplAmountOnline: boolean;
+  noDueEmail: boolean;
   autoInvoice: boolean;
   autoInvoicePeriod: string | null;
   preferredDoctorId: string | null;

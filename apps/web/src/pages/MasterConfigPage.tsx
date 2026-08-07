@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
+  ChevronRight,
   Loader2,
   Plus,
+  RefreshCw,
+  RotateCcw,
+  Save,
   Search,
   Wand2,
   X,
-  Save,
-  ChevronRight,
 } from "lucide-react";
 import type {
   MasterConfig,
@@ -16,7 +18,9 @@ import type {
   SettingKind,
 } from "./masterConfigs";
 
-// ─── Row value accessor (dotted paths like "commercial.billingAddress") ────
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const str = (v: unknown): string => (v == null ? "" : String(v));
 
 function getPath(row: Record<string, unknown>, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, k) => {
@@ -25,10 +29,7 @@ function getPath(row: Record<string, unknown>, path: string): unknown {
   }, row);
 }
 
-// ─── Draft ↔ body ──────────────────────────────────────────────────────────
-
-const str = (v: unknown): string => (v == null ? "" : String(v));
-
+/** Draft → API body (numbers trimmed, arrays passed through, client → commercial). */
 function buildBody(
   config: MasterConfig,
   draft: Record<string, unknown>,
@@ -84,7 +85,14 @@ function buildBody(
   return body;
 }
 
-// ─── Small form controls ────────────────────────────────────────────────────
+function randomPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  let s = "";
+  for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+// ─── Small controls ─────────────────────────────────────────────────────────
 
 function FieldInput({
   field,
@@ -98,27 +106,23 @@ function FieldInput({
   onChange: (v: string) => void;
 }) {
   const base =
-    "w-full px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400 transition-colors duration-fast";
+    "w-full rounded-md border bg-surface-0 px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400 transition-colors duration-fast";
   const cls = `${base} ${
     error
       ? "border-status-critical bg-red-50/40"
-      : "border-line-200 bg-surface-0"
+      : "border-line-200"
   }`;
   if (field.kind === "select") {
     return (
       <div>
-        <select
-          className={cls}
-          value={str(value)}
-          onChange={(e) => onChange(e.target.value)}
-        >
+        <select className={cls} value={str(value)} onChange={(e) => onChange(e.target.value)}>
           {(field.options ?? []).map((o) => (
             <option key={o} value={o}>
               {o}
             </option>
           ))}
         </select>
-        {error && <p className="mt-1 text-[11px] text-status-critical">{error}</p>}
+        {error && <p className="mt-0.5 text-[10px] text-status-critical">{error}</p>}
       </div>
     );
   }
@@ -126,22 +130,22 @@ function FieldInput({
     return (
       <div>
         <textarea
-          className={`${cls} min-h-20 resize-y`}
+          className={`${cls} min-h-16 resize-y`}
           value={str(value)}
           placeholder={field.placeholder}
           onChange={(e) => onChange(e.target.value)}
         />
-        {error && <p className="mt-1 text-[11px] text-status-critical">{error}</p>}
+        {error && <p className="mt-0.5 text-[10px] text-status-critical">{error}</p>}
       </div>
     );
   }
   if (field.kind === "color") {
     return (
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <input
             type="color"
-            className="size-9 cursor-pointer rounded-md border border-line-200 bg-surface-0 p-0.5"
+            className="size-7 shrink-0 cursor-pointer rounded-md border border-line-200 bg-surface-0 p-0.5"
             value={/^#[0-9A-Fa-f]{6}$/.test(str(value)) ? str(value) : "#8B5CF6"}
             onChange={(e) => onChange(e.target.value)}
           />
@@ -152,7 +156,7 @@ function FieldInput({
             onChange={(e) => onChange(e.target.value)}
           />
         </div>
-        {error && <p className="mt-1 text-[11px] text-status-critical">{error}</p>}
+        {error && <p className="mt-0.5 text-[10px] text-status-critical">{error}</p>}
       </div>
     );
   }
@@ -165,12 +169,130 @@ function FieldInput({
         placeholder={field.placeholder}
         onChange={(e) => onChange(e.target.value)}
       />
-      {error && <p className="mt-1 text-[11px] text-status-critical">{error}</p>}
+      {error && <p className="mt-0.5 text-[10px] text-status-critical">{error}</p>}
     </div>
   );
 }
 
-function SettingControl({
+function CheckRow({
+  label,
+  checked,
+  onChange,
+  title,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  title?: string;
+}) {
+  return (
+    <label
+      title={title}
+      className="flex cursor-pointer select-none items-center gap-2 py-0.5"
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-3.5 shrink-0 accent-accent-700"
+      />
+      <span className="text-[13px] leading-snug text-ink-800">{label}</span>
+    </label>
+  );
+}
+
+/** Left-panel row: right-aligned label beside a control, sized by field.width. */
+function FieldLabelRow({
+  field,
+  value,
+  error,
+  onChange,
+  codeAction,
+}: {
+  field: MasterField;
+  value: unknown;
+  error?: string;
+  onChange: (v: string) => void;
+  codeAction?: () => void;
+}) {
+  const widthCls =
+    field.width === "third"
+      ? "col-span-12 sm:col-span-4"
+      : field.width === "half" || field.half
+        ? "col-span-12 sm:col-span-6"
+        : "col-span-12";
+  return (
+    <div className={widthCls}>
+      <div className="flex items-center gap-2">
+        <label className="w-28 shrink-0 text-right text-[12px] font-medium text-ink-600">
+          {field.label}
+          {field.required && <span className="text-status-critical"> *</span>}
+        </label>
+        <div className="min-w-0 flex-1">
+          {field.key === "code" && codeAction ? (
+            <div className="flex items-center gap-1.5">
+              <div className="min-w-0 flex-1">
+                <FieldInput field={field} value={value} error={error} onChange={onChange} />
+              </div>
+              <button
+                type="button"
+                onClick={codeAction}
+                title="Generate code"
+                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-line-200 px-2 text-[11px] font-medium text-accent-700 transition-colors duration-fast hover:bg-accent-50"
+              >
+                <Wand2 className="size-3.5" /> Auto
+              </button>
+            </div>
+          ) : (
+            <FieldInput field={field} value={value} error={error} onChange={onChange} />
+          )}
+        </div>
+      </div>
+      {field.hint && !error && (
+        <p className="mt-0.5 pl-28 text-[10px] leading-snug text-ink-400">{field.hint}</p>
+      )}
+    </div>
+  );
+}
+
+function GroupCard({
+  title,
+  fields,
+  draft,
+  errors,
+  onChange,
+  codeAction,
+}: {
+  title: string;
+  fields: MasterField[];
+  draft: Record<string, unknown>;
+  errors: Record<string, string>;
+  onChange: (key: string, v: unknown) => void;
+  codeAction?: () => void;
+}) {
+  return (
+    <fieldset className="rounded-md border border-line-200 bg-surface-0 p-3">
+      <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-500">
+        {title}
+      </legend>
+      <div className="grid grid-cols-12 gap-x-3 gap-y-2">
+        {fields.map((f) => (
+          <FieldLabelRow
+            key={f.key}
+            field={f}
+            value={draft[f.key]}
+            error={errors[f.key]}
+            onChange={(v) => onChange(f.key, v)}
+            codeAction={f.key === "code" ? codeAction : undefined}
+          />
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+/** Right-panel single setting row (label-left). */
+function SettingRow({
   setting,
   value,
   error,
@@ -183,120 +305,111 @@ function SettingControl({
 }) {
   const kind = setting.kind as SettingKind;
   const base =
-    "w-full px-3 py-2 rounded-md border text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400 transition-colors duration-fast";
+    "w-full rounded-md border border-line-200 bg-surface-0 px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400 transition-colors duration-fast";
   const cls = `${base} ${error ? "border-status-critical" : "border-line-200"}`;
 
   if (kind === "toggle") {
+    return <CheckRow label={setting.label} checked={Boolean(value)} onChange={onChange} />;
+  }
+  if (kind === "radio") {
     return (
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-fast ${
-          value ? "bg-status-normal" : "bg-line-300"
-        }`}
-        aria-pressed={Boolean(value)}
-      >
-        <span
-          className={`inline-block size-4 transform rounded-full bg-surface-0 shadow transition-transform duration-fast ${
-            value ? "translate-x-5" : "translate-x-0.5"
-          }`}
-        />
-      </button>
+      <fieldset className="rounded-md border border-line-200 bg-surface-0 p-3">
+        <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-500">
+          {setting.label}
+        </legend>
+        <div className="flex flex-wrap gap-x-5 gap-y-1">
+          {(setting.options ?? []).map((o) => (
+            <label key={o} className="flex cursor-pointer select-none items-center gap-2">
+              <input
+                type="radio"
+                name={`${setting.key}-group`}
+                checked={str(value) === o}
+                onChange={() => onChange(o)}
+                className="size-3.5 accent-accent-700"
+              />
+              <span className="text-[13px] text-ink-800">{o}</span>
+            </label>
+          ))}
+        </div>
+        {setting.hint && <p className="mt-1.5 text-[11px] text-ink-400">{setting.hint}</p>}
+      </fieldset>
     );
   }
   if (kind === "multicheck") {
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+        <span className="w-32 shrink-0 text-right text-[12px] font-medium text-ink-600">
+          {setting.label}
+        </span>
         {(setting.options ?? []).map((o) => {
           const arr = (value as string[]) ?? [];
-          const on = arr.includes(o);
           return (
-            <button
+            <CheckRow
               key={o}
-              type="button"
-              onClick={() =>
-                onChange(on ? arr.filter((x) => x !== o) : [...arr, o])
+              label={o}
+              checked={arr.includes(o)}
+              onChange={(on) =>
+                onChange(on ? [...arr, o] : arr.filter((x) => x !== o))
               }
-              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors duration-fast ${
-                on
-                  ? "border-accent-500 bg-accent-700 text-surface-0"
-                  : "border-line-200 bg-surface-0 text-ink-600 hover:bg-surface-100"
-              }`}
-            >
-              {on && <Check className="size-3" />}
-              {o}
-            </button>
+            />
           );
         })}
       </div>
     );
   }
-  if (kind === "select") {
-    return (
-      <select
-        className={cls}
-        value={str(value)}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {(setting.options ?? []).map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    );
-  }
   if (kind === "textarea") {
     return (
-      <textarea
-        className={`${cls} min-h-16 resize-y`}
-        value={str(value)}
-        placeholder={setting.placeholder}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <div>
+        <label className="mb-1 block text-[12px] font-medium text-ink-600">{setting.label}</label>
+        <textarea
+          className={`${cls} min-h-16 resize-y`}
+          value={str(value)}
+          placeholder={setting.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {setting.hint && <p className="mt-0.5 text-[11px] text-ink-400">{setting.hint}</p>}
+      </div>
     );
   }
   return (
-    <input
-      type={kind === "number" ? "number" : kind === "date" ? "date" : "text"}
-      className={cls}
-      value={kind === "date" && value ? String(value).slice(0, 10) : str(value)}
-      placeholder={setting.placeholder}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <div className="flex items-center gap-2">
+      <label className="w-32 shrink-0 text-right text-[12px] font-medium text-ink-600">
+        {setting.label}
+      </label>
+      <div className="min-w-0 flex-1">
+        <input
+          type={kind === "number" ? "number" : kind === "date" ? "date" : "text"}
+          className={cls}
+          value={kind === "date" && value ? String(value).slice(0, 10) : str(value)}
+          placeholder={setting.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {setting.hint && <p className="mt-0.5 text-[11px] text-ink-400">{setting.hint}</p>}
+      </div>
+    </div>
   );
 }
 
-function ToggleRow({
-  option,
-  value,
-  onChange,
+function TabBtn({
+  active,
+  onClick,
+  label,
 }: {
-  option: { key: string; label: string; desc?: string };
-  value: boolean;
-  onChange: (v: boolean) => void;
+  active: boolean;
+  onClick: () => void;
+  label: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md border border-line-200 bg-surface-0 px-3 py-2.5 transition-colors duration-fast hover:border-line-300">
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-ink-950">{option.label}</p>
-        {option.desc && <p className="mt-0.5 text-[11px] leading-snug text-ink-400">{option.desc}</p>}
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`relative mt-0.5 inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-fast ${
-          value ? "bg-status-normal" : "bg-line-300"
-        }`}
-        aria-pressed={value}
-      >
-        <span
-          className={`inline-block size-4 transform rounded-full bg-surface-0 shadow transition-transform duration-fast ${
-            value ? "translate-x-5" : "translate-x-0.5"
-          }`}
-        />
-      </button>
-    </div>
+    <button
+      onClick={onClick}
+      className={`rounded-t-md border border-b-0 px-4 py-1.5 text-[12px] font-bold tracking-wide transition-colors duration-fast ${
+        active
+          ? "border-line-200 bg-surface-100 text-accent-800"
+          : "border-transparent text-ink-400 hover:text-ink-700"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -309,34 +422,42 @@ export default function MasterConfigPage({
 }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState("");
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [comboboxOpen, setComboboxOpen] = useState(false);
+  const comboboxRef = useRef<HTMLDivElement>(null);
+
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [draft, setDraft] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [rightTab, setRightTab] = useState<"options" | "settings" | "billing">("options");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await config.api.list({
-        search: search || undefined,
-        isActive: activeFilter || undefined,
-      });
+      const data = await config.api.list();
       setRows(data);
     } catch {
       setError("Could not load records.");
     } finally {
       setLoading(false);
     }
-  }, [config, search, activeFilter]);
+  }, [config]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setComboboxOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   const set = (key: string, value: unknown) => {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -348,6 +469,16 @@ export default function MasterConfigPage({
     });
   };
 
+  const openEdit = (row: Record<string, unknown>) => {
+    setEditing(row);
+    setErrors({});
+    setError("");
+    setRightTab("options");
+    setDraft(config.rowToDraft(row));
+    setQuery(str(row.name));
+    setComboboxOpen(false);
+  };
+
   const openAdd = async () => {
     setEditing(null);
     setErrors({});
@@ -356,23 +487,14 @@ export default function MasterConfigPage({
     const defaults = { ...config.newDefaults };
     if (config.api.generateCode) {
       try {
-        const code = await config.api.generateCode();
-        defaults.code = code;
+        defaults.code = await config.api.generateCode();
       } catch {
         /* best-effort */
       }
     }
     setDraft(defaults);
-    setEditorOpen(true);
-  };
-
-  const openEdit = (row: Record<string, unknown>) => {
-    setEditing(row);
-    setErrors({});
-    setError("");
-    setRightTab("options");
-    setDraft(config.rowToDraft(row));
-    setEditorOpen(true);
+    setQuery("");
+    setComboboxOpen(false);
   };
 
   const applyCode = async () => {
@@ -402,7 +524,7 @@ export default function MasterConfigPage({
           ? prev.map((r) => (r.id === saved.id ? saved : r))
           : [saved, ...prev],
       );
-      setEditorOpen(false);
+      openEdit(saved);
     } catch (e) {
       const msg =
         (e as { response?: { data?: { message?: string } } }).response?.data
@@ -413,23 +535,34 @@ export default function MasterConfigPage({
     }
   };
 
-  const toggleStatus = async (row: Record<string, unknown>) => {
-    const next = !config.isActiveOf(row);
+  const discard = () => {
+    setEditing(null);
+    setDraft({});
+    setErrors({});
+    setError("");
+    setQuery("");
+  };
+
+  const toggleStatus = async () => {
+    if (!editing) return;
+    const next = !config.isActiveOf(editing);
     try {
-      const updated = await config.api.setStatus(str(row.id), next);
+      const updated = await config.api.setStatus(str(editing.id), next);
       setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      openEdit(updated);
     } catch {
       setError("Failed to update status.");
     }
   };
 
-  const remove = async (row: Record<string, unknown>) => {
-    if (!config.api.remove) return;
-    if (!confirm(`Deactivate "${str(row.name)}"? History and audit trail are preserved.`))
+  const remove = async () => {
+    if (!editing || !config.api.remove) return;
+    if (!confirm(`Deactivate "${str(editing.name)}"? History and audit trail are preserved.`))
       return;
     try {
-      const updated = await config.api.remove(str(row.id));
+      const updated = await config.api.remove(str(editing.id));
       setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      openEdit(updated);
     } catch (e) {
       const msg =
         (e as { response?: { data?: { message?: string } } }).response?.data
@@ -438,14 +571,24 @@ export default function MasterConfigPage({
     }
   };
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) =>
       [str(r.code), str(r.name), str(r.city), str(r.mobile), str(r.modelName)]
         .some((v) => v.toLowerCase().includes(q)),
     );
-  }, [rows, search]);
+  }, [rows, query]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, MasterField[]>();
+    for (const f of config.leftFields) {
+      const g = f.group ?? "Basic Details";
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(f);
+    }
+    return [...map.entries()];
+  }, [config]);
 
   const visibleSettings = (config.settings as MasterSetting[]).filter((s) =>
     s.dependsOn ? Boolean(draft[s.dependsOn.field]) === s.dependsOn.value : true,
@@ -456,7 +599,7 @@ export default function MasterConfigPage({
       const on = config.isActiveOf(row);
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
             on ? "bg-status-normal/10 text-status-normal" : "bg-gray-100 text-ink-500"
           }`}
         >
@@ -469,347 +612,403 @@ export default function MasterConfigPage({
       const v = str(getPath(row, key));
       return v ? (
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-3.5 rounded-full border border-line-200" style={{ backgroundColor: v }} />
-          <span className="font-mono text-xs text-ink-500">{v}</span>
+          <span className="size-3 rounded-full border border-line-200" style={{ backgroundColor: v }} />
+          <span className="font-mono text-[11px] text-ink-500">{v}</span>
         </span>
       ) : (
-        <span className="text-xs text-ink-300">—</span>
+        <span className="text-[11px] text-ink-300">—</span>
       );
     }
     const v = str(getPath(row, key));
-    return v ? <span className="text-xs text-ink-700">{v}</span> : <span className="text-xs text-ink-300">—</span>;
+    return v ? (
+      <span className="text-[12px] text-ink-700">{v}</span>
+    ) : (
+      <span className="text-[12px] text-ink-300">—</span>
+    );
   };
 
+  const active = editing ? config.isActiveOf(editing) : null;
+
   return (
-    <div className="h-full overflow-y-auto bg-surface-100">
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md bg-accent-100 text-accent-700">
-              <config.icon className="size-5" />
-            </span>
-            <div>
-              <h2 className="text-lg font-bold text-ink-950">{config.title}</h2>
-              <p className="text-sm text-ink-400">{config.description}</p>
-            </div>
-          </div>
-          <button
-            onClick={() => void openAdd()}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-accent-700 px-4 py-2 text-sm font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-800"
-          >
-            <Plus className="size-4" /> Add {config.singular}
-          </button>
+    <div className="flex h-full flex-col bg-surface-100">
+      {/* ── Top bar: title · select combobox · actions ── */}
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line-200 bg-surface-0 px-4">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent-100 text-accent-700">
+          <config.icon className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="truncate text-[15px] font-bold leading-tight text-ink-950">
+            {config.singular} Master
+          </h1>
+          <p className="truncate text-[11px] leading-tight text-ink-400">
+            {config.description}
+          </p>
         </div>
 
-        {/* Search + filter */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="relative min-w-56 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${config.title.toLowerCase()}…`}
-              className="w-full rounded-md border border-line-200 bg-surface-0 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-400"
-            />
-          </div>
-          <div className="flex gap-1 rounded-md border border-line-200 bg-surface-0 p-0.5">
-            {[
-              { v: "", label: "All" },
-              { v: "true", label: "Active" },
-              { v: "false", label: "Inactive" },
-            ].map((f) => (
-              <button
-                key={f.v}
-                onClick={() => setActiveFilter(f.v)}
-                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors duration-fast ${
-                  activeFilter === f.v
-                    ? "bg-accent-700 text-surface-0"
-                    : "text-ink-500 hover:bg-surface-100"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* List */}
-        <div className="overflow-hidden rounded-md border border-line-200 bg-surface-0 shadow-raised">
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-sm text-ink-400">
-              <Loader2 className="size-4 animate-spin" /> Loading…
+        {/* Select {singular} */}
+        <div ref={comboboxRef} className="relative ml-4 w-80 shrink-0">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-400" />
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setComboboxOpen(true);
+            }}
+            onFocus={() => setComboboxOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && matches.length > 0) openEdit(matches[0]);
+              if (e.key === "Escape") setComboboxOpen(false);
+            }}
+            placeholder={`Select ${config.singular}…`}
+            className="w-full rounded-md border border-line-200 bg-surface-0 py-1.5 pl-8 pr-7 text-[13px] focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-500/20"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-400 transition-colors duration-fast hover:text-ink-600"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+          {comboboxOpen && (
+            <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-md border border-line-200 bg-surface-0 shadow-overlay">
+              <div className="max-h-64 overflow-y-auto py-1">
+                {matches.length === 0 ? (
+                  <p className="px-3 py-3 text-center text-[12px] text-ink-400">
+                    {loading ? "Loading…" : "No matches"}
+                  </p>
+                ) : (
+                  matches.map((r) => {
+                    const isSel = editing && r.id === editing.id;
+                    return (
+                      <button
+                        key={str(r.id)}
+                        onClick={() => openEdit(r)}
+                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-fast hover:bg-surface-100 ${
+                          isSel ? "bg-accent-50" : ""
+                        }`}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-medium text-ink-900">
+                            {str(r.name) || "—"}
+                          </span>
+                          <span className="block truncate text-[11px] text-ink-400">
+                            {[str(r.code), str(r.city)].filter(Boolean).join(" · ") || config.codeHint}
+                          </span>
+                        </span>
+                        {isSel && <Check className="size-3.5 shrink-0 text-accent-700" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="py-16 text-center">
-              <p className="text-sm font-medium text-ink-700">No records yet</p>
-              <p className="mt-1 text-xs text-ink-400">
-                Add your first {config.singular.toLowerCase()} to get started.
-              </p>
-            </div>
-          ) : (
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-line-200 bg-surface-100/60">
-                  {config.listColumns.map((c) => (
-                    <th key={c.key} className="px-4 py-2.5 text-xs font-semibold text-ink-500">
-                      {c.label}
-                    </th>
-                  ))}
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-ink-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line-200">
-                {filtered.map((row) => (
-                  <tr
-                    key={str(row.id)}
-                    className={`transition-colors duration-fast hover:bg-surface-100/50 ${
-                      config.isActiveOf(row) ? "" : "opacity-60"
-                    }`}
-                  >
-                    {config.listColumns.map((c) => (
-                      <td key={c.key} className="px-4 py-2.5">
-                        {c.key === "name" ? (
-                          <button
-                            onClick={() => openEdit(row)}
-                            className="group inline-flex items-center gap-1 text-sm font-medium text-ink-950 hover:text-accent-700"
-                          >
-                            {str(row.name)}
-                            <ChevronRight className="size-3.5 text-ink-300 transition-transform duration-fast group-hover:translate-x-0.5 group-hover:text-accent-500" />
-                          </button>
-                        ) : (
-                          renderCell(row, c.key, c.kind)
-                        )}
-                      </td>
-                    ))}
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => toggleStatus(row)}
-                          className="text-xs font-medium text-accent-600 transition-colors duration-fast hover:text-accent-700"
-                        >
-                          {config.isActiveOf(row) ? "Disable" : "Enable"}
-                        </button>
-                        {config.api.remove && (
-                          <button
-                            onClick={() => void remove(row)}
-                            className="text-xs text-ink-400 transition-colors duration-fast hover:text-status-critical"
-                          >
-                            Deactivate
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           )}
         </div>
-      </div>
 
-      {/* Editor — Left: identity · Right: options/settings/billing */}
-      {editorOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/50 p-4 backdrop-blur-sm sm:p-6">
-          <div className="w-full max-w-4xl rounded-lg border border-line-200 bg-surface-0 shadow-overlay">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-line-200 px-5 py-3.5">
-              <h3 className="text-base font-bold text-ink-950">
-                {editing ? `Edit ${config.singular}` : `Add ${config.singular}`}
-              </h3>
-              <button
-                onClick={() => setEditorOpen(false)}
-                className="text-ink-400 transition-colors duration-fast hover:text-ink-600"
-              >
-                <X className="size-5" />
-              </button>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {active != null && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                active ? "bg-status-normal/10 text-status-normal" : "bg-gray-100 text-ink-500"
+              }`}
+            >
+              <span className={`size-1.5 rounded-full ${active ? "bg-status-normal" : "bg-ink-300"}`} />
+              {active ? "Active" : "Inactive"}
+            </span>
+          )}
+          <button
+            onClick={() => void openAdd()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line-200 bg-surface-0 px-3 py-1.5 text-[13px] font-semibold text-ink-700 transition-colors duration-fast hover:bg-surface-100"
+          >
+            <Plus className="size-4" /> New {config.singular}
+          </button>
+          <button
+            onClick={() => void submit()}
+            disabled={saving}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-accent-700 px-3.5 py-1.5 text-[13px] font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-800 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            {saving ? "Saving…" : "Save"}
+          </button>
+          {(editing || Object.keys(draft).length > 0) && (
+            <button
+              onClick={discard}
+              title="Discard changes / close record"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line-200 bg-surface-0 px-2.5 py-1.5 text-[13px] text-ink-500 transition-colors duration-fast hover:bg-surface-100 hover:text-ink-700"
+            >
+              <RotateCcw className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </header>
+
+      {error && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-red-100 bg-red-50 px-4 py-1.5 text-[12px] font-medium text-status-critical">
+          <span className="min-w-0 flex-1 truncate">{error}</span>
+          <button onClick={() => setError("")} className="text-status-critical/60 hover:text-status-critical">
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Body: left form · right config ── */}
+      <div className="flex min-h-0 flex-1">
+        {/* LEFT — data entry (grouped cards) / record picker */}
+        <div className="flex w-[46%] min-w-0 shrink-0 flex-col border-r border-line-200 bg-surface-0">
+          {editing ? (
+            <>
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line-200 px-4 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-[11px] font-bold uppercase tracking-wide text-ink-500">
+                    {str(draft.code) || "New"} — {str(draft.name) || `New ${config.singular}`}
+                  </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => void toggleStatus()}
+                    className="text-[11px] font-semibold text-accent-600 transition-colors duration-fast hover:text-accent-800"
+                  >
+                    {active ? "Disable" : "Enable"}
+                  </button>
+                  {config.api.remove && (
+                    <button
+                      onClick={() => void remove()}
+                      className="text-[11px] text-ink-400 transition-colors duration-fast hover:text-status-critical"
+                    >
+                      Deactivate
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto p-4">
+                {groups.map(([title, fields]) => (
+                  <GroupCard
+                    key={title}
+                    title={title}
+                    fields={fields}
+                    draft={draft}
+                    errors={errors}
+                    onChange={set}
+                    codeAction={applyCode}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex shrink-0 items-center justify-between border-b border-line-200 px-4 py-2">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-ink-500">
+                  {query ? `Matches (${matches.length})` : `All ${config.title}`}
+                </span>
+                <span className="text-[11px] text-ink-400">
+                  {rows.length} total
+                </span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2 py-12 text-[12px] text-ink-400">
+                    <Loader2 className="size-4 animate-spin" /> Loading…
+                  </div>
+                ) : matches.length === 0 ? (
+                  <div className="px-4 py-10 text-center">
+                    <p className="text-[13px] font-medium text-ink-700">
+                      {rows.length === 0 ? "No records yet" : "No matches"}
+                    </p>
+                    <p className="mt-1 text-[12px] text-ink-400">
+                      {rows.length === 0
+                        ? `Add your first ${config.singular.toLowerCase()} with “New”.`
+                        : "Try a different search term."}
+                    </p>
+                  </div>
+                ) : (
+                  <table className="w-full text-left">
+                    <thead className="sticky top-0 bg-surface-100/90 backdrop-blur-sm">
+                      <tr className="border-b border-line-200">
+                        {config.listColumns.map((c) => (
+                          <th key={c.key} className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-ink-400">
+                            {c.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line-200">
+                      {matches.map((row) => (
+                        <tr
+                          key={str(row.id)}
+                          onClick={() => openEdit(row)}
+                          className={`cursor-pointer transition-colors duration-fast hover:bg-surface-100/60 ${
+                            config.isActiveOf(row) ? "" : "opacity-55"
+                          }`}
+                        >
+                          {config.listColumns.map((c) => (
+                            <td key={c.key} className="px-4 py-2">
+                              {c.key === "name" ? (
+                                <span className="group inline-flex items-center gap-1 text-[13px] font-medium text-ink-950">
+                                  {str(row.name)}
+                                  <ChevronRight className="size-3 text-ink-300 transition-transform duration-fast group-hover:translate-x-0.5" />
+                                </span>
+                              ) : (
+                                renderCell(row, c.key, c.kind)
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
+          )}
+        </div>
 
-            {error && (
-              <div className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-xs font-medium text-status-critical">
-                {error}
+        {/* RIGHT — options / settings / source tabs */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex shrink-0 items-end gap-1 border-b border-line-200 bg-surface-0 px-4 pt-2">
+            <TabBtn active={rightTab === "options"} onClick={() => setRightTab("options")} label="OPTIONS" />
+            <TabBtn active={rightTab === "settings"} onClick={() => setRightTab("settings")} label="SETTINGS" />
+            {config.billing && (
+              <TabBtn active={rightTab === "billing"} onClick={() => setRightTab("billing")} label="SOURCE DETAILS" />
+            )}
+            {!editing && !Object.keys(draft).length && (
+              <span className="ml-auto pb-1.5 text-[11px] text-ink-300">
+                Select a {config.singular.toLowerCase()} to configure
+              </span>
+            )}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto bg-surface-100 p-4">
+            {rightTab === "options" && (
+              <fieldset className="rounded-md border border-line-200 bg-surface-0 p-3.5">
+                <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-accent-700">
+                  Options
+                </legend>
+                <div className="grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">
+                  {config.options.map((o) => (
+                    <CheckRow
+                      key={o.key}
+                      label={o.label}
+                      title={o.desc}
+                      checked={Boolean(draft[o.key])}
+                      onChange={(v) => set(o.key, v)}
+                    />
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            {rightTab === "settings" && (
+              <div className="space-y-4">
+                {visibleSettings.map((s) => (
+                  <SettingRow
+                    key={s.key}
+                    setting={s}
+                    value={draft[s.key]}
+                    error={errors[s.key]}
+                    onChange={(v) => set(s.key, v)}
+                  />
+                ))}
+                {visibleSettings.length === 0 && (
+                  <p className="py-8 text-center text-[12px] text-ink-400">
+                    No settings for this record.
+                  </p>
+                )}
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-0 md:grid-cols-2">
-              {/* LEFT — identity & details */}
-              <div className="border-b border-line-200 p-5 md:border-b-0 md:border-r">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">
-                  Who they are
-                </p>
-                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                  {config.leftFields.map((f) => (
-                    <div
-                      key={f.key}
-                      className={f.half ? "sm:col-span-1" : "sm:col-span-2"}
-                    >
-                      <label className="mb-1 block text-xs font-medium text-ink-600">
-                        {f.label}
-                        {f.required && <span className="text-status-critical"> *</span>}
-                      </label>
-                      {f.key === "code" ? (
-                        <div className="flex gap-2">
-                          <div className="min-w-0 flex-1">
-                            <FieldInput
-                              field={f}
-                              value={draft[f.key]}
-                              error={errors[f.key]}
-                              onChange={(v) => set(f.key, v)}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void applyCode()}
-                            title="Generate code"
-                            className="inline-flex items-center gap-1 rounded-md border border-line-200 px-2.5 text-xs font-medium text-accent-700 transition-colors duration-fast hover:bg-accent-50"
-                          >
-                            <Wand2 className="size-3.5" /> Auto
-                          </button>
-                        </div>
-                      ) : (
-                        <FieldInput
-                          field={f}
-                          value={draft[f.key]}
-                          error={errors[f.key]}
-                          onChange={(v) => set(f.key, v)}
+            {rightTab === "billing" && config.billing && (
+              <div className="space-y-4">
+                <fieldset className="rounded-md border border-line-200 bg-surface-0 p-3.5">
+                  <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-accent-700">
+                    Billing
+                  </legend>
+                  <div className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+                    {config.billing
+                      .filter((s) => s.kind === "toggle")
+                      .map((s) => (
+                        <CheckRow
+                          key={s.key}
+                          label={s.label}
+                          checked={Boolean(draft[s.key])}
+                          onChange={(v) => set(s.key, v)}
                         />
-                      )}
-                      {f.hint && !errors[f.key] && (
-                        <p className="mt-1 text-[11px] text-ink-400">{f.hint}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+                      ))}
+                    {config.billing
+                      .filter((s) => s.kind === "number")
+                      .map((s) => (
+                        <SettingRow
+                          key={s.key}
+                          setting={s}
+                          value={draft[s.key]}
+                          error={errors[s.key]}
+                          onChange={(v) => set(s.key, v)}
+                        />
+                      ))}
+                  </div>
+                </fieldset>
 
-              {/* RIGHT — options / settings / billing */}
-              <div className="p-5">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">
-                  How we treat them
-                </p>
-                <div className="mb-4 flex gap-1 border-b border-line-200">
-                  <TabBtn
-                    active={rightTab === "options"}
-                    onClick={() => setRightTab("options")}
-                    label="Options"
-                  />
-                  <TabBtn
-                    active={rightTab === "settings"}
-                    onClick={() => setRightTab("settings")}
-                    label="Settings"
-                  />
-                  {config.billing && (
-                    <TabBtn
-                      active={rightTab === "billing"}
-                      onClick={() => setRightTab("billing")}
-                      label="Billing"
-                    />
-                  )}
-                </div>
-
-                {rightTab === "options" && (
-                  <div className="space-y-2">
-                    {config.options.map((o) => (
-                      <ToggleRow
-                        key={o.key}
-                        option={o}
-                        value={Boolean(draft[o.key])}
-                        onChange={(v) => set(o.key, v)}
+                {config.billing.some((s) => s.key === "webPassword") && (
+                  <fieldset className="rounded-md border border-line-200 bg-surface-0 p-3.5">
+                    <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-accent-700">
+                      Online Web Password
+                    </legend>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={str(draft.webPassword)}
+                        onChange={(e) => set("webPassword", e.target.value)}
+                        placeholder="Password"
+                        className="w-52 rounded-md border border-line-200 bg-surface-0 px-2.5 py-1.5 text-[13px] focus:border-accent-400 focus:outline-none focus:ring-2 focus:ring-accent-500/20"
                       />
-                    ))}
-                  </div>
+                      <button
+                        onClick={() => set("webPassword", randomPassword())}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-line-200 px-2.5 py-1.5 text-[12px] font-medium text-ink-700 transition-colors duration-fast hover:bg-surface-100"
+                      >
+                        <RefreshCw className="size-3.5" /> Generate
+                      </button>
+                      <button
+                        onClick={() => set("webPassword", "")}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-line-200 px-2.5 py-1.5 text-[12px] font-medium text-ink-700 transition-colors duration-fast hover:bg-surface-100"
+                      >
+                        <RotateCcw className="size-3.5" /> Reset
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-ink-400">
+                      Generate / reset — never shown again after save.
+                    </p>
+                  </fieldset>
                 )}
 
-                {rightTab === "settings" && (
-                  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                    {visibleSettings.map((s) => (
-                      <div key={s.key} className={s.half ? "sm:col-span-1" : "sm:col-span-2"}>
-                        <label className="mb-1 block text-xs font-medium text-ink-600">
-                          {s.label}
-                        </label>
-                        <SettingControl
-                          setting={s}
-                          value={draft[s.key]}
-                          error={errors[s.key]}
-                          onChange={(v) => set(s.key, v)}
-                        />
-                        {s.hint && (
-                          <p className="mt-1 text-[11px] text-ink-400">{s.hint}</p>
-                        )}
+                {config.billing
+                  .filter((s) => s.kind === "multicheck")
+                  .map((s) => (
+                    <fieldset key={s.key} className="rounded-md border border-line-200 bg-surface-0 p-3.5">
+                      <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-accent-700">
+                        {s.label}
+                      </legend>
+                      <div className="flex flex-wrap gap-x-6 gap-y-1">
+                        {(s.options ?? []).map((o) => {
+                          const arr = (draft[s.key] as string[]) ?? [];
+                          return (
+                            <CheckRow
+                              key={o}
+                              label={o}
+                              checked={arr.includes(o)}
+                              onChange={(on) =>
+                                set(s.key, on ? [...arr, o] : arr.filter((x) => x !== o))
+                              }
+                            />
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {rightTab === "billing" && config.billing && (
-                  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                    {config.billing.map((s) => (
-                      <div key={s.key} className={s.half ? "sm:col-span-1" : "sm:col-span-2"}>
-                        <label className="mb-1 block text-xs font-medium text-ink-600">
-                          {s.label}
-                        </label>
-                        <SettingControl
-                          setting={s}
-                          value={draft[s.key]}
-                          error={errors[s.key]}
-                          onChange={(v) => set(s.key, v)}
-                        />
-                        {s.hint && (
-                          <p className="mt-1 text-[11px] text-ink-400">{s.hint}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                    </fieldset>
+                  ))}
               </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end border-t border-line-200 px-5 py-3.5">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditorOpen(false)}
-                  disabled={saving}
-                  className="rounded-md border border-line-200 px-4 py-2 text-sm font-medium text-ink-700 transition-colors duration-fast hover:bg-surface-100 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => void submit()}
-                  disabled={saving}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-4 py-2 text-sm font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-800 disabled:opacity-50"
-                >
-                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                  {saving ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`border-b-2 px-3 py-2 text-xs font-semibold transition-colors duration-fast ${
-        active
-          ? "border-accent-600 text-accent-700"
-          : "border-transparent text-ink-400 hover:text-ink-700"
-      }`}
-    >
-      {label}
-    </button>
   );
 }

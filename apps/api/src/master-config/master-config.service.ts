@@ -33,6 +33,8 @@ export interface CreateHospitalDto {
   place?: string;
   street?: string;
   pinCode?: string;
+  stdCode?: string;
+  isdCode?: string;
   zone?: string;
   mobile?: string;
   phone1?: string;
@@ -58,6 +60,18 @@ export interface CreateHospitalDto {
   whatsappReport?: boolean;
   enableOnlineBooking?: boolean;
   blockPrintWhenDue?: boolean;
+  noWhatsapp?: boolean;
+  onlySplAmountBilling?: boolean;
+  specialDiscountApplicable?: boolean;
+  stopReportPrinting?: boolean;
+  ignoreCreditLimit?: boolean;
+  noReportDate?: boolean;
+  showPatientTrendGraph?: boolean;
+  whatsappReportForPatient?: boolean;
+  criticalValueSms?: boolean;
+  allowDueReportOnline?: boolean;
+  onlySplAmountOnline?: boolean;
+  noDueEmail?: boolean;
   autoInvoice?: boolean;
   autoInvoicePeriod?: string;
   preferredDoctorId?: string;
@@ -247,6 +261,8 @@ export class MasterConfigService {
         place: clean(data.place),
         street: clean(data.street),
         pinCode: clean(data.pinCode),
+        stdCode: clean(data.stdCode),
+        isdCode: clean(data.isdCode),
         zone: clean(data.zone),
         mobile: clean(data.mobile),
         phone1: clean(data.phone1),
@@ -272,6 +288,18 @@ export class MasterConfigService {
         whatsappReport: data.whatsappReport ?? false,
         enableOnlineBooking: data.enableOnlineBooking ?? false,
         blockPrintWhenDue: data.blockPrintWhenDue ?? false,
+        noWhatsapp: data.noWhatsapp ?? false,
+        onlySplAmountBilling: data.onlySplAmountBilling ?? false,
+        specialDiscountApplicable: data.specialDiscountApplicable ?? false,
+        stopReportPrinting: data.stopReportPrinting ?? false,
+        ignoreCreditLimit: data.ignoreCreditLimit ?? false,
+        noReportDate: data.noReportDate ?? false,
+        showPatientTrendGraph: data.showPatientTrendGraph ?? false,
+        whatsappReportForPatient: data.whatsappReportForPatient ?? false,
+        criticalValueSms: data.criticalValueSms ?? false,
+        allowDueReportOnline: data.allowDueReportOnline ?? false,
+        onlySplAmountOnline: data.onlySplAmountOnline ?? false,
+        noDueEmail: data.noDueEmail ?? false,
         autoInvoice: data.autoInvoice ?? false,
         autoInvoicePeriod: clean(data.autoInvoicePeriod),
         preferredDoctorId: clean(data.preferredDoctorId),
@@ -317,6 +345,8 @@ export class MasterConfigService {
         ...(data.place !== undefined ? { place: clean(data.place) } : {}),
         ...(data.street !== undefined ? { street: clean(data.street) } : {}),
         ...(data.pinCode !== undefined ? { pinCode: clean(data.pinCode) } : {}),
+        ...(data.stdCode !== undefined ? { stdCode: clean(data.stdCode) } : {}),
+        ...(data.isdCode !== undefined ? { isdCode: clean(data.isdCode) } : {}),
         ...(data.zone !== undefined ? { zone: clean(data.zone) } : {}),
         ...(data.mobile !== undefined ? { mobile: clean(data.mobile) } : {}),
         ...(data.phone1 !== undefined ? { phone1: clean(data.phone1) } : {}),
@@ -366,6 +396,36 @@ export class MasterConfigService {
         ...(data.blockPrintWhenDue !== undefined
           ? { blockPrintWhenDue: data.blockPrintWhenDue }
           : {}),
+        ...(data.noWhatsapp !== undefined ? { noWhatsapp: data.noWhatsapp } : {}),
+        ...(data.onlySplAmountBilling !== undefined
+          ? { onlySplAmountBilling: data.onlySplAmountBilling }
+          : {}),
+        ...(data.specialDiscountApplicable !== undefined
+          ? { specialDiscountApplicable: data.specialDiscountApplicable }
+          : {}),
+        ...(data.stopReportPrinting !== undefined
+          ? { stopReportPrinting: data.stopReportPrinting }
+          : {}),
+        ...(data.ignoreCreditLimit !== undefined
+          ? { ignoreCreditLimit: data.ignoreCreditLimit }
+          : {}),
+        ...(data.noReportDate !== undefined ? { noReportDate: data.noReportDate } : {}),
+        ...(data.showPatientTrendGraph !== undefined
+          ? { showPatientTrendGraph: data.showPatientTrendGraph }
+          : {}),
+        ...(data.whatsappReportForPatient !== undefined
+          ? { whatsappReportForPatient: data.whatsappReportForPatient }
+          : {}),
+        ...(data.criticalValueSms !== undefined
+          ? { criticalValueSms: data.criticalValueSms }
+          : {}),
+        ...(data.allowDueReportOnline !== undefined
+          ? { allowDueReportOnline: data.allowDueReportOnline }
+          : {}),
+        ...(data.onlySplAmountOnline !== undefined
+          ? { onlySplAmountOnline: data.onlySplAmountOnline }
+          : {}),
+        ...(data.noDueEmail !== undefined ? { noDueEmail: data.noDueEmail } : {}),
         ...(data.autoInvoice !== undefined ? { autoInvoice: data.autoInvoice } : {}),
         ...(data.autoInvoicePeriod !== undefined
           ? { autoInvoicePeriod: clean(data.autoInvoicePeriod) }

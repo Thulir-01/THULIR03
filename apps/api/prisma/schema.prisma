@@ -726,6 +726,8 @@ model HospitalMaster {
   place   String?
   street  String?
   pinCode String? @map("pin_code")
+  stdCode String? @map("std_code")
+  isdCode String? @map("isd_code")
   zone    String?
 
   // Contact matrix
@@ -757,6 +759,18 @@ model HospitalMaster {
   whatsappReport      Boolean @default(false) @map("whatsapp_report")
   enableOnlineBooking Boolean @default(false) @map("enable_online_booking")
   blockPrintWhenDue   Boolean @default(false) @map("block_print_when_due")
+  noWhatsapp          Boolean @default(false) @map("no_whatsapp")
+  onlySplAmountBilling Boolean @default(false) @map("only_spl_amount_billing")
+  specialDiscountApplicable Boolean @default(false) @map("special_discount_applicable")
+  stopReportPrinting   Boolean @default(false) @map("stop_report_printing")
+  ignoreCreditLimit    Boolean @default(false) @map("ignore_credit_limit")
+  noReportDate         Boolean @default(false) @map("no_report_date")
+  showPatientTrendGraph Boolean @default(false) @map("show_patient_trend_graph")
+  whatsappReportForPatient Boolean @default(false) @map("whatsapp_report_for_patient")
+  criticalValueSms     Boolean @default(false) @map("critical_value_sms")
+  allowDueReportOnline Boolean @default(false) @map("allow_due_report_online")
+  onlySplAmountOnline  Boolean @default(false) @map("only_spl_amount_online")
+  noDueEmail           Boolean @default(false) @map("no_due_email")
 
   // Settings (right panel · Tab B)
   autoInvoice       Boolean @default(false) @map("auto_invoice")

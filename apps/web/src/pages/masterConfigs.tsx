@@ -56,6 +56,10 @@ export interface MasterField {
   placeholder?: string;
   required?: boolean;
   half?: boolean;
+  /** Group name — rendered as a bordered card (legend) in the left panel. */
+  group?: string;
+  /** Width within a group row. Defaults to "full". */
+  width?: "full" | "half" | "third";
   hint?: string;
 }
 
@@ -65,7 +69,7 @@ export interface MasterOption {
   desc?: string;
 }
 
-export type SettingKind = FieldKind | "toggle" | "multicheck";
+export type SettingKind = FieldKind | "toggle" | "multicheck" | "radio";
 
 export interface MasterSetting {
   key: string;
@@ -141,74 +145,90 @@ const asRow = <T,>(x: T): MasterRow => x as unknown as MasterRow;
 // ─── Hospital master ────────────────────────────────────────────────────────
 
 const HOSPITAL_FIELDS: MasterField[] = [
-  { key: "name", label: "Hospital Name", required: true, hint: "Required" },
-  { key: "code", label: "Hospital Code", required: true, hint: "Auto or manual" },
-  { key: "country", label: "Country", half: true, placeholder: "e.g. India" },
-  { key: "state", label: "State", half: true, placeholder: "e.g. Tamil Nadu" },
-  { key: "city", label: "City", half: true, placeholder: "e.g. Chennai" },
-  { key: "place", label: "Place / Area", half: true },
-  { key: "street", label: "Street", half: true },
-  { key: "pinCode", label: "PIN Code", kind: "text", half: true, placeholder: "600001" },
-  { key: "zone", label: "Zone", half: true, placeholder: "e.g. North" },
-  { key: "mobile", label: "Mobile", half: true },
-  { key: "phone1", label: "Phone 1", half: true },
-  { key: "phone2", label: "Phone 2", half: true },
-  { key: "fax", label: "Fax", half: true },
-  { key: "whatsapp", label: "WhatsApp No", half: true, hint: "10–13 digits — validated" },
-  { key: "email", label: "Email", half: true },
-  { key: "website", label: "Website", half: true },
-  { key: "panNo", label: "PAN No", half: true, placeholder: "AAAAA9999A", hint: "Format validated" },
-  { key: "headerImagePath", label: "Header Image Path", half: true },
-  { key: "footerImagePath", label: "Footer Image Path", half: true },
-  { key: "reportName", label: "Report Name", half: true, placeholder: "Custom label on prints" },
-  { key: "headerMarginPx", label: "Header Margin (px)", kind: "number", half: true },
-  { key: "footerMarginPx", label: "Footer Margin (px)", kind: "number", half: true },
+  { key: "name", label: "Hospital Name", required: true, group: "Basic Details" },
+  { key: "code", label: "Hospital Code", required: true, group: "Basic Details", hint: "Auto or manual" },
+  // Address block
+  { key: "country", label: "Country", group: "Address", width: "half", placeholder: "e.g. India" },
+  { key: "state", label: "State", group: "Address", width: "half", placeholder: "e.g. Tamil Nadu" },
+  { key: "city", label: "City", group: "Address", width: "half", placeholder: "e.g. Chennai" },
+  { key: "place", label: "Place", group: "Address", width: "half" },
+  { key: "street", label: "Street", group: "Address" },
+  { key: "pinCode", label: "PIN", group: "Address", width: "third", placeholder: "621314" },
+  { key: "stdCode", label: "STD Code", group: "Address", width: "third" },
+  { key: "isdCode", label: "ISD Code", group: "Address", width: "third" },
+  { key: "zone", label: "Zone", group: "Address", kind: "select", options: ["North", "South", "East", "West", "Central"], width: "half" },
+  // Contact matrix
+  { key: "mobile", label: "Mobile", group: "Contact", width: "half" },
+  { key: "fax", label: "Fax", group: "Contact", width: "half" },
+  { key: "phone1", label: "Phone1", group: "Contact", width: "half" },
+  { key: "phone2", label: "Phone2", group: "Contact", width: "half" },
+  { key: "whatsapp", label: "WhatsApp No", group: "Contact", width: "half", hint: "10–13 digits — validated" },
+  { key: "email", label: "Email", group: "Contact", width: "half" },
+  { key: "website", label: "Web Site", group: "Contact" },
+  { key: "panNo", label: "Pan No", group: "Contact", placeholder: "AAAAA9999A", hint: "Format validated" },
+  // Report customization
+  { key: "headerImagePath", label: "Header Image", group: "Report Customization", placeholder: "File path / upload ref" },
+  { key: "footerImagePath", label: "Footer Image", group: "Report Customization", placeholder: "File path / upload ref" },
+  { key: "reportName", label: "Report Name", group: "Report Customization", placeholder: "Custom label on prints" },
+  { key: "headerMarginPx", label: "Header Margin (Pixels)", kind: "number", group: "Report Customization", width: "half" },
+  { key: "footerMarginPx", label: "Footer Margin (Pixels)", kind: "number", group: "Report Customization", width: "half" },
 ];
 
+// Option flags in the reference order (2-column checkbox grid inside the Options box).
 const HOSPITAL_OPTIONS: MasterOption[] = [
-  { key: "inactive", label: "Inactive", desc: "Disables the master record immediately" },
-  { key: "uploadResults", label: "Upload Results", desc: "Allow hospital to view patient results online" },
-  { key: "noSms", label: "No SMS", desc: "Global suppressor for SMS notifications" },
-  { key: "noEmail", label: "No Email", desc: "Global suppressor for email notifications" },
-  { key: "outsourceTests", label: "Outsource Tests", desc: "Tests done at external labs" },
-  { key: "footerInfo", label: "Footer Information", desc: "Show footer text on reports" },
-  { key: "monthWiseCommission", label: "Month Wise Commission", desc: "Monthly billing cycles for commissions" },
-  { key: "criticalEmail", label: "Critical Email", desc: "Route critical alerts to a dedicated queue" },
-  { key: "whatsappReport", label: "WhatsApp Report", desc: "Trigger WhatsApp API for result delivery" },
-  { key: "enableOnlineBooking", label: "Enable Online Service Booking", desc: "Activates appointment booking portal" },
-  { key: "blockPrintWhenDue", label: "Block Report Print When Due", desc: "Prevents printing if pending payments exist" },
+  { key: "inactive", label: "Inactive" },
+  { key: "uploadResults", label: "Upload Results" },
+  { key: "noSms", label: "No SMS" },
+  { key: "outsourceTests", label: "Outsource Tests" },
+  { key: "footerInfo", label: "Footer Information" },
+  { key: "monthWiseCommission", label: "Month Wise Commission" },
+  { key: "onlySplAmountBilling", label: "Only Spl Amount (Billing)" },
+  { key: "noWhatsapp", label: "No WhatsApp" },
+  { key: "specialDiscountApplicable", label: "Special Discount Applicable" },
+  { key: "stopReportPrinting", label: "Stop Report Printing" },
+  { key: "noEmail", label: "No Email" },
+  { key: "ignoreCreditLimit", label: "Ignore Credit Limit" },
+  { key: "noReportDate", label: "No Report Date" },
+  { key: "showPatientTrendGraph", label: "Show Patient Trend Graph" },
+  { key: "criticalEmail", label: "Critical Email" },
+  { key: "whatsappReportForPatient", label: "WhatsApp Report for Patient" },
+  { key: "criticalValueSms", label: "Critical Value SMS" },
+  { key: "allowDueReportOnline", label: "Allow Due Report for Patient (Online)" },
+  { key: "onlySplAmountOnline", label: "Only Spl Amount (On-Line)" },
+  { key: "noDueEmail", label: "No Due Email" },
+  { key: "enableOnlineBooking", label: "Enable Online Service Booking" },
+  { key: "blockPrintWhenDue", label: "Block Report Print When Due" },
+  { key: "whatsappReport", label: "WhatsApp Report (API)" },
 ];
 
 const HOSPITAL_SETTINGS: MasterSetting[] = [
-  { key: "autoInvoice", label: "Auto Invoice", kind: "toggle", half: true },
+  { key: "autoInvoice", label: "Auto Invoice", kind: "toggle" },
   {
     key: "autoInvoicePeriod",
     label: "Auto Invoice Period",
     kind: "select",
-    options: ["DAILY", "WEEKLY", "MONTHLY"],
-    half: true,
+    options: ["Daily", "Weekly", "Monthly"],
     dependsOn: { field: "autoInvoice", value: true },
   },
-  { key: "preferredDoctorId", label: "Preferred Doctor", kind: "text", half: true, placeholder: "Doctor master ID", hint: "Links to Doctor Master (one-to-one)" },
-  { key: "collectionBoyId", label: "Collection Boy", kind: "text", half: true, placeholder: "Staff/agent ID", hint: "For commission tracking" },
+  { key: "preferredDoctorId", label: "Preferred Doctor Staff", kind: "text", placeholder: "Doctor master ID", hint: "Links to Doctor Master (one-to-one)" },
+  { key: "collectionBoyId", label: "Collection Boy", kind: "text", placeholder: "Staff / agent ID", hint: "For commission tracking" },
   {
     key: "reportDisplayMode",
     label: "Report Display Mode",
-    kind: "select",
-    options: ["WITH_HF", "WITHOUT_HF", "BOTH"],
-    hint: "With H/F · Without H/F · Both (user choice)",
+    kind: "radio",
+    options: ["Report With H/F", "Report Without H/F", "Both"],
+    hint: "How the report should print",
   },
 ];
 
 const HOSPITAL_BILLING: MasterSetting[] = [
-  { key: "creditBill", label: "Credit Bill", kind: "toggle", half: true },
-  { key: "cashBill", label: "Cash Bill", kind: "toggle", half: true },
-  { key: "creditDays", label: "Credit Days", kind: "number", half: true, hint: "e.g. 30 days payment terms" },
+  { key: "creditBill", label: "Credit Bill", kind: "toggle" },
+  { key: "cashBill", label: "Cash Bill", kind: "toggle" },
+  { key: "creditDays", label: "Credit Days", kind: "number", hint: "e.g. 30 days payment terms" },
   {
     key: "creditLimit",
     label: "Credit Limit",
     kind: "number",
-    half: true,
     hint: "Must be > 0 when Credit Bill is active",
   },
   { key: "webPassword", label: "Online Web Password", kind: "text", hint: "Generate / reset — never shown after save" },
@@ -216,22 +236,21 @@ const HOSPITAL_BILLING: MasterSetting[] = [
     key: "sentChannels",
     label: "Sent Password Through",
     kind: "multicheck",
-    options: ["SMS", "EMAIL", "WHATSAPP"],
-    hint: "Delivery methods for the web password",
+    options: ["SMS", "Email", "WhatsApp"],
   },
 ];
 
 // ─── Sample type master ─────────────────────────────────────────────────────
 
 const SAMPLE_FIELDS: MasterField[] = [
-  { key: "name", label: "Sample Name", required: true, hint: "e.g. Blood, Urine, Water" },
-  { key: "code", label: "Sample Code", required: true },
-  { key: "collectionMethod", label: "Collection Method", kind: "select", options: ["Venipuncture", "Spot Catch", "Composite", "Swab", "Catheter", "Other"], half: true },
-  { key: "containerType", label: "Container Type", kind: "select", options: ["Vial", "Bottle", "Bag", "Tube"], half: true },
-  { key: "containerColor", label: "Container Colour", kind: "color", half: true },
-  { key: "storageCondition", label: "Storage Condition", kind: "select", options: ["Room Temp", "Refrigerated", "Frozen"], half: true },
-  { key: "shelfLifeHours", label: "Shelf Life (hours)", kind: "number", half: true, hint: "Max time before the test must start" },
-  { key: "preAnalytical", label: "Pre-analytical Requirements", kind: "textarea", hint: 'e.g. "Fasting for 8 hours"' },
+  { key: "name", label: "Sample Name", required: true, group: "Basic Details", hint: "e.g. Blood, Urine, Water" },
+  { key: "code", label: "Sample Code", required: true, group: "Basic Details" },
+  { key: "collectionMethod", label: "Collection Method", kind: "select", options: ["Venipuncture", "Spot Catch", "Composite", "Swab", "Catheter", "Other"], group: "Collection & Stability", width: "half" },
+  { key: "containerType", label: "Container Type", kind: "select", options: ["Vial", "Bottle", "Bag", "Tube"], group: "Collection & Stability", width: "half" },
+  { key: "containerColor", label: "Container Colour", kind: "color", group: "Collection & Stability", width: "half" },
+  { key: "storageCondition", label: "Storage Condition", kind: "select", options: ["Room Temp", "Refrigerated", "Frozen"], group: "Collection & Stability", width: "half" },
+  { key: "shelfLifeHours", label: "Shelf Life (hours)", kind: "number", group: "Collection & Stability", width: "half", hint: "Max time before the test must start" },
+  { key: "preAnalytical", label: "Pre-analytical Requirements", kind: "textarea", group: "Collection & Stability", hint: 'e.g. "Fasting for 8 hours"' },
 ];
 
 const SAMPLE_OPTIONS: MasterOption[] = [
@@ -251,12 +270,12 @@ const SAMPLE_SETTINGS: MasterSetting[] = [
 // ─── Method master ──────────────────────────────────────────────────────────
 
 const METHOD_FIELDS: MasterField[] = [
-  { key: "name", label: "Method Name", required: true, hint: "e.g. ASTM D1179, ISO 10504" },
-  { key: "code", label: "Method Code", required: true, hint: "e.g. AST-01" },
-  { key: "standardBody", label: "Standard Body", kind: "select", options: ["ASTM", "ISO", "EPA", "APHA", "CUSTOM"], half: true },
-  { key: "category", label: "Category", kind: "select", options: ["Physical", "Chemical", "Biological", "Microbial"], half: true },
-  { key: "referenceDoc", label: "Reference Document Path", hint: "Link to PDF / manual" },
-  { key: "description", label: "Description", kind: "textarea", hint: "Detailed procedure steps" },
+  { key: "name", label: "Method Name", required: true, group: "Basic Details", hint: "e.g. ASTM D1179, ISO 10504" },
+  { key: "code", label: "Method Code", required: true, group: "Basic Details", hint: "e.g. AST-01" },
+  { key: "standardBody", label: "Standard Body", kind: "select", options: ["ASTM", "ISO", "EPA", "APHA", "CUSTOM"], group: "Basic Details", width: "half" },
+  { key: "category", label: "Category", kind: "select", options: ["Physical", "Chemical", "Biological", "Microbial"], group: "Basic Details", width: "half" },
+  { key: "referenceDoc", label: "Reference Document Path", group: "Documentation", hint: "Link to PDF / manual" },
+  { key: "description", label: "Description", kind: "textarea", group: "Documentation", hint: "Detailed procedure steps" },
 ];
 
 const METHOD_OPTIONS: MasterOption[] = [
@@ -273,15 +292,15 @@ const METHOD_SETTINGS: MasterSetting[] = [
 // ─── Instrument master ──────────────────────────────────────────────────────
 
 const INSTRUMENT_FIELDS: MasterField[] = [
-  { key: "name", label: "Instrument Name", required: true, hint: "e.g. HPLC, Spectrophotometer" },
-  { key: "code", label: "Instrument Code", required: true },
-  { key: "modelName", label: "Model Number", half: true },
-  { key: "manufacturer", label: "Manufacturer", half: true },
-  { key: "assetTag", label: "Asset Tag", half: true },
-  { key: "serialNo", label: "Serial No", half: true },
-  { key: "location", label: "Location", kind: "select", options: ["Lab A", "Lab B", "Store"], half: true },
-  { key: "status", label: "Status", kind: "select", options: ["ACTIVE", "UNDER_REPAIR", "DECOMMISSIONED"], half: true },
-  { key: "assignedTo", label: "Assigned To", hint: "Staff ID / name of the operator" },
+  { key: "name", label: "Instrument Name", required: true, group: "Basic Details", hint: "e.g. HPLC, Spectrophotometer" },
+  { key: "code", label: "Instrument Code", required: true, group: "Basic Details" },
+  { key: "modelName", label: "Model Number", group: "Basic Details", width: "half" },
+  { key: "manufacturer", label: "Manufacturer", group: "Basic Details", width: "half" },
+  { key: "assetTag", label: "Asset Tag", group: "Basic Details", width: "half" },
+  { key: "serialNo", label: "Serial No", group: "Basic Details", width: "half" },
+  { key: "location", label: "Location", kind: "select", options: ["Lab A", "Lab B", "Store"], group: "Location & Status", width: "half" },
+  { key: "status", label: "Status", kind: "select", options: ["Active", "Under Repair", "Decommissioned"], group: "Location & Status", width: "half" },
+  { key: "assignedTo", label: "Assigned To", group: "Location & Status", hint: "Staff ID / name of the operator" },
 ];
 
 const INSTRUMENT_OPTIONS: MasterOption[] = [
@@ -309,16 +328,16 @@ const CLIENT_TYPE_LABELS: Record<string, string> = {
 };
 
 const CLIENT_FIELDS: MasterField[] = [
-  { key: "name", label: "Client / Lab Name", required: true },
-  { key: "partyType", label: "Client Type", kind: "select", options: CLIENT_TYPES, half: true },
-  { key: "gstin", label: "GST / PAN No", half: true },
-  { key: "currency", label: "Currency", half: true, placeholder: "INR" },
-  { key: "primaryContactName", label: "Contact Person", half: true, hint: "Name & designation" },
-  { key: "primaryContactPhone", label: "Phone", half: true },
-  { key: "primaryContactEmail", label: "Email", half: true },
-  { key: "address", label: "Billing Address", kind: "textarea", half: true, hint: "With pincode / city" },
-  { key: "shippingAddress", label: "Shipping Address", kind: "textarea", half: true },
-  { key: "paymentTerms", label: "Payment Terms", kind: "select", options: ["IMMEDIATE", "NET_30", "NET_45", "NET_60", "NET_90"], half: true },
+  { key: "name", label: "Client / Lab Name", required: true, group: "Basic Details" },
+  { key: "partyType", label: "Client Type", kind: "select", options: CLIENT_TYPES, group: "Basic Details", width: "half" },
+  { key: "gstin", label: "GST / PAN No", group: "Basic Details", width: "half" },
+  { key: "currency", label: "Currency", group: "Basic Details", width: "half", placeholder: "INR" },
+  { key: "primaryContactName", label: "Contact Person", group: "Contact", width: "half", hint: "Name & designation" },
+  { key: "primaryContactPhone", label: "Phone", group: "Contact", width: "half" },
+  { key: "primaryContactEmail", label: "Email", group: "Contact" },
+  { key: "address", label: "Billing Address", kind: "textarea", group: "Address & Terms", hint: "With pincode / city" },
+  { key: "shippingAddress", label: "Shipping Address", kind: "textarea", group: "Address & Terms" },
+  { key: "paymentTerms", label: "Payment Terms", kind: "select", options: ["IMMEDIATE", "NET_30", "NET_45", "NET_60", "NET_90"], group: "Address & Terms" },
 ];
 
 const CLIENT_OPTIONS: MasterOption[] = [
@@ -388,42 +407,66 @@ export const MASTER_CONFIGS: Record<MasterConfigKey, MasterConfig> = {
     billing: HOSPITAL_BILLING,
     newDefaults: {
       name: "", code: "", country: "", state: "", city: "", place: "", street: "",
-      pinCode: "", zone: "", mobile: "", phone1: "", phone2: "", fax: "", whatsapp: "",
-      email: "", website: "", panNo: "", headerImagePath: "", footerImagePath: "",
-      reportName: "", headerMarginPx: "", footerMarginPx: "",
+      pinCode: "", stdCode: "", isdCode: "", zone: "", mobile: "", phone1: "", phone2: "",
+      fax: "", whatsapp: "", email: "", website: "", panNo: "", headerImagePath: "",
+      footerImagePath: "", reportName: "", headerMarginPx: "", footerMarginPx: "",
       inactive: false, uploadResults: false, noSms: false, noEmail: false,
       outsourceTests: false, footerInfo: false, monthWiseCommission: false,
       criticalEmail: false, whatsappReport: false, enableOnlineBooking: false,
-      blockPrintWhenDue: false, autoInvoice: false, autoInvoicePeriod: "MONTHLY",
-      preferredDoctorId: "", collectionBoyId: "", reportDisplayMode: "WITH_HF",
+      blockPrintWhenDue: false, noWhatsapp: false, onlySplAmountBilling: false,
+      specialDiscountApplicable: false, stopReportPrinting: false, ignoreCreditLimit: false,
+      noReportDate: false, showPatientTrendGraph: false, whatsappReportForPatient: false,
+      criticalValueSms: false, allowDueReportOnline: false, onlySplAmountOnline: false,
+      noDueEmail: false, autoInvoice: false, autoInvoicePeriod: "Monthly",
+      preferredDoctorId: "", collectionBoyId: "", reportDisplayMode: "Report With H/F",
       creditBill: false, cashBill: true, creditDays: "", creditLimit: "",
       webPassword: "", sentChannels: [] as string[],
     },
-    rowToDraft: (r) => ({
-      id: r.id, name: str(r.name), code: str(r.code),
-      country: str(r.country), state: str(r.state), city: str(r.city),
-      place: str(r.place), street: str(r.street), pinCode: str(r.pinCode),
-      zone: str(r.zone), mobile: str(r.mobile), phone1: str(r.phone1),
-      phone2: str(r.phone2), fax: str(r.fax), whatsapp: str(r.whatsapp),
-      email: str(r.email), website: str(r.website), panNo: str(r.panNo),
-      headerImagePath: str(r.headerImagePath), footerImagePath: str(r.footerImagePath),
-      reportName: str(r.reportName), headerMarginPx: numStr(r.headerMarginPx),
-      footerMarginPx: numStr(r.footerMarginPx),
-      inactive: Boolean(r.inactive), uploadResults: Boolean(r.uploadResults),
-      noSms: Boolean(r.noSms), noEmail: Boolean(r.noEmail),
-      outsourceTests: Boolean(r.outsourceTests), footerInfo: Boolean(r.footerInfo),
-      monthWiseCommission: Boolean(r.monthWiseCommission),
-      criticalEmail: Boolean(r.criticalEmail), whatsappReport: Boolean(r.whatsappReport),
-      enableOnlineBooking: Boolean(r.enableOnlineBooking),
-      blockPrintWhenDue: Boolean(r.blockPrintWhenDue),
-      autoInvoice: Boolean(r.autoInvoice), autoInvoicePeriod: str(r.autoInvoicePeriod),
-      preferredDoctorId: str(r.preferredDoctorId), collectionBoyId: str(r.collectionBoyId),
-      reportDisplayMode: str(r.reportDisplayMode),
-      creditBill: Boolean(r.creditBill), cashBill: Boolean(r.cashBill),
-      creditDays: numStr(r.creditDays), creditLimit: numStr(r.creditLimit),
-      webPassword: str(r.webPassword), sentChannels: Array.isArray(r.sentChannels) ? r.sentChannels : [],
-      isActive: Boolean(r.isActive),
-    }),
+    rowToDraft: (r) => {
+      const dmode = str(r.reportDisplayMode);
+      return {
+        id: r.id, name: str(r.name), code: str(r.code),
+        country: str(r.country), state: str(r.state), city: str(r.city),
+        place: str(r.place), street: str(r.street), pinCode: str(r.pinCode),
+        stdCode: str(r.stdCode), isdCode: str(r.isdCode),
+        zone: str(r.zone), mobile: str(r.mobile), phone1: str(r.phone1),
+        phone2: str(r.phone2), fax: str(r.fax), whatsapp: str(r.whatsapp),
+        email: str(r.email), website: str(r.website), panNo: str(r.panNo),
+        headerImagePath: str(r.headerImagePath), footerImagePath: str(r.footerImagePath),
+        reportName: str(r.reportName), headerMarginPx: numStr(r.headerMarginPx),
+        footerMarginPx: numStr(r.footerMarginPx),
+        inactive: Boolean(r.inactive), uploadResults: Boolean(r.uploadResults),
+        noSms: Boolean(r.noSms), noEmail: Boolean(r.noEmail),
+        outsourceTests: Boolean(r.outsourceTests), footerInfo: Boolean(r.footerInfo),
+        monthWiseCommission: Boolean(r.monthWiseCommission),
+        criticalEmail: Boolean(r.criticalEmail), whatsappReport: Boolean(r.whatsappReport),
+        enableOnlineBooking: Boolean(r.enableOnlineBooking),
+        blockPrintWhenDue: Boolean(r.blockPrintWhenDue),
+        noWhatsapp: Boolean(r.noWhatsapp),
+        onlySplAmountBilling: Boolean(r.onlySplAmountBilling),
+        specialDiscountApplicable: Boolean(r.specialDiscountApplicable),
+        stopReportPrinting: Boolean(r.stopReportPrinting),
+        ignoreCreditLimit: Boolean(r.ignoreCreditLimit),
+        noReportDate: Boolean(r.noReportDate),
+        showPatientTrendGraph: Boolean(r.showPatientTrendGraph),
+        whatsappReportForPatient: Boolean(r.whatsappReportForPatient),
+        criticalValueSms: Boolean(r.criticalValueSms),
+        allowDueReportOnline: Boolean(r.allowDueReportOnline),
+        onlySplAmountOnline: Boolean(r.onlySplAmountOnline),
+        noDueEmail: Boolean(r.noDueEmail),
+        autoInvoice: Boolean(r.autoInvoice),
+        autoInvoicePeriod: str(r.autoInvoicePeriod) || "Monthly",
+        preferredDoctorId: str(r.preferredDoctorId), collectionBoyId: str(r.collectionBoyId),
+        reportDisplayMode:
+          dmode === "WITH_HF" ? "Report With H/F" :
+          dmode === "WITHOUT_HF" ? "Report Without H/F" :
+          dmode === "BOTH" ? "Both" : dmode,
+        creditBill: Boolean(r.creditBill), cashBill: Boolean(r.cashBill),
+        creditDays: numStr(r.creditDays), creditLimit: numStr(r.creditLimit),
+        webPassword: str(r.webPassword), sentChannels: Array.isArray(r.sentChannels) ? r.sentChannels : [],
+        isActive: Boolean(r.isActive),
+      };
+    },
     isActiveOf: (r) => Boolean(r.isActive),
     api: {
       list: (p) => getHospitals(p).then(asRows),
@@ -567,21 +610,26 @@ export const MASTER_CONFIGS: Record<MasterConfigKey, MasterConfig> = {
     settings: INSTRUMENT_SETTINGS,
     newDefaults: {
       name: "", code: "", modelName: "", manufacturer: "", assetTag: "", serialNo: "",
-      location: "Lab A", status: "ACTIVE", assignedTo: "", active: true,
-      requiresQc: false, downtimeWarning: false, calibrationFrequency: "MONTHLY",
+      location: "Lab A", status: "Active", assignedTo: "", active: true,
+      requiresQc: false, downtimeWarning: false, calibrationFrequency: "Monthly",
       lastCalibratedAt: "", nextCalibrationDue: "", calibrationStandard: "",
     },
-    rowToDraft: (r) => ({
-      id: r.id, name: str(r.name), code: str(r.code), modelName: str(r.modelName),
-      manufacturer: str(r.manufacturer), assetTag: str(r.assetTag), serialNo: str(r.serialNo),
-      location: str(r.location), status: str(r.status), assignedTo: str(r.assignedTo),
-      active: Boolean(r.active), requiresQc: Boolean(r.requiresQc),
-      downtimeWarning: Boolean(r.downtimeWarning),
-      calibrationFrequency: str(r.calibrationFrequency),
+    rowToDraft: (r) => {
+      const st = str(r.status);
+      return {
+        id: r.id, name: str(r.name), code: str(r.code), modelName: str(r.modelName),
+        manufacturer: str(r.manufacturer), assetTag: str(r.assetTag), serialNo: str(r.serialNo),
+        location: str(r.location),
+        status: st === "ACTIVE" ? "Active" : st === "UNDER_REPAIR" ? "Under Repair" : st === "DECOMMISSIONED" ? "Decommissioned" : st,
+        assignedTo: str(r.assignedTo),
+        active: Boolean(r.active), requiresQc: Boolean(r.requiresQc),
+        downtimeWarning: Boolean(r.downtimeWarning),
+        calibrationFrequency: str(r.calibrationFrequency),
       lastCalibratedAt: r.lastCalibratedAt ? String(r.lastCalibratedAt).slice(0, 10) : "",
-      nextCalibrationDue: r.nextCalibrationDue ? String(r.nextCalibrationDue).slice(0, 10) : "",
-      calibrationStandard: str(r.calibrationStandard),
-    }),
+        nextCalibrationDue: r.nextCalibrationDue ? String(r.nextCalibrationDue).slice(0, 10) : "",
+        calibrationStandard: str(r.calibrationStandard),
+      };
+    },
     isActiveOf: (r) => Boolean(r.active),
     api: {
       list: (p) => getInstruments(p).then(asRows),
