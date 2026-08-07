@@ -14,4 +14,30 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks (rolldown `codeSplitting.groups`): third-party
+        // code changes rarely, so browsers can cache these across app releases
+        // instead of re-downloading them with every page chunk. lucide-react is
+        // deliberately left out — its per-icon tree-shaken chunks are already
+        // tiny and shared.
+        codeSplitting: {
+          groups: [
+            {
+              name: 'react-vendor',
+              test: /node_modules\/(react|react-dom|scheduler|react-router)\//,
+            },
+            { name: 'axios', test: /node_modules\/axios\// },
+            {
+              name: 'ui-utils',
+              test: /node_modules\/(clsx|class-variance-authority|tailwind-merge)\//,
+            },
+            { name: 'qrcode', test: /node_modules\/qrcode\// },
+            { name: 'jsbarcode', test: /node_modules\/jsbarcode\// },
+          ],
+        },
+      },
+    },
+  },
 });

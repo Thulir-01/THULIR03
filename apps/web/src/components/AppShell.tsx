@@ -29,6 +29,7 @@ import {
 import { useAuth } from "../lib/useAuth";
 import { loadExtraAlerts } from "../lib/alerts-store";
 import { getInventoryAlerts } from "../lib/api-client";
+import { preloadHeavyPages } from "../lib/preload";
 
 // Operations — the patient/sample journey, in the order it happens:
 // Dashboard → Registration → Patients → Orders → Result Entry, then the
@@ -356,6 +357,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Warm the heavy lazy route chunks during idle time right after login,
+  // so the first navigation to Masters / Report / QC / Settings is instant.
+  useEffect(() => {
+    preloadHeavyPages();
   }, []);
 
   const toggleRail = () => {
