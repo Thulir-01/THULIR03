@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, Fragment, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment, type ReactNode, type KeyboardEvent } from "react";
 import {
   Search, FlaskConical, Loader2, CheckCircle2, Clock,
   Save, Phone, Calendar, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Minus,
@@ -74,7 +74,68 @@ export default function TestResultPage() {
     return list;
   }, [orderDetail, expandedProfiles]);
 
+  // Rows that still accept input (completed rows are read-only) — the only
+  // targets for keyboard navigation, so the caret never lands on a locked box.
+  const editableTests = useMemo(
+    () => visibleResultTests.filter((t) => t.status !== "completed"),
+    [visibleResultTests],
+  );
+
+  // Keyboard-first entry flow (spreadsheet feel):
+  //   ↑ / ↓            move between result rows
+  //   Enter / Tab      commit current field → next result row (Enter on the
+  //                    last row saves everything)
+  //   Ctrl+Enter       save everything from anywhere
+  const entryKeyDown = (test: TestChild, e: KeyboardEvent<HTMLInputElement>) => {
+    const idx = editableTests.findIndex((t) => t.id === test.id);
+    const isLast = idx === editableTests.length - 1;
+    const focusAt = (i: number) => {
+      const target = editableTests[i];
+      if (target) resultRefs.current[target.id]?.focus();
+    };
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      if (pendingCount > 0) void saveAll();
+      return;
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) focusAt(idx - 1);
+      else if (isLast) {
+        if (pendingCount > 0) void saveAll();
+      } else focusAt(idx + 1);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (isLast) {
+        if (pendingCount > 0) void saveAll();
+      } else focusAt(idx + 1);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      focusAt(idx + 1);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      focusAt(idx - 1);
+      return;
+    }
+  };
+
   useEffect(() => { fetchOrders(); }, []);
+
+  // Hands-free start: when a new order is opened, focus the first editable
+  // result box so the technician can type immediately.
+  useEffect(() => {
+    if (selectedOrderId && orderDetail && editableTests.length > 0) {
+      const t = setTimeout(() => resultRefs.current[editableTests[0].id]?.focus(), 100);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOrderId, orderDetail?.id]);
 
   const fetchOrders = async (q?: string) => {
     setLoading(true);
@@ -240,14 +301,7 @@ export default function TestResultPage() {
                 type="text"
                 value={r.result}
                 onChange={(e) => setResults(prev => ({ ...prev, [test.id]: { ...prev[test.id], result: e.target.value } }))}
-                onKeyDown={(e) => {
-                  if (e.key === "Tab") {
-                    e.preventDefault();
-                    const idx = visibleResultTests.findIndex((t) => t.id === test.id);
-                    const next = e.shiftKey ? visibleResultTests[idx - 1] : visibleResultTests[idx + 1];
-                    if (next) resultRefs.current[next.id]?.focus();
-                  }
-                }}
+                onKeyDown={(e) => entryKeyDown(test, e)}
                 ref={(el) => { if (el) resultRefs.current[test.id] = el; else delete resultRefs.current[test.id]; }}
                 placeholder={isCompleted ? test.result || "—" : "Type result…"}
                 className={boxCls(isCompleted)}
@@ -282,6 +336,7 @@ export default function TestResultPage() {
               type="text"
               value={r.notes}
               onChange={(e) => setResults(prev => ({ ...prev, [test.id]: { ...prev[test.id], notes: e.target.value } }))}
+              onKeyDown={(e) => entryKeyDown(test, e)}
               placeholder="Notes…"
               className={plainBoxCls(false)}
             />
@@ -415,7 +470,18 @@ export default function TestResultPage() {
               {/* Test results table */}
               <div className="flex-1 bg-white rounded-lg border border-gray-200/80 shadow-sm min-h-0 flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 shrink-0">
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Test Results</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Test Results</h3>
+                    <span className="hidden lg:flex items-center gap-1 text-[10px] text-gray-400 font-mono">
+                      <kbd className="px-1 py-0.5 rounded border border-gray-200 bg-gray-50">↑</kbd>
+                      <kbd className="px-1 py-0.5 rounded border border-gray-200 bg-gray-50">↓</kbd>
+                      move
+                      <kbd className="px-1 py-0.5 rounded border border-gray-200 bg-gray-50">Enter</kbd>
+                      next
+                      <kbd className="px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50">Ctrl+Enter</kbd>
+                      save all
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2">
                     {pendingCount > 0 && (
                       <button onClick={saveAll} disabled={saving !== null}
