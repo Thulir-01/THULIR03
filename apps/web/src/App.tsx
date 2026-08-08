@@ -103,15 +103,11 @@ export default function App() {
           />
           <Route
             path="/masters"
+            element={<ProtectedRoute>{shell(<Navigate to="/masters/parameters" replace />)}</ProtectedRoute>}
+          />
+          <Route
+            path="/masters/:section"
             element={<ProtectedRoute>{shell(<MastersPage />)}</ProtectedRoute>}
-          />
-          <Route
-            path="/masters/parameters"
-            element={<ProtectedRoute>{shell(<MastersPage initialTab="parameters" />)}</ProtectedRoute>}
-          />
-          <Route
-            path="/masters/packages"
-            element={<ProtectedRoute>{shell(<MastersPage initialTab="packages" />)}</ProtectedRoute>}
           />
           <Route
             path="/registration"
@@ -188,6 +184,10 @@ export default function App() {
           <Route path="/settings" element={<Navigate to="/general-settings" replace />} />
           <Route
             path="/general-settings"
+            element={<ProtectedRoute>{shell(<Navigate to="/general-settings/lab" replace />)}</ProtectedRoute>}
+          />
+          <Route
+            path="/general-settings/:section"
             element={<ProtectedRoute>{shell(<GeneralSettingsPage />)}</ProtectedRoute>}
           />
           <Route
@@ -213,6 +213,10 @@ export default function App() {
           />
           <Route
             path="/inventory"
+            element={<ProtectedRoute>{shell(<Navigate to="/inventory/items" replace />)}</ProtectedRoute>}
+          />
+          <Route
+            path="/inventory/:section"
             element={<ProtectedRoute>{shell(<InventoryPage />)}</ProtectedRoute>}
           />
         </Routes>

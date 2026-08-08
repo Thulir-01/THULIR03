@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router";
 import {
   Search,
   Plus,
@@ -9,7 +10,6 @@ import {
   CalendarClock,
   Boxes,
   Truck,
-  Link2,
   Pencil,
   Trash2,
   X,
@@ -45,20 +45,18 @@ import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageState
 
 type Tab = "items" | "stock" | "suppliers" | "alerts" | "links";
 
-const TABS: Array<{ value: Tab; label: string; icon: typeof Package }> = [
-  { value: "items", label: "Items", icon: Package },
-  { value: "stock", label: "Stock", icon: Layers },
-  { value: "suppliers", label: "Suppliers", icon: Truck },
-  { value: "alerts", label: "Alerts", icon: AlertTriangle },
-  { value: "links", label: "Test Links", icon: Link2 },
-];
-
 const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 export default function InventoryPage() {
-  const [tab, setTab] = useState<Tab>("items");
+  // The ribbon strip navigates to /inventory/:section — the section drives
+  // which panel renders (no content-area tab bar).
+  const { section } = useParams();
+  const tab: Tab =
+    section === "stock" || section === "suppliers" || section === "alerts" || section === "links"
+      ? section
+      : "items";
 
   // Items
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -374,30 +372,6 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="mb-5 flex flex-wrap gap-1.5">
-          {TABS.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-fast ${
-                tab === t.value
-                  ? "border-accent-500 bg-accent-100 text-accent-700"
-                  : "border-line-200 bg-surface-0 text-ink-600 hover:bg-surface-100"
-              }`}
-            >
-              <t.icon className="size-3.5" />
-              {t.label}
-              {t.value === "alerts" &&
-                alerts &&
-                (alerts.lowStock.length + alerts.expiring.length + alerts.expired.length) > 0 && (
-                  <span className="ml-1 rounded-full bg-status-critical px-1.5 text-[10px] font-bold text-surface-0">
-                    {alerts.lowStock.length + alerts.expiring.length + alerts.expired.length}
-                  </span>
-                )}
-            </button>
-          ))}
-        </div>
 
         {/* ─── ITEMS ─── */}
         {tab === "items" && (

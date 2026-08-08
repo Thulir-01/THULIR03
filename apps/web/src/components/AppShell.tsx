@@ -13,16 +13,29 @@ import {
   CornerDownLeft,
   User,
   Plus,
-  Settings2,
   ClipboardSignature,
   ShieldCheck,
   BadgeCheck,
   TrendingUp,
   Building2,
-  Settings,
   Boxes,
   UserCog,
   Bell,
+  Table2,
+  Package,
+  TestTube,
+  Cpu,
+  Briefcase,
+  Ruler,
+  CreditCard,
+  Ban,
+  BadgePercent,
+  Percent,
+  Layers,
+  Truck,
+  AlertTriangle,
+  Link2,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
@@ -74,12 +87,52 @@ const QUEUE_ITEMS: NavItem[] = [
   { to: "/approvals", label: "Pathologist", icon: ShieldCheck },
 ];
 
-const MASTERS_ITEMS: NavItem[] = [{ to: "/masters", label: "Masters", icon: Settings2 }];
+// Masters is a full ribbon of its own: two test-catalog sections, five
+// master-configuration editors and six lookup catalogues. Each sub-item is
+// its own icon-button in the strip — the content area no longer needs tabs.
+// URL slugs must stay in sync with the section map in MastersPage.tsx.
+const MASTERS_TESTS_ITEMS: NavItem[] = [
+  { to: "/masters/parameters", label: "Parameters", icon: Table2 },
+  { to: "/masters/packages", label: "Packages", icon: Package },
+];
+const MASTERS_CATALOG_ITEMS: NavItem[] = [
+  { to: "/masters/hospitals", label: "Hospitals", icon: Building2 },
+  { to: "/masters/sample-types", label: "Sample Types", icon: TestTube },
+  { to: "/masters/methods", label: "Methods", icon: FlaskConical },
+  { to: "/masters/instruments", label: "Instruments", icon: Cpu },
+  { to: "/masters/clients", label: "Clients", icon: Briefcase },
+];
+const MASTERS_LOOKUP_ITEMS: NavItem[] = [
+  { to: "/masters/containers", label: "Containers", icon: Boxes },
+  { to: "/masters/units", label: "Units", icon: Ruler },
+  { to: "/masters/payment-modes", label: "Payments", icon: CreditCard },
+  { to: "/masters/rejection-reasons", label: "Rejects", icon: Ban },
+  { to: "/masters/discount-schemes", label: "Discounts", icon: BadgePercent },
+  { to: "/masters/tax-rates", label: "Tax Rates", icon: Percent },
+];
+
 const PARTIES_ITEMS: NavItem[] = [{ to: "/parties", label: "Parties", icon: Building2 }];
 const STAFF_ITEMS: NavItem[] = [{ to: "/staff", label: "Staff", icon: ClipboardSignature }];
-const INVENTORY_ITEMS: NavItem[] = [{ to: "/inventory", label: "Inventory", icon: Boxes }];
+
+// Inventory sub-sections live in the ribbon strip, not as content tabs.
+const INVENTORY_ITEMS: NavItem[] = [
+  { to: "/inventory/items", label: "Items", icon: Package },
+  { to: "/inventory/stock", label: "Stock", icon: Layers },
+  { to: "/inventory/suppliers", label: "Suppliers", icon: Truck },
+  { to: "/inventory/alerts", label: "Alerts", icon: AlertTriangle },
+  { to: "/inventory/links", label: "Test Links", icon: Link2 },
+];
+
 const ANALYTICS_ITEMS: NavItem[] = [{ to: "/reports", label: "Analytics", icon: TrendingUp }];
-const SETTINGS_ITEMS: NavItem[] = [{ to: "/general-settings", label: "Settings", icon: Settings }];
+
+// Settings is a four-section hub — each section is a ribbon group.
+const SETTINGS_GROUPS: RibbonGroup[] = [
+  { label: "Lab", tint: "accent", items: [{ to: "/general-settings/lab", label: "Lab Info", icon: Building2 }] },
+  { label: "Rules", tint: "green", items: [{ to: "/general-settings/qc", label: "QC Rules", icon: SlidersHorizontal }] },
+  { label: "Channels", tint: "blue", items: [{ to: "/general-settings/notify", label: "Notify", icon: Bell }] },
+  { label: "Compliance", tint: "ink", items: [{ to: "/general-settings/audit", label: "Audit", icon: ShieldCheck }] },
+];
+
 const SYSTEM_ITEMS: NavItem[] = [{ to: "/system-settings", label: "System", icon: UserCog }];
 const AUDIT_ITEMS: NavItem[] = [{ to: "/audit", label: "Audit Trail", icon: History }];
 
@@ -142,6 +195,16 @@ function activeTabId(pathname: string): TabId {
 
 // Route → human screen name for the context toolbar (longest prefix first).
 const SCREEN_NAMES: { prefix: string; name: string }[] = [
+  { prefix: "/masters/parameters", name: "Test Parameters" },
+  { prefix: "/masters/packages", name: "Test Packages" },
+  { prefix: "/inventory/stock", name: "Stock Ledger" },
+  { prefix: "/inventory/suppliers", name: "Suppliers" },
+  { prefix: "/inventory/alerts", name: "Stock Alerts" },
+  { prefix: "/inventory/links", name: "Test Links" },
+  { prefix: "/general-settings/lab", name: "General Lab Info" },
+  { prefix: "/general-settings/qc", name: "QC Rules" },
+  { prefix: "/general-settings/notify", name: "Notifications" },
+  { prefix: "/general-settings/audit", name: "Audit & Compliance" },
   { prefix: "/patient-registration", name: "Patient Registration" },
   { prefix: "/registration", name: "Registration" },
   { prefix: "/patients/new", name: "New Patient" },
@@ -392,24 +455,33 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         ],
       });
     }
-    const settingsGroups: RibbonGroup[] = [{ label: "Lab", items: [...SETTINGS_ITEMS] }];
-    if (canSystem) settingsGroups.push({ label: "System", items: [...SYSTEM_ITEMS] });
+    const settingsGroups: RibbonGroup[] = [...SETTINGS_GROUPS];
+    if (canSystem) settingsGroups.push({ label: "System", tint: "accent", items: [...SYSTEM_ITEMS] });
 
     const result: RibbonTab[] = [
       { id: "operations", label: "Operations", defaultTo: "/dashboard", groups: opsGroups },
     ];
     if (canMasters)
-      result.push({ id: "masters", label: "Masters", defaultTo: "/masters", groups: [{ label: "Catalog", items: [...MASTERS_ITEMS] }] });
+      result.push({
+        id: "masters",
+        label: "Masters",
+        defaultTo: "/masters/parameters",
+        groups: [
+          { label: "Tests", tint: "accent", items: [...MASTERS_TESTS_ITEMS] },
+          { label: "Catalog", tint: "blue", items: [...MASTERS_CATALOG_ITEMS] },
+          { label: "Lookups", tint: "ink", items: [...MASTERS_LOOKUP_ITEMS] },
+        ],
+      });
     if (canParties)
       result.push({ id: "parties", label: "Parties", defaultTo: "/parties", groups: [{ label: "Parties", items: [...PARTIES_ITEMS] }] });
     if (canStaff)
       result.push({ id: "staff", label: "Staff", defaultTo: "/staff", groups: [{ label: "Staff", items: [...STAFF_ITEMS] }] });
     if (canInventory)
-      result.push({ id: "inventory", label: "Inventory", defaultTo: "/inventory", groups: [{ label: "Stock", items: [...INVENTORY_ITEMS] }] });
+      result.push({ id: "inventory", label: "Inventory", defaultTo: "/inventory/items", groups: [{ label: "Stock", tint: "accent", items: [...INVENTORY_ITEMS] }] });
     if (canAnalytics)
       result.push({ id: "analytics", label: "Analytics", defaultTo: "/reports", groups: [{ label: "Reports", items: [...ANALYTICS_ITEMS] }] });
     if (canSettings)
-      result.push({ id: "settings", label: "Settings", defaultTo: "/general-settings", groups: settingsGroups });
+      result.push({ id: "settings", label: "Settings", defaultTo: "/general-settings/lab", groups: settingsGroups });
     result.push({ id: "audit", label: "Audit", defaultTo: "/audit", groups: [{ label: "Compliance", tint: "ink", items: [...AUDIT_ITEMS] }] });
     return result;
   }, [canMasters, canParties, canStaff, canInventory, canAnalytics, canSettings, canSystem, canVerify, canApprove]);
@@ -589,8 +661,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                             >
                               <item.icon className="size-4" strokeWidth={2.2} />
                             </span>
-                            <span
-                              className={`max-w-[64px] truncate text-[9.5px] font-medium leading-none ${
+                        <span
+                          className={`max-w-[76px] truncate text-[9.5px] font-medium leading-none ${
                                 isActive ? "text-accent-700" : "text-ink-600"
                               }`}
                             >

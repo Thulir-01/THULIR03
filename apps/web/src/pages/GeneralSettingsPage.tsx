@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router";
 import {
   Building2,
   MapPin,
@@ -212,7 +213,11 @@ const DEFAULT_EXTRAS: LabExtrasShape = {
 
 export default function GeneralSettingsPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<TabKey>("lab");
+  // The ribbon strip navigates to /general-settings/:section — the section
+  // drives which panel renders (no content-area tab rail).
+  const { section } = useParams();
+  const tab: TabKey =
+    section === "qc" || section === "notify" || section === "audit" ? section : "lab";
 
   /* General Lab Info — real org settings via /settings/lab */
   const [labLoading, setLabLoading] = useState(true);
@@ -446,12 +451,6 @@ export default function GeneralSettingsPage() {
     return { kind: "idle" as const };
   }, [saveStates]);
 
-  const TABS: { key: TabKey; label: string; icon: typeof Building2; blurb: string }[] = [
-    { key: "lab", label: "General Lab Info", icon: Building2, blurb: "Name, location, regulatory bodies & contacts" },
-    { key: "qc", label: "QC Rules & Westgard", icon: SlidersHorizontal, blurb: "Global rule engine + per-analyzer overrides" },
-    { key: "notify", label: "Notifications & Alerts", icon: Bell, blurb: "Channels, thresholds & quiet hours" },
-    { key: "audit", label: "Audit & Compliance", icon: ShieldCheck, blurb: "Retention, log visibility & exports" },
-  ];
 
   if (configLoading || (labLoading && tab === "lab")) {
     return (
@@ -505,34 +504,7 @@ export default function GeneralSettingsPage() {
           </div>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-[260px_1fr]">
-          {/* ─── Tab rail ─── */}
-          <nav className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-            {TABS.map((t) => {
-              const active = tab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className={`flex shrink-0 items-center gap-3 rounded-md border px-3.5 py-3 text-left transition-colors duration-fast lg:w-full ${
-                    active
-                      ? "border-accent-300 bg-accent-100/70 text-accent-700"
-                      : "border-line-200 bg-surface-0 text-ink-600 hover:border-accent-200 hover:text-ink-950"
-                  }`}
-                >
-                  <t.icon className={`size-4.5 shrink-0 ${active ? "text-accent-700" : "text-ink-400"}`} />
-                  <span className="min-w-0">
-                    <span className="block text-[13px] font-semibold leading-tight">{t.label}</span>
-                    <span className={`mt-0.5 hidden text-[10px] leading-snug lg:block ${active ? "text-accent-700/70" : "text-ink-400"}`}>
-                      {t.blurb}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* ─── Tab content ─── */}
+        <div className="min-w-0">
           <div className="min-w-0">
             {tab === "lab" && (
               <div className="space-y-5">
