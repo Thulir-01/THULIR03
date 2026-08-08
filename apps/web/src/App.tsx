@@ -31,6 +31,10 @@ const AlertsPage = lazy(() => import("./pages/AlertsPage"));
 const VerifyPage = lazy(() => import("./pages/VerifyPage"));
 const ReportPage = lazy(() => import("./pages/ReportPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
+// Print-optimized stages — tiny dedicated chunks, rendered without the app
+// shell so the PDF/paper output is a clean A4 document.
+const PrintReportPage = lazy(() => import("./pages/PrintReportPage"));
+const PrintInvoicePage = lazy(() => import("./pages/PrintInvoicePage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const GeneralSettingsPage = lazy(() => import("./pages/GeneralSettingsPage"));
 const SystemSettingsPage = lazy(() => import("./pages/SystemSettingsPage"));
@@ -160,6 +164,22 @@ export default function App() {
           <Route
             path="/orders/:orderId/invoice"
             element={<ProtectedRoute>{shell(<InvoicePage />)}</ProtectedRoute>}
+          />
+          <Route
+            path="/print/report/:orderId"
+            element={
+              <ProtectedRoute>
+                <PrintReportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/print/invoice/:orderId"
+            element={
+              <ProtectedRoute>
+                <PrintInvoicePage />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/reports"
