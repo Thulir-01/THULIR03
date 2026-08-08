@@ -12,6 +12,8 @@ import {
   ArrowRight,
   FlaskConical,
   FileBarChart2,
+  FilePlus2,
+  RefreshCw,
   Settings,
   Lock,
   LogOut,
@@ -33,6 +35,7 @@ import {
 } from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState, ErrorState } from "../components/ui/PageStates";
+import { useContextActions } from "../lib/context-actions";
 
 const APPROVERS = new Set(["pathologist", "lab_admin", "lab_manager"]);
 const LOCK_MS = 5 * 60e3; // auto-lock after 5 minutes of inactivity
@@ -379,6 +382,24 @@ export default function Dashboard() {
     await load();
   };
 
+  // Context toolbar — one-click jump to a fresh registration plus a
+  // refresh of the command center's live stats.
+  useContextActions([
+    {
+      id: "new-registration",
+      label: "New Registration",
+      icon: FilePlus2,
+      variant: "primary",
+      onClick: () => navigate("/patient-registration"),
+    },
+    {
+      id: "refresh",
+      label: "Refresh",
+      icon: RefreshCw,
+      onClick: () => load(),
+    },
+  ]);
+
   const handleLogout = () => {
     logout();
     navigate("/login");
@@ -400,12 +421,6 @@ export default function Dashboard() {
               >
                 <Lock className="size-3" /> Auto-lock {fmtClock(secondsToLock * 1000)}
               </span>
-              <button
-                onClick={() => navigate("/patient-registration")}
-                className="inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-3.5 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
-              >
-                New Registration
-              </button>
             </div>
           }
         />

@@ -15,6 +15,7 @@ import {
   X,
   FileText,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 import {
   getOrders,
@@ -26,6 +27,7 @@ import {
 } from "../lib/api-client";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
 import { useAuth } from "../lib/useAuth";
+import { useContextActions } from "../lib/context-actions";
 
 /* ── Clinical helpers ─────────────────────────────────────────── */
 
@@ -288,6 +290,11 @@ export default function ApprovalsPage() {
       tone: "green",
     },
   ];
+
+  // Context toolbar — refresh the approvals queue.
+  useContextActions([
+    { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => load() },
+  ]);
 
   return (
     <div className="h-full overflow-y-auto bg-surface-100">

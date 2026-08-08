@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
   Search,
   Plus,
@@ -8,14 +8,17 @@ import {
   Calendar,
   ChevronRight,
   KeyRound,
+  RefreshCw,
 } from "lucide-react";
 import { getPatients, type Patient } from "../lib/api-client";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
+import { useContextActions } from "../lib/context-actions";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
 import PortalEnrollModal from "../components/PortalEnrollModal";
 
 export default function PatientsPage() {
+  const navigate = useNavigate();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,6 +43,23 @@ export default function PatientsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  // Context toolbar — add patient plus a refresh of the current search.
+  useContextActions([
+    {
+      id: "add-patient",
+      label: "Add Patient",
+      icon: Plus,
+      variant: "primary",
+      onClick: () => navigate("/patients/new"),
+    },
+    {
+      id: "refresh",
+      label: "Refresh",
+      icon: RefreshCw,
+      onClick: () => load(search),
+    },
+  ]);
+
   return (
     <div className="h-full overflow-y-auto bg-surface-100">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -47,15 +67,6 @@ export default function PatientsPage() {
           <PageHeader
             title="Patients"
             subtitle="Manage patient records and registrations"
-            actions={
-              <Link
-                to="/patients/new"
-                className="inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-3.5 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
-              >
-                <Plus className="size-3.5" />
-                Add Patient
-              </Link>
-            }
           />
         </div>
 

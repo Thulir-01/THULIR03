@@ -3,9 +3,10 @@ import { useNavigate } from "react-router";
 import {
   Search, FileText, Clock, IndianRupee, ChevronDown, ChevronUp,
   FilePlus2, Phone, Calendar, User, AlertCircle,
-  CheckCircle2, XCircle, FlaskConical,
+  CheckCircle2, XCircle, FlaskConical, RefreshCw,
 } from "lucide-react";
 import { getOrders, type OrderListItem } from "../lib/api-client";
+import { useContextActions } from "../lib/context-actions";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
@@ -71,19 +72,34 @@ export default function OrdersPage() {
   const inr = (v: string | number | null) =>
     `₹${Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+  // Context toolbar — new registration, jump-to-search, refresh queue.
+  useContextActions([
+    {
+      id: "new-registration",
+      label: "New Registration",
+      icon: FilePlus2,
+      variant: "primary",
+      onClick: () => navigate("/registration"),
+    },
+    {
+      id: "search",
+      label: "Search",
+      icon: Search,
+      onClick: () => searchRef.current?.focus(),
+    },
+    {
+      id: "refresh",
+      label: "Refresh",
+      icon: RefreshCw,
+      onClick: () => fetchOrders(search),
+    },
+  ]);
+
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden bg-surface-100 p-3">
       <PageHeader
         title="Orders"
         subtitle="All lab orders — search, expand, invoice & report"
-        actions={
-          <button
-            onClick={() => navigate("/registration")}
-            className="inline-flex items-center gap-1.5 rounded-md bg-accent-700 px-3.5 py-2 text-xs font-semibold text-surface-0 transition-colors duration-fast hover:bg-accent-500"
-          >
-            <FilePlus2 className="size-3.5" /> New Registration
-          </button>
-        }
       />
 
       {/* STATS */}

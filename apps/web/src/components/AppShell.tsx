@@ -10,8 +10,6 @@ import {
   LogOut,
   Search,
   FlaskConical,
-  ChevronsLeft,
-  ChevronsRight,
   CornerDownLeft,
   User,
   Plus,
@@ -25,17 +23,43 @@ import {
   Boxes,
   UserCog,
   Bell,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 import { loadExtraAlerts } from "../lib/alerts-store";
 import { getInventoryAlerts } from "../lib/api-client";
 import { preloadHeavyPages } from "../lib/preload";
+import {
+  ContextActionsProvider,
+  ContextToolbar,
+  type ContextAction,
+} from "../lib/context-actions";
 
-// Operations — the patient/sample journey, in the order it happens:
-// Dashboard → Registration → Patients → Orders → Result Entry, then the
-// role-gated Verify (technician) and Approvals (pathologist) queues.
-// Alerts is not a sidebar item — it lives as the bell icon at the top edge.
-const OPERATIONS_ITEMS = [
+// ─── Navigation model ─────────────────────────────────────────────────────
+// The shell is an MS Office-style ribbon: a row of top-level tabs, each of
+// which reveals a strip of grouped icon-buttons below it. Role gating is the
+// same as the old rail — a technician never sees Masters/Parties/Settings,
+// and the verify/approvals queues only appear for the roles that use them.
+
+type NavItem = { to: string; label: string; icon: LucideIcon };
+// Subtle per-group tints so operators can recognize ribbon actions at a
+// glance (decorative only — clinical status colors are never used here).
+type GroupTint = "accent" | "blue" | "amber" | "green" | "ink";
+type RibbonGroup = { label: string; tint?: GroupTint; items: NavItem[] };
+type TabId =
+  | "operations"
+  | "masters"
+  | "parties"
+  | "staff"
+  | "inventory"
+  | "analytics"
+  | "settings"
+  | "audit";
+type RibbonTab = { id: TabId; label: string; defaultTo: string; groups: RibbonGroup[] };
+
+// Operations — the patient/sample journey, in the order it happens.
+// Alerts is not a tab item — it lives as the bell icon at the top edge.
+const OPERATIONS_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/patient-registration", label: "Registration", icon: FilePlus2 },
   { to: "/patients", label: "Patients", icon: Users },
@@ -44,83 +68,35 @@ const OPERATIONS_ITEMS = [
   { to: "/qc", label: "QC", icon: FlaskConical },
 ];
 
+// Role-gated queue buttons (appended to the Operations ribbon when allowed)
+const QUEUE_ITEMS: NavItem[] = [
+  { to: "/verify", label: "Technician", icon: BadgeCheck },
+  { to: "/approvals", label: "Pathologist", icon: ShieldCheck },
+];
+
+const MASTERS_ITEMS: NavItem[] = [{ to: "/masters", label: "Masters", icon: Settings2 }];
+const PARTIES_ITEMS: NavItem[] = [{ to: "/parties", label: "Parties", icon: Building2 }];
+const STAFF_ITEMS: NavItem[] = [{ to: "/staff", label: "Staff", icon: ClipboardSignature }];
+const INVENTORY_ITEMS: NavItem[] = [{ to: "/inventory", label: "Inventory", icon: Boxes }];
+const ANALYTICS_ITEMS: NavItem[] = [{ to: "/reports", label: "Analytics", icon: TrendingUp }];
+const SETTINGS_ITEMS: NavItem[] = [{ to: "/general-settings", label: "Settings", icon: Settings }];
+const SYSTEM_ITEMS: NavItem[] = [{ to: "/system-settings", label: "System", icon: UserCog }];
+const AUDIT_ITEMS: NavItem[] = [{ to: "/audit", label: "Audit Trail", icon: History }];
+
 const QUICK_ACTIONS = [
   { to: "/patients/new", label: "Add Patient", icon: Plus },
   { to: "/parties/new", label: "Add Party", icon: Plus },
 ];
 
-// Masters screens — one consolidated panel with tabs; only shown to
-// lab admin / manager / pathologist roles
-const MASTERS_ITEMS = [
-  { to: "/masters", label: "Masters", icon: Settings2 },
-];
-
 const MASTER_ROLES = new Set(["lab_admin", "lab_manager", "pathologist"]);
-
-// Staff (NABL sign-off details) — management screen for admin / manager
-const STAFF_ITEMS = [
-  { to: "/staff", label: "Staff", icon: ClipboardSignature },
-];
-
 const STAFF_ROLES = new Set(["lab_admin", "lab_manager"]);
-
-// Approvals — pathologist queue of verified orders awaiting sign-off.
-// Mobile Review is deliberately not a sidebar item — the app itself is
-// responsive, so the same review flows adapt to the device automatically.
-const APPROVALS_ITEMS = [
-  { to: "/approvals", label: "Pathologist", icon: ShieldCheck },
-];
-
 const APPROVALS_ROLES = new Set(["pathologist", "lab_admin", "lab_manager"]);
-
-// Verify — technician queue of completed orders awaiting result confirmation
-const VERIFY_ITEMS = [
-  { to: "/verify", label: "Technician", icon: BadgeCheck },
-];
-
 const VERIFY_ROLES = new Set(["technician", "lab_admin", "lab_manager"]);
-
-// Analytics — business reporting (revenue, test volumes, referrer payouts).
-// Named Analytics (not Reports) so it can't be confused with the printable
-// per-order clinical report.
-const ANALYTICS_ITEMS = [
-  { to: "/reports", label: "Analytics", icon: TrendingUp },
-];
-
 const ANALYTICS_ROLES = new Set(["lab_admin", "lab_manager"]);
-
-// Parties — hospitals, corporates, insurers, labs & consultants with rate cards
-const PARTIES_ITEMS = [
-  { to: "/parties", label: "Parties", icon: Building2 },
-];
-
 const PARTIES_ROLES = new Set(["lab_admin", "lab_manager"]);
-
-// Settings — central hub: lab details, QC rules, notifications,
-// integrations & compliance (org fields print on reports & invoices)
-const SETTINGS_ITEMS = [
-  { to: "/general-settings", label: "Settings", icon: Settings },
-];
-
 const SETTINGS_ROLES = new Set(["lab_admin", "lab_manager"]);
-
-// System — admin-only user management, RBAC & security compliance
-const SYSTEM_ITEMS = [
-  { to: "/system-settings", label: "System", icon: UserCog },
-];
-
 const SYSTEM_ROLES = new Set(["lab_admin"]);
-
-// Inventory — reagents & consumables stock, suppliers, test links
-const INVENTORY_ITEMS = [
-  { to: "/inventory", label: "Inventory", icon: Boxes },
-];
-
 const INVENTORY_ROLES = new Set(["lab_admin", "lab_manager"]);
-
-// Setup — configuration & master data, visually separated from the daily
-// patient workflow (mirrors SENAITE's LIMS Setup area).
-const SETUP_ITEMS = [{ to: "/audit", label: "Audit Trail", icon: History }];
 
 function roleLabel(role?: string) {
   if (role === "lab_admin") return "Lab Admin";
@@ -129,7 +105,93 @@ function roleLabel(role?: string) {
   return role;
 }
 
-type NavItem = { to: string; label: string; icon: any };
+// Route → ribbon tab (first prefix match decides the active tab).
+const TAB_ROUTES: { id: TabId; prefixes: string[] }[] = [
+  {
+    id: "operations",
+    prefixes: [
+      "/dashboard",
+      "/patient-registration",
+      "/registration",
+      "/patients",
+      "/orders",
+      "/results",
+      "/qc",
+      "/verify",
+      "/approvals",
+      "/mobile-review",
+      "/print",
+      "/alerts",
+    ],
+  },
+  { id: "masters", prefixes: ["/masters"] },
+  { id: "parties", prefixes: ["/parties"] },
+  { id: "staff", prefixes: ["/staff"] },
+  { id: "inventory", prefixes: ["/inventory"] },
+  { id: "analytics", prefixes: ["/reports"] },
+  { id: "settings", prefixes: ["/settings", "/general-settings", "/system-settings"] },
+  { id: "audit", prefixes: ["/audit"] },
+];
+
+function activeTabId(pathname: string): TabId {
+  for (const t of TAB_ROUTES) {
+    if (t.prefixes.some((p) => pathname.startsWith(p))) return t.id;
+  }
+  return "operations";
+}
+
+// Route → human screen name for the context toolbar (longest prefix first).
+const SCREEN_NAMES: { prefix: string; name: string }[] = [
+  { prefix: "/patient-registration", name: "Patient Registration" },
+  { prefix: "/registration", name: "Registration" },
+  { prefix: "/patients/new", name: "New Patient" },
+  { prefix: "/patients/", name: "Patient Detail" },
+  { prefix: "/patients", name: "Patients" },
+  { prefix: "/print/report/", name: "Report · Print View" },
+  { prefix: "/print/invoice/", name: "Invoice · Print View" },
+  { prefix: "/orders/", name: "Order Detail" },
+  { prefix: "/orders", name: "Orders" },
+  { prefix: "/results", name: "Result Entry" },
+  { prefix: "/qc", name: "Quality Control" },
+  { prefix: "/verify", name: "Verify Queue" },
+  { prefix: "/approvals/", name: "Pathologist Review" },
+  { prefix: "/approvals", name: "Approvals Queue" },
+  { prefix: "/mobile-review", name: "Mobile Review" },
+  { prefix: "/masters/", name: "Masters" },
+  { prefix: "/masters", name: "Masters" },
+  { prefix: "/parties/new", name: "New Party" },
+  { prefix: "/parties/", name: "Party" },
+  { prefix: "/parties", name: "Parties" },
+  { prefix: "/staff", name: "Staff & Sign-off" },
+  { prefix: "/inventory", name: "Inventory" },
+  { prefix: "/reports", name: "Analytics" },
+  { prefix: "/general-settings", name: "Settings" },
+  { prefix: "/system-settings", name: "System & Security" },
+  { prefix: "/settings", name: "Settings" },
+  { prefix: "/audit", name: "Audit Trail" },
+  { prefix: "/alerts", name: "Alerts Center" },
+  { prefix: "/dashboard", name: "Dashboard" },
+];
+
+function screenNameFor(pathname: string): string {
+  for (const s of SCREEN_NAMES) {
+    if (pathname.startsWith(s.prefix)) return s.name;
+  }
+  return "Workspace";
+}
+
+// Hide scrollbars on the scrollable tab / ribbon rows (kept minimal).
+const NO_SCROLLBAR = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+const GROUP_TINTS: Record<GroupTint, string> = {
+  accent: "bg-accent-100 text-accent-700",
+  blue: "bg-blue-50 text-blue-600",
+  amber: "bg-amber-50 text-amber-600",
+  green: "bg-green-50 text-status-normal",
+  ink: "bg-surface-100 text-ink-600",
+};
+
+// ─── Command palette ─────────────────────────────────────────────────────
 
 const CommandPalette = memo(function CommandPalette({
   open,
@@ -252,7 +314,7 @@ const CommandPalette = memo(function CommandPalette({
 });
 
 // ─── Alerts bell (top edge) ─────────────────────────────────────────────
-// Alerts is not a sidebar item — it lives as a bell icon in the top bar so
+// Alerts is not a ribbon item — it lives as a bell icon in the top bar so
 // it is always one tap away, on every screen size.
 const AlertsBell = memo(function AlertsBell() {
   const navigate = useNavigate();
@@ -292,61 +354,88 @@ const AlertsBell = memo(function AlertsBell() {
   );
 });
 
+// ─── Shell ───────────────────────────────────────────────────────────────
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(
-    () => (localStorage.getItem("thulir-rail") === "open" ? false : true)
-  );
+  const location = useLocation();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [contextActions, setContextActions] = useState<ContextAction[]>([]);
 
-  const canManageMasters = MASTER_ROLES.has(user?.role ?? "");
-  const canManageStaff = STAFF_ROLES.has(user?.role ?? "");
-  const canApprove = APPROVALS_ROLES.has(user?.role ?? "");
-  const canVerify = VERIFY_ROLES.has(user?.role ?? "");
-  const canViewAnalytics = ANALYTICS_ROLES.has(user?.role ?? "");
-  const canManageParties = PARTIES_ROLES.has(user?.role ?? "");
-  const canManageSettings = SETTINGS_ROLES.has(user?.role ?? "");
-  const canManageSystem = SYSTEM_ROLES.has(user?.role ?? "");
-  const canManageInventory = INVENTORY_ROLES.has(user?.role ?? "");
+  const role = user?.role ?? "";
+  const canMasters = MASTER_ROLES.has(role);
+  const canParties = PARTIES_ROLES.has(role);
+  const canStaff = STAFF_ROLES.has(role);
+  const canInventory = INVENTORY_ROLES.has(role);
+  const canAnalytics = ANALYTICS_ROLES.has(role);
+  const canSettings = SETTINGS_ROLES.has(role);
+  const canSystem = SYSTEM_ROLES.has(role);
+  const canVerify = VERIFY_ROLES.has(role);
+  const canApprove = APPROVALS_ROLES.has(role);
 
-  const operationsNav = useMemo(
-    () => [
-      ...OPERATIONS_ITEMS,
-      ...(canVerify ? VERIFY_ITEMS : []),
-      ...(canApprove ? APPROVALS_ITEMS : []),
-    ],
-    [canVerify, canApprove]
-  );
+  // Tabs are role-gated, mirroring the old rail's grouping exactly.
+  const tabs = useMemo<RibbonTab[]>(() => {
+    const opsGroups: RibbonGroup[] = [
+      { label: "Home", tint: "accent", items: [OPERATIONS_ITEMS[0]] },
+      { label: "Patient", tint: "blue", items: [OPERATIONS_ITEMS[1], OPERATIONS_ITEMS[2]] },
+      { label: "Orders", tint: "amber", items: [OPERATIONS_ITEMS[3]] },
+      { label: "Results", tint: "green", items: [OPERATIONS_ITEMS[4], OPERATIONS_ITEMS[5]] },
+    ];
+    if (canVerify || canApprove) {
+      opsGroups.push({
+        label: "Queues",
+        tint: "ink",
+        items: [
+          ...(canVerify ? [QUEUE_ITEMS[0]] : []),
+          ...(canApprove ? [QUEUE_ITEMS[1]] : []),
+        ],
+      });
+    }
+    const settingsGroups: RibbonGroup[] = [{ label: "Lab", items: [...SETTINGS_ITEMS] }];
+    if (canSystem) settingsGroups.push({ label: "System", items: [...SYSTEM_ITEMS] });
 
-  const setupNav = useMemo(
-    () => [
-      ...(canManageMasters ? MASTERS_ITEMS : []),
-      ...(canManageParties ? PARTIES_ITEMS : []),
-      ...(canManageStaff ? STAFF_ITEMS : []),
-      ...SETUP_ITEMS,
-      ...(canViewAnalytics ? ANALYTICS_ITEMS : []),
-      ...(canManageSettings ? SETTINGS_ITEMS : []),
-      ...(canManageSystem ? SYSTEM_ITEMS : []),
-      ...(canManageInventory ? INVENTORY_ITEMS : []),
-    ],
-    [
-      canManageMasters,
-      canManageParties,
-      canManageStaff,
-      canViewAnalytics,
-      canManageSettings,
-      canManageSystem,
-      canManageInventory,
-    ]
-  );
+    const result: RibbonTab[] = [
+      { id: "operations", label: "Operations", defaultTo: "/dashboard", groups: opsGroups },
+    ];
+    if (canMasters)
+      result.push({ id: "masters", label: "Masters", defaultTo: "/masters", groups: [{ label: "Catalog", items: [...MASTERS_ITEMS] }] });
+    if (canParties)
+      result.push({ id: "parties", label: "Parties", defaultTo: "/parties", groups: [{ label: "Parties", items: [...PARTIES_ITEMS] }] });
+    if (canStaff)
+      result.push({ id: "staff", label: "Staff", defaultTo: "/staff", groups: [{ label: "Staff", items: [...STAFF_ITEMS] }] });
+    if (canInventory)
+      result.push({ id: "inventory", label: "Inventory", defaultTo: "/inventory", groups: [{ label: "Stock", items: [...INVENTORY_ITEMS] }] });
+    if (canAnalytics)
+      result.push({ id: "analytics", label: "Analytics", defaultTo: "/reports", groups: [{ label: "Reports", items: [...ANALYTICS_ITEMS] }] });
+    if (canSettings)
+      result.push({ id: "settings", label: "Settings", defaultTo: "/general-settings", groups: settingsGroups });
+    result.push({ id: "audit", label: "Audit", defaultTo: "/audit", groups: [{ label: "Compliance", tint: "ink", items: [...AUDIT_ITEMS] }] });
+    return result;
+  }, [canMasters, canParties, canStaff, canInventory, canAnalytics, canSettings, canSystem, canVerify, canApprove]);
 
-  // Flat list for the Cmd+K palette — search finds every page in one place,
-  // regardless of which sidebar section it lives in.
-  const navItems = useMemo(
-    () => [...operationsNav, ...setupNav],
-    [operationsNav, setupNav]
-  );
+  const activeTab = useMemo(() => {
+    const id = activeTabId(location.pathname);
+    return tabs.find((t) => t.id === id) ?? tabs[0];
+  }, [tabs, location.pathname]);
+
+  // Flat, deduped list for the Cmd+K palette — every page in one place,
+  // regardless of which ribbon tab it lives under.
+  const navItems = useMemo(() => {
+    const seen = new Set<string>();
+    const items: NavItem[] = [];
+    for (const tab of tabs) {
+      for (const group of tab.groups) {
+        for (const item of group.items) {
+          if (!seen.has(item.to)) {
+            seen.add(item.to);
+            items.push(item);
+          }
+        }
+      }
+    }
+    return items;
+  }, [tabs]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -365,204 +454,181 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     preloadHeavyPages();
   }, []);
 
-  const toggleRail = () => {
-    setCollapsed((c) => {
-      const next = !c;
-      localStorage.setItem("thulir-rail", next ? "collapsed" : "open");
-      return next;
-    });
-  };
-
-  const railWidth = collapsed ? "w-14" : "w-50";
-  const contentPad = collapsed ? "md:pl-14" : "md:pl-50";
+  const screenName = screenNameFor(location.pathname);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-surface-100 flex flex-col">
-      {/* ─── Icon Rail ─── */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 hidden md:flex flex-col border-r border-line-200 bg-surface-0 transition-[width] duration-180 ease-precise ${railWidth}`}
-      >
-        {/* Brand */}
-        <div
-          className={`flex h-14 items-center gap-2.5 border-b border-line-200 px-3 shrink-0 ${
-            collapsed ? "justify-center px-0" : ""
-          }`}
-        >
-          <div className="size-8 shrink-0 rounded-md bg-accent-700 text-surface-0 flex items-center justify-center">
-            <FlaskConical className="size-4" />
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <div className="text-[13px] font-semibold text-ink-950 leading-tight tracking-wide">
-                THULIR03
+    <ContextActionsProvider value={{ setActions: setContextActions }}>
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-surface-100">
+        <header className="sticky top-0 z-40 shrink-0 border-b border-line-200 bg-surface-0">
+          {/* Row 1 — brand · ribbon tabs · utility cluster */}
+          <div className="flex h-12 items-center gap-2 border-b border-line-200 px-2.5">
+            <div className="flex shrink-0 items-center gap-2 pr-1">
+              <div className="flex size-8 items-center justify-center rounded-md bg-accent-700 text-surface-0">
+                <FlaskConical className="size-4" />
               </div>
-              <div className="text-[9px] uppercase tracking-[0.14em] text-ink-400">
-                Lab LIMS
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Nav — two labeled sections: Operations (daily workflow) and
-            Setup (master data / configuration) */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-          {!collapsed && (
-            <div className="mb-1 px-2.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">
-              Operations
-            </div>
-          )}
-          {operationsNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              title={item.label}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-sm px-2.5 py-2 text-[13px] font-medium transition-colors duration-fast ${
-                  collapsed ? "justify-center px-0" : ""
-                } ${
-                  isActive
-                    ? "bg-accent-100 text-accent-700"
-                    : "text-ink-600 hover:bg-surface-100 hover:text-ink-950"
-                }`
-              }
-            >
-              <item.icon className="size-4.5 shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </NavLink>
-          ))}
-
-          {!collapsed && (
-            <div className="mt-4 border-t border-line-200 pt-3">
-              <div className="mb-1 px-2.5 text-[10px] uppercase tracking-[0.14em] text-ink-400">
-                Setup
-              </div>
-            </div>
-          )}
-          {setupNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              title={item.label}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-sm px-2.5 py-2 text-[13px] font-medium transition-colors duration-fast ${
-                  collapsed ? "justify-center px-0" : ""
-                } ${
-                  isActive
-                    ? "bg-accent-100 text-accent-700"
-                    : "text-ink-600 hover:bg-surface-100 hover:text-ink-950"
-                }`
-              }
-            >
-              <item.icon className="size-4.5 shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* Bottom: palette trigger + user */}
-        <div className="border-t border-line-200 p-2 space-y-1 shrink-0">
-          <button
-            onClick={() => setPaletteOpen(true)}
-            title="Command palette (Ctrl+K)"
-            className={`flex w-full items-center gap-3 rounded-sm px-2.5 py-2 text-[13px] text-ink-600 hover:bg-surface-100 hover:text-ink-950 transition-colors duration-fast ${
-              collapsed ? "justify-center px-0" : ""
-            }`}
-          >
-            <Search className="size-4.5 shrink-0" />
-            {!collapsed && (
-              <span className="flex-1 text-left truncate">Search…</span>
-            )}
-            {!collapsed && (
-              <kbd className="rounded-sm border border-line-200 bg-surface-100 px-1.5 py-0.5 text-[10px] text-ink-400">
-                ⌘K
-              </kbd>
-            )}
-          </button>
-
-          <div
-            className={`flex items-center gap-2.5 rounded-sm px-2.5 py-2 ${
-              collapsed ? "justify-center px-0" : ""
-            }`}
-          >
-            <div className="size-7 shrink-0 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center">
-              <User className="size-3.5" />
-            </div>
-            {!collapsed && (
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-ink-950 truncate">
-                  {user?.firstName} {user?.lastName}
+              <div className="hidden leading-tight lg:block">
+                <div className="text-[12px] font-semibold tracking-wide text-ink-950">
+                  THULIR03
                 </div>
-                <div className="text-[10px] text-ink-400 truncate">
-                  {roleLabel(user?.role)}
+                <div className="text-[9px] uppercase tracking-[0.14em] text-ink-400">
+                  Lab LIMS
                 </div>
               </div>
-            )}
-            <button
-              onClick={() => {
-                logout();
-                navigate("/login");
-              }}
-              title="Sign out"
-              className={`text-ink-400 hover:text-status-critical transition-colors duration-fast ${
-                collapsed ? "" : "hidden"
-              }`}
-            >
-              <LogOut className="size-4" />
-            </button>
+            </div>
+
+            {/* Ribbon tabs — horizontally scrollable on narrow screens */}
+            <nav className={`flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto ${NO_SCROLLBAR}`}>
+              {tabs.map((tab) => {
+                const isActive = tab.id === activeTab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => navigate(tab.defaultTo)}
+                    title={tab.label}
+                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-3 text-[13px] font-semibold transition-colors duration-fast ${
+                      isActive
+                        ? "bg-accent-700 text-surface-0"
+                        : "text-ink-600 hover:bg-surface-100 hover:text-ink-950"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={() => setPaletteOpen(true)}
+                title="Command palette (Ctrl+K)"
+                className="hidden h-8 items-center gap-1.5 rounded-sm border border-line-200 px-2 text-xs text-ink-500 transition-colors duration-fast hover:border-accent-300 hover:text-accent-700 sm:flex"
+              >
+                <Search className="size-3.5" />
+                <span className="hidden md:inline">Search</span>
+                <kbd className="hidden rounded-sm bg-surface-100 px-1 text-[9px] text-ink-400 md:inline">
+                  ⌘K
+                </kbd>
+              </button>
+              <button
+                onClick={() => setPaletteOpen(true)}
+                title="Search"
+                className="flex h-8 w-8 items-center justify-center rounded-sm border border-line-200 text-ink-500 transition-colors duration-fast hover:border-accent-300 hover:text-accent-700 sm:hidden"
+              >
+                <Search className="size-3.5" />
+              </button>
+              <AlertsBell />
+              <div className="ml-1 hidden items-center gap-2 border-l border-line-200 pl-2.5 md:flex">
+                <div className="flex size-7 items-center justify-center rounded-full bg-accent-100 text-accent-700">
+                  <User className="size-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-medium text-ink-950">
+                    {user?.firstName} {user?.lastName}
+                  </div>
+                  <div className="truncate text-[10px] text-ink-400">
+                    {roleLabel(user?.role)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    logout();
+                    navigate("/login");
+                  }}
+                  title="Sign out"
+                  className="text-ink-400 transition-colors duration-fast hover:text-status-critical"
+                >
+                  <LogOut className="size-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Rail toggle */}
-          <button
-            onClick={toggleRail}
-            title={collapsed ? "Expand rail" : "Collapse rail"}
-            className="flex w-full items-center justify-center gap-2 rounded-sm py-1.5 text-ink-400 hover:bg-surface-100 hover:text-ink-600 transition-colors duration-fast"
-          >
-            {collapsed ? (
-              <ChevronsRight className="size-4" />
-            ) : (
-              <>
-                <ChevronsLeft className="size-4" />
-                <span className="text-[10px] uppercase tracking-wider">Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
-      </aside>
+          {/* Row 2 — ribbon strip: active tab's groups (Office-style icon
+              buttons with a horizontal group label beneath) + the per-screen
+              context actions pinned at the right edge. Merging the context
+              toolbar into this row keeps the shell at two chrome bars. */}
+          <div className="flex items-stretch border-b border-line-200 bg-surface-100/50">
+            {/* Screen context — pinned left, hidden on small screens */}
+            <div className="hidden shrink-0 items-center gap-2 border-r border-line-200/70 px-3 md:flex">
+              <span className="size-1.5 shrink-0 rounded-full bg-accent-500" />
+              <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-600">
+                {screenName}
+              </span>
+              <span className="whitespace-nowrap text-[10px] text-ink-400">
+                · {activeTab.label}
+              </span>
+            </div>
 
-      {/* Global top bar — brand on mobile, search + alerts bell at the edge.
-          On desktop it sits to the right of the fixed icon rail (same left
-          padding), so the bell is always at the top-right corner. */}
-      <div className={`sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line-200 bg-surface-0 px-4 ${contentPad}`}>
-        <div className="flex items-center gap-2.5 md:hidden">
-          <div className="size-8 rounded-md bg-accent-700 text-surface-0 flex items-center justify-center">
-            <FlaskConical className="size-4" />
+            {/* Ribbon groups — horizontally scrollable on narrow screens */}
+            <div className={`flex min-w-0 flex-1 items-stretch gap-0 overflow-x-auto py-1 pl-1 ${NO_SCROLLBAR}`}>
+              {activeTab.groups.map((group) => (
+                <div
+                  key={group.label}
+                  className="flex shrink-0 flex-col items-center justify-center gap-0.5 border-r border-line-200/70 px-2.5 last:border-r-0"
+                >
+                  <div className="flex items-center gap-0.5">
+                    {group.items.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        title={item.label}
+                        className={({ isActive }) =>
+                          `flex flex-col items-center gap-1 rounded-sm px-1.5 py-1 transition-colors duration-fast ${
+                            isActive ? "bg-accent-100" : "hover:bg-surface-0"
+                          }`
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <span
+                              className={`flex size-7 items-center justify-center rounded-md transition-colors duration-fast ${
+                                isActive
+                                  ? "bg-accent-700 text-surface-0"
+                                  : GROUP_TINTS[group.tint ?? "accent"]
+                              }`}
+                            >
+                              <item.icon className="size-4" strokeWidth={2.2} />
+                            </span>
+                            <span
+                              className={`max-w-[64px] truncate text-[9.5px] font-medium leading-none ${
+                                isActive ? "text-accent-700" : "text-ink-600"
+                              }`}
+                            >
+                              {item.label}
+                            </span>
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                  <span className="text-[8px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+                    {group.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Context actions — pinned right, hidden entirely when empty */}
+            {contextActions.length > 0 && (
+              <div className="flex shrink-0 items-center border-l border-line-200/70 px-2">
+                <ContextToolbar actions={contextActions} />
+              </div>
+            )}
           </div>
-          <span className="text-[13px] font-semibold text-ink-950 tracking-wide">
-            THULIR03
-          </span>
-        </div>
-        <div className="hidden text-[10px] uppercase tracking-[0.14em] text-ink-400 md:block">
-          {collapsed ? "THULIR03" : "THULIR03 · Lab LIMS"}
-        </div>
-        <div className="flex items-center gap-2">
-          <AlertsBell />
-          <button
-            onClick={() => setPaletteOpen(true)}
-            className="flex items-center gap-1.5 rounded-sm border border-line-200 px-2.5 py-1.5 text-xs text-ink-600 md:hidden"
-          >
-            <Search className="size-3.5" /> Search
-          </button>
-        </div>
+        </header>
+
+        <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
       </div>
 
-      {/* Content */}
-      <main className={`${contentPad} flex-1 min-h-0 overflow-hidden pt-0`}>{children}</main>
-
-      {/* Command Palette (moved to its own memoized component) */}
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} navItems={navItems} go={(to) => {
-        setPaletteOpen(false);
-        navigate(to);
-      }} />
-    </div>
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        navItems={navItems}
+        go={(to) => {
+          setPaletteOpen(false);
+          navigate(to);
+        }}
+      />
+    </ContextActionsProvider>
   );
 }

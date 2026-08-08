@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, useMemo, Fragment, type ReactNode, type Ke
 import {
   Search, FlaskConical, Loader2, CheckCircle2, Clock,
   Save, Phone, Calendar, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Minus,
+  BadgeCheck,
 } from "lucide-react";
+import { useContextActions } from "../lib/context-actions";
 import { getOrders, getOrder, updateTestResult, verifyOrder, type OrderListItem, type TestChild } from "../lib/api-client";
 
 function getFlag(result: string, refLow: number | null, refHigh: number | null): { icon: ReactNode; color: string; title: string } | null {
@@ -230,6 +232,28 @@ export default function TestResultPage() {
   const pendingCount = orderDetail ? countPending(orderDetail.tests) : 0;
   const allTestCount = orderDetail ? countTotal(orderDetail.tests) : 0;
   const completedCount = allTestCount - pendingCount;
+
+  // Context toolbar — mirror the bench's primary actions so Save / Verify
+  // stay one click away even with the results grid scrolled.
+  useContextActions([
+    {
+      id: "save-all",
+      label: `Save All${pendingCount > 0 ? ` (${pendingCount})` : ""}`,
+      icon: Save,
+      variant: "primary",
+      disabled: !orderDetail || pendingCount === 0 || saving !== null,
+      onClick: () => void saveAll(),
+    },
+    {
+      id: "verify",
+      label: "Verify & Send",
+      icon: BadgeCheck,
+      variant: "secondary",
+      disabled:
+        !orderDetail || orderDetail.status !== "completed" || pendingCount !== 0 || verifying,
+      onClick: () => void doVerify(),
+    },
+  ]);
 
   // Box classes — one height everywhere; pr-7 keeps room for the flag overlay.
   const boxCls = (isCompleted: boolean) =>

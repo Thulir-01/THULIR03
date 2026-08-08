@@ -11,6 +11,7 @@ import {
   History,
   ClipboardList,
   BellRing,
+  RefreshCw,
 } from "lucide-react";
 import {
   getQcControls,
@@ -28,6 +29,7 @@ import {
 } from "../lib/api-client";
 import { pushExtraAlert } from "../lib/alerts-store";
 import { QcPlot } from "../components/ui/QcChart";
+import { useContextActions } from "../lib/context-actions";
 import PageHeader from "../components/ui/PageHeader";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
 
@@ -202,6 +204,11 @@ export default function QcPage() {
       setEntering(false);
     }
   };
+
+  // Context toolbar — refresh QC controls & instruments.
+  useContextActions([
+    { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => loadAll() },
+  ]);
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden bg-surface-100 p-3">

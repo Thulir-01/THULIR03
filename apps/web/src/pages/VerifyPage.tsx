@@ -19,6 +19,7 @@ import {
   ArrowUp,
   ArrowDown,
   FlaskConical,
+  RefreshCw,
 } from "lucide-react";
 import {
   getOrders,
@@ -28,6 +29,7 @@ import {
   type OrderDetail,
   type TestChild,
 } from "../lib/api-client";
+import { useContextActions } from "../lib/context-actions";
 import { LoadingState, EmptyState, ErrorState } from "../components/ui/PageStates";
 import { useAuth } from "../lib/useAuth";
 
@@ -319,6 +321,11 @@ export default function VerifyPage() {
     month: "long",
     year: "numeric",
   });
+
+  // Context toolbar — refresh the verify queue.
+  useContextActions([
+    { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => load() },
+  ]);
 
   return (
     <div className="h-full overflow-y-auto bg-surface-100">
