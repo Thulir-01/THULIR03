@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { Test } from '@nestjs/testing';
 import {
   BadRequestException,
@@ -249,6 +249,97 @@ describe('AuthService', () => {
 
       const result = await service.verifyTotp('u1', '123456');
       expect(result.verified).toBe(true);
+    });
+  });
+
+  describe('MFA enforcement at login (Bug #1 regression)', () => {
+    const mfaUser = {
+      id: 'u1',
+      email: 'a@lab.com',
+      passwordHash: 'hash',
+      isActive: true,
+      totpEnabled: true,
+      totpSecret: 'SECRETBASE32',
+      role: { slug: 'lab_admin' },
+      organizationId: 'org-1',
+    };
+
+    it('login REFUSES to mint tokens for a TOTP-enabled account — returns a challenge instead', async () => {
+      userFindUnique.mockResolvedValue(mfaUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      jwtSign.mockReturnValue('challenge-token');
+
+      const result = await service.login({
+        email: 'a@lab.com',
+        password: 'right-password',
+      });
+
+      // The password was correct, but no access/refresh tokens are issued.
+      expect(result).toEqual({
+        requiresTotp: true,
+        mfaToken: 'challenge-token',
+      });
+      expect(result.accessToken).toBeUndefined();
+      expect(result.refreshToken).toBeUndefined();
+      // lastLoginAt must NOT be recorded until MFA completes.
+      expect(userUpdate).not.toHaveBeenCalled();
+      // The challenge is signed with the single-purpose mfa type + short TTL.
+      const signCall = jwtSign.mock.calls[jwtSign.mock.calls.length - 1];
+      expect(signCall[0].type).toBe('mfa');
+      expect(signCall[1].expiresIn).toBe('2m');
+    });
+
+    it('completeMfaLogin rejects an expired or invalid challenge token', async () => {
+      jwtVerify.mockImplementation(() => {
+        throw new Error('jwt expired');
+      });
+      await expect(
+        service.completeMfaLogin('bad-token', '123456'),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(userUpdate).not.toHaveBeenCalled();
+    });
+
+    it('completeMfaLogin rejects a token that is not an mfa challenge', async () => {
+      jwtVerify.mockReturnValue({ sub: 'u1', type: 'access' });
+      await expect(
+        service.completeMfaLogin('access-token', '123456'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('completeMfaLogin rejects a wrong TOTP code', async () => {
+      jwtVerify.mockReturnValue({ sub: 'u1', type: 'mfa' });
+      userFindUnique.mockResolvedValue(mfaUser);
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(false);
+
+      await expect(
+        service.completeMfaLogin('challenge', '000000'),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(userUpdate).not.toHaveBeenCalled();
+    });
+
+    it('completeMfaLogin mints tokens only after a valid TOTP code', async () => {
+      jwtVerify.mockReturnValue({ sub: 'u1', type: 'mfa' });
+      userFindUnique.mockResolvedValue(mfaUser);
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(true);
+      jwtSign.mockReturnValue('real-token');
+
+      const result = await service.completeMfaLogin('challenge', '123456');
+
+      expect(speakeasy.totp.verify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          secret: 'SECRETBASE32',
+          encoding: 'base32',
+          token: '123456',
+        }),
+      );
+      expect(result.accessToken).toBe('real-token');
+      expect(result.refreshToken).toBe('real-token');
+      expect(userUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: expect.objectContaining({ lastLoginAt: expect.any(Date) }),
+        }),
+      );
     });
   });
 });

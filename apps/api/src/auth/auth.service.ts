@@ -17,7 +17,8 @@ interface TokenPayload {
   email: string;
   role: string;
   organizationId: string;
-  type: 'access' | 'refresh';
+  /** 'mfa' tokens are short-lived login challenges, never bearer credentials. */
+  type: 'access' | 'refresh' | 'mfa';
 }
 
 @Injectable()
@@ -132,11 +133,79 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // MFA gate: when TOTP is enabled, the password alone must NOT mint
+    // tokens. Issue a short-lived, single-purpose challenge token instead;
+    // the real access/refresh pair is only minted after /auth/totp/verify-login
+    // presents a valid code from the authenticator app.
+    if (user.totpEnabled && user.totpSecret) {
+      const mfaToken = this.jwtService.sign(
+        {
+          sub: user.id,
+          email: user.email,
+          role: user.role?.slug || 'unknown',
+          organizationId: user.organizationId,
+          type: 'mfa' as const,
+        },
+        { expiresIn: '2m' },
+      );
+      return { requiresTotp: true, mfaToken };
+    }
+
     await this.prisma.client.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
+    return this.generateTokens(
+      user.id,
+      user.email,
+      user.role?.slug || 'unknown',
+      user.organizationId,
+    );
+  }
+
+  /**
+   * Second step of login for TOTP-enabled accounts. Verifies the short-lived
+   * challenge token from step 1 AND the TOTP code; only then are the real
+   * access/refresh tokens minted. Brute-force protection lives on the route
+   * (@Throttle) and in the code's short validity window.
+   */
+  async completeMfaLogin(mfaToken: string, token: string) {
+    let payload: TokenPayload;
+    try {
+      payload = this.jwtService.verify<TokenPayload>(mfaToken);
+    } catch {
+      throw new UnauthorizedException('MFA session expired — sign in again');
+    }
+    if (payload.type !== 'mfa') {
+      throw new UnauthorizedException('Invalid MFA session');
+    }
+
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: payload.sub },
+      include: { role: true },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+    if (!user.totpEnabled || !user.totpSecret) {
+      throw new UnauthorizedException('MFA is not configured for this account');
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.totpSecret,
+      encoding: 'base32',
+      token,
+      window: 1,
+    });
+    if (!verified) {
+      throw new UnauthorizedException('Invalid MFA code');
+    }
+
+    await this.prisma.client.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
     return this.generateTokens(
       user.id,
       user.email,

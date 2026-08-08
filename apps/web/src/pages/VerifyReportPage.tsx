@@ -8,7 +8,6 @@ import {
   Search,
   CalendarDays,
   FileCheck2,
-  FlaskConical as Flask,
 } from "lucide-react";
 import { verifyReportPublic, type ReportVerification } from "../lib/api-client";
 
@@ -159,25 +158,6 @@ export default function VerifyReportPage() {
                       : "—"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between px-5 py-3 text-sm">
-                  <span className="text-ink-500">Patient</span>
-                  <span className="font-medium text-ink-950">{result.patientName}</span>
-                </div>
-                <div className="px-5 py-3">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">
-                    Tests on report
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {result.tests?.map((t) => (
-                      <span
-                        key={t}
-                        className="inline-flex items-center gap-1 rounded-sm bg-surface-100 px-2 py-1 text-xs text-ink-600"
-                      >
-                        <Flask className="size-3 text-ink-400" /> {t}
-                      </span>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -185,7 +165,9 @@ export default function VerifyReportPage() {
 
         <p className="mt-8 flex items-center justify-center gap-1.5 text-center text-xs text-ink-400">
           <FileCheck2 className="size-3.5" />
-          Verification only confirms the report is genuine — it does not display full results.
+          Verification confirms the report is genuine — it does not display
+          patient details or results. Those are available through the patient
+          portal.
         </p>
       </main>
     </div>

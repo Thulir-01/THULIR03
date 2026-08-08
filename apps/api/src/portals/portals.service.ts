@@ -370,19 +370,26 @@ export class PortalsService {
 
   // ─── Public verification ──────────────────────────────────────────────
 
+  /**
+   * Public report verification (the QR-on-report integrity check). Minimal
+   * disclosure BY DESIGN: this endpoint is unauthenticated, so a single known
+   * order number must NOT return PHI (patient name / tests). It returns only
+   * an authenticity verdict + non-sensitive metadata; patient identity and
+   * results are available exclusively through the authenticated portal.
+   */
   async verifyReport(orderNumber: string) {
     if (!orderNumber) {
       return { valid: false, message: 'Order number is required' };
     }
     const order = await this.prisma.client.order.findUnique({
       where: { orderNumber: orderNumber.trim().toUpperCase() },
-      include: {
-        patient: { select: { firstName: true, lastName: true } },
-        tests: {
-          where: { parentTestId: null },
-          select: { testName: true },
-          orderBy: { sortOrder: 'asc' },
-        },
+      select: {
+        orderNumber: true,
+        status: true,
+        tenantId: true,
+        deletedAt: true,
+        finalReportDate: true,
+        approvedAt: true,
       },
     });
     if (!order || order.deletedAt) {
@@ -398,9 +405,6 @@ export class PortalsService {
       status: order.status,
       labName: lab?.name ?? null,
       reportDate: order.finalReportDate ?? order.approvedAt,
-      patientName:
-        `${order.patient.firstName} ${order.patient.lastName}`.trim(),
-      tests: order.tests.map((t) => t.testName),
     };
   }
 

@@ -1,10 +1,18 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { FlaskConical, LogIn, Eye, EyeOff, Loader2, ScanLine } from "lucide-react";
+import {
+  FlaskConical,
+  LogIn,
+  Eye,
+  EyeOff,
+  Loader2,
+  ScanLine,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginMfa } = useAuth();
   const navigate = useNavigate();
 
   function homeForRole(role: string) {
@@ -17,6 +25,14 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // TOTP second step — set once the password step returns a challenge.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+
+  function goHome() {
+    const stored = JSON.parse(localStorage.getItem("user") || "{}");
+    navigate(homeForRole(stored.role ?? ""));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -27,9 +43,14 @@ export default function Login() {
     }
     setIsLoading(true);
     try {
-      await login(email, password);
-      const stored = JSON.parse(localStorage.getItem("user") || "{}");
-      navigate(homeForRole(stored.role ?? ""));
+      const result = await login(email, password);
+      if (result.requiresTotp) {
+        // Password accepted — this account has MFA. Ask for the authenticator code.
+        setMfaToken(result.mfaToken);
+        setMfaCode("");
+        return;
+      }
+      goHome();
     } catch (err: any) {
       const status = err.response?.status;
       const rawMessage = err.response?.data?.message;
@@ -48,6 +69,37 @@ export default function Login() {
         );
       } else {
         setError("Invalid email or password");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleMfaSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!mfaToken || mfaCode.trim().length < 6) {
+      setError("Enter the 6-digit code from your authenticator app");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await loginMfa(mfaToken, mfaCode.trim());
+      goHome();
+    } catch (err: any) {
+      const status = err.response?.status;
+      const rawMessage = err.response?.data?.message;
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.join(", ")
+        : rawMessage;
+      if (message) {
+        setError(message);
+      } else if (!status || status >= 500) {
+        setError(
+          "Server unreachable — the backend is not responding. Please check the connection and try again."
+        );
+      } else {
+        setError("Invalid MFA code");
       }
     } finally {
       setIsLoading(false);
@@ -78,7 +130,10 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={mfaToken ? handleMfaSubmit : handleSubmit}
+            className="space-y-4"
+          >
             <div>
               <label
                 htmlFor="email"
@@ -92,38 +147,67 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@thulir03.com"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all text-sm"
+                disabled={!!mfaToken}
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all text-sm disabled:bg-gray-50 disabled:text-gray-400"
                 autoComplete="email"
               />
             </div>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all text-sm"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  tabIndex={-1}
+            {mfaToken ? (
+              <div>
+                <label
+                  htmlFor="mfaCode"
+                  className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+                  Authenticator code
+                </label>
+                <div className="relative">
+                  <input
+                    id="mfaCode"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value)}
+                    placeholder="6-digit code"
+                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all text-sm data-mono tracking-[0.3em]"
+                  />
+                  <ShieldCheck className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-teal-500" />
+                </div>
+                <p className="mt-1.5 text-xs text-gray-400">
+                  Enter the 6-digit code from your authenticator app to finish
+                  signing in.
+                </p>
               </div>
-            </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all text-sm"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -132,11 +216,27 @@ export default function Login() {
             >
               {isLoading ? (
                 <Loader2 className="size-4 animate-spin" />
+              ) : mfaToken ? (
+                <ShieldCheck className="size-4" />
               ) : (
                 <LogIn className="size-4" />
               )}
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading
+                ? "Signing in..."
+                : mfaToken
+                  ? "Verify & sign in"
+                  : "Sign in"}
             </button>
+
+            {mfaToken && (
+              <button
+                type="button"
+                onClick={() => setMfaToken(null)}
+                className="w-full text-center text-xs font-medium text-gray-400 transition-colors duration-fast hover:text-gray-600"
+              >
+                ← Use a different password
+              </button>
+            )}
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-500">

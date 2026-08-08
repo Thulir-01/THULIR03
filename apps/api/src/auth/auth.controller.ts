@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { MfaLoginDto } from './dto/mfa-login.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -29,9 +30,25 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiOperation({
+    summary: 'Login with email and password',
+    description:
+      'Returns tokens directly for accounts without MFA; for TOTP-enabled ' +
+      'accounts returns { requiresTotp: true, mfaToken } and requires a ' +
+      'follow-up call to /auth/totp/verify-login.',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('totp/verify-login')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Complete login with a TOTP code (second step of MFA)',
+  })
+  completeMfaLogin(@Body() dto: MfaLoginDto) {
+    return this.authService.completeMfaLogin(dto.mfaToken, dto.token);
   }
 
   @Post('refresh')

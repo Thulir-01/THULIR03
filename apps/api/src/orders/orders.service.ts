@@ -31,48 +31,12 @@ function formatRefRange(
   return `≤ ${refHigh}`;
 }
 
-export interface RegisterPatientOrderDto {
-  patientId?: string;
-  title?: string;
-  firstName?: string;
-  lastName?: string;
-  dateOfBirth?: string;
-  ageYears?: number;
-  ageMonths?: number;
-  gender?: string;
-  phone?: string;
-  email?: string;
-  referrer?: string;
-  source?: string;
-  insurance?: string;
-  collectionBoy?: string;
-  patientType?: string;
-  ward?: string;
-  ipOpNo?: string;
-  bedNo?: string;
-  branch?: string;
-  category?: string;
-  sidDate?: string;
-  refNo?: string;
-  tests: Array<{ code: string; name: string; rate: number }>;
-  sampleCollectDate?: string;
-  otherCharges?: number;
-  discountPercent?: number;
-  discountAuth?: string;
-  amountPaid?: number;
-  paymentMode?: string;
-  bankName?: string;
-  paymentRef?: string;
-  paymentDate?: string;
-  paymentRemarks?: string;
-  deliveryMode?: string;
-  clinicalRemarks?: string;
-  emergency?: boolean;
-  finalReportDate?: string;
-  remarks?: string;
-  billHf?: boolean;
-  consolidatedBill?: boolean;
-}
+/**
+ * The order-registration payload is validated at the HTTP boundary by the
+ * class DTO (see ./dto/register-patient-order.dto.ts) — the ValidationPipe
+ * rejects invalid billing values before this service ever runs.
+ */
+import { RegisterPatientOrderDto } from './dto/register-patient-order.dto';
 
 @Injectable()
 export class OrdersService {
@@ -225,12 +189,6 @@ export class OrdersService {
   async register(tenantId: string, dto: RegisterPatientOrderDto) {
     const { tests, ...data } = dto;
 
-    // Collision-safe order number: UUID-derived (8 hex chars) instead of
-    // Date.now(), so two submissions in the same millisecond can't clash.
-    const orderNumber = `ORD-${randomUUID()
-      .replace(/-/g, '')
-      .slice(0, 8)
-      .toUpperCase()}`;
     // Referrer pricing — resolve line-item prices server-side via the shared
     // rule in masters/price-resolver.ts when the named referrer has a pricing
     // mode. Falls back to client-supplied rates for walk-ins / default mode.
@@ -356,212 +314,253 @@ export class OrdersService {
 
     // Single transaction: patient + order + order tests commit together.
     // If any step fails (network blip, crash), nothing is left behind —
-    // no orphan patients, no orders without tests.
-    return this.prisma.client.$transaction(
-      async (tx) => {
-        // 1. Patient
-        let patient: { id: string } | null = null;
-        if (data.patientId) {
-          patient = await tx.patient.findFirst({
-            where: { id: data.patientId, tenantId },
-          });
-          if (!patient) throw new NotFoundException('Patient not found');
-        } else {
-          patient = await tx.patient.create({
+    // no orphan patients, no orders without tests. The order number is
+    // generated fresh on every attempt so a collision retry gets a new one.
+    const runAttempt = async (): Promise<{
+      message: string;
+      patientId: string;
+      orderId: string;
+      orderNumber: string;
+    }> => {
+      // Collision-safe order number: UUID-derived (8 hex chars) instead of
+      // Date.now(), so two submissions in the same millisecond can't clash.
+      const orderNumber = `ORD-${randomUUID()
+        .replace(/-/g, '')
+        .slice(0, 8)
+        .toUpperCase()}`;
+      return this.prisma.client.$transaction(
+        async (tx) => {
+          // 1. Patient
+          let patient: { id: string } | null = null;
+          if (data.patientId) {
+            patient = await tx.patient.findFirst({
+              where: { id: data.patientId, tenantId },
+            });
+            if (!patient) throw new NotFoundException('Patient not found');
+          } else {
+            patient = await tx.patient.create({
+              data: {
+                tenantId,
+                title: data.title ?? null,
+                firstName: data.firstName ?? '',
+                lastName: data.lastName ?? '',
+                dateOfBirth: data.dateOfBirth
+                  ? new Date(data.dateOfBirth)
+                  : null,
+                ageYears: data.ageYears ?? null,
+                ageMonths: data.ageMonths ?? null,
+                gender: data.gender ?? null,
+                phone: data.phone ?? null,
+                email: data.email ?? null,
+              },
+            });
+          }
+
+          // 2. Order
+          const order = await tx.order.create({
             data: {
               tenantId,
-              title: data.title ?? null,
-              firstName: data.firstName ?? '',
-              lastName: data.lastName ?? '',
-              dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-              ageYears: data.ageYears ?? null,
-              ageMonths: data.ageMonths ?? null,
-              gender: data.gender ?? null,
-              phone: data.phone ?? null,
-              email: data.email ?? null,
+              patientId: patient.id,
+              referrerPartyId: referrerPricing?.referrerId ?? null,
+              orderNumber,
+              category: data.category ?? null,
+              sidDate: data.sidDate ? new Date(data.sidDate) : null,
+              refNo: data.refNo ?? null,
+              source: data.source ?? null,
+              insuranceDetails: data.insurance ?? null,
+              collectionBoy: data.collectionBoy ?? null,
+              patientType: data.patientType ?? null,
+              ward: data.ward ?? null,
+              ipOpNo: data.ipOpNo ?? null,
+              bedNo: data.bedNo ?? null,
+              clinicalRemarks: data.clinicalRemarks ?? null,
+              sampleCollectDt: data.sampleCollectDate
+                ? new Date(data.sampleCollectDate)
+                : null,
+              billAmount: subTotal,
+              otherCharges: data.otherCharges ?? 0,
+              discountPercent: data.discountPercent ?? 0,
+              discountAmount: discAmt,
+              discountAuth: data.discountAuth ?? null,
+              totalAmount: totalAmt,
+              amountPaid: data.amountPaid ?? 0,
+              balanceAmount: balance,
+              paymentMode: data.paymentMode ?? null,
+              bankName: data.bankName ?? null,
+              paymentRef: data.paymentRef ?? null,
+              paymentDate: data.paymentDate ? new Date(data.paymentDate) : null,
+              paymentRemarks: data.paymentRemarks ?? null,
+              deliveryMode: data.deliveryMode ?? null,
+              emergency: data.emergency ?? false,
+              finalReportDate: data.finalReportDate
+                ? new Date(data.finalReportDate)
+                : null,
+              billHf: data.billHf ?? false,
+              consolidatedBill: data.consolidatedBill ?? false,
+              remarks: data.remarks ?? null,
             },
           });
-        }
 
-        // 2. Order
-        const order = await tx.order.create({
-          data: {
-            tenantId,
-            patientId: patient.id,
-            referrerPartyId: referrerPricing?.referrerId ?? null,
-            orderNumber,
-            category: data.category ?? null,
-            sidDate: data.sidDate ? new Date(data.sidDate) : null,
-            refNo: data.refNo ?? null,
-            source: data.source ?? null,
-            insuranceDetails: data.insurance ?? null,
-            collectionBoy: data.collectionBoy ?? null,
-            patientType: data.patientType ?? null,
-            ward: data.ward ?? null,
-            ipOpNo: data.ipOpNo ?? null,
-            bedNo: data.bedNo ?? null,
-            clinicalRemarks: data.clinicalRemarks ?? null,
-            sampleCollectDt: data.sampleCollectDate
-              ? new Date(data.sampleCollectDate)
-              : null,
-            billAmount: subTotal,
-            otherCharges: data.otherCharges ?? 0,
-            discountPercent: data.discountPercent ?? 0,
-            discountAmount: discAmt,
-            discountAuth: data.discountAuth ?? null,
-            totalAmount: totalAmt,
-            amountPaid: data.amountPaid ?? 0,
-            balanceAmount: balance,
-            paymentMode: data.paymentMode ?? null,
-            bankName: data.bankName ?? null,
-            paymentRef: data.paymentRef ?? null,
-            paymentDate: data.paymentDate ? new Date(data.paymentDate) : null,
-            paymentRemarks: data.paymentRemarks ?? null,
-            deliveryMode: data.deliveryMode ?? null,
-            emergency: data.emergency ?? false,
-            finalReportDate: data.finalReportDate
-              ? new Date(data.finalReportDate)
-              : null,
-            billHf: data.billHf ?? false,
-            consolidatedBill: data.consolidatedBill ?? false,
-            remarks: data.remarks ?? null,
-          },
-        });
-
-        // 3. Sample — one default tube per order; all tests hang off it.
-        // Sample status lives on the Sample row so one physical tube can
-        // never hold contradictory test statuses.
-        const sample = await tx.sample.create({
-          data: {
-            tenantId,
-            orderId: order.id,
-            sampleNo: `SPL-${randomUUID()
-              .replace(/-/g, '')
-              .slice(0, 8)
-              .toUpperCase()}`,
-            sampleCollectDt: order.sampleCollectDt,
-            status: 'pending',
-          },
-        });
-
-        // 4. Create order tests — expand profiles into sub-parameters.
-        // Batched with createMany (3 round trips instead of one per
-        // parameter) so registration stays fast even for 13-parameter
-        // profiles like CBC.
-        type ParentSeed = {
-          tenantId: string;
-          orderId: string;
-          sampleId: string;
-          testCode: string;
-          testName: string;
-          isProfile: boolean;
-          rate: number;
-          status: string;
-          sortOrder: number;
-        };
-        type ChildSeed = ParentSeed & {
-          parentTestId: string;
-          unit?: string | null;
-          refRange?: string | null;
-          refLow?: number | null;
-          refHigh?: number | null;
-        };
-        type SingleSeed = ParentSeed & {
-          unit?: string | null;
-          refRange?: string | null;
-          refLow?: number | null;
-          refHigh?: number | null;
-        };
-        const parentSeeds: ParentSeed[] = [];
-        const childSegments: ChildSeed[][] = [];
-        const singleSeeds: SingleSeed[] = [];
-
-        for (const t of tests) {
-          const profile = findProfile(t.code);
-          if (profile) {
-            parentSeeds.push({
+          // 3. Sample — one default tube per order; all tests hang off it.
+          // Sample status lives on the Sample row so one physical tube can
+          // never hold contradictory test statuses.
+          const sample = await tx.sample.create({
+            data: {
               tenantId,
               orderId: order.id,
-              sampleId: sample.id,
-              testCode: profile.code,
-              testName: profile.name,
-              isProfile: true,
-              rate: effectiveRates.get(profile.code) ?? profile.rate,
+              sampleNo: `SPL-${randomUUID()
+                .replace(/-/g, '')
+                .slice(0, 8)
+                .toUpperCase()}`,
+              sampleCollectDt: order.sampleCollectDt,
               status: 'pending',
-              sortOrder: 0,
-            });
-            childSegments.push(
-              profile.parameters.map((param) => ({
+            },
+          });
+
+          // 4. Create order tests — expand profiles into sub-parameters.
+          // Batched with createMany (3 round trips instead of one per
+          // parameter) so registration stays fast even for 13-parameter
+          // profiles like CBC.
+          type ParentSeed = {
+            tenantId: string;
+            orderId: string;
+            sampleId: string;
+            testCode: string;
+            testName: string;
+            isProfile: boolean;
+            rate: number;
+            status: string;
+            sortOrder: number;
+          };
+          type ChildSeed = ParentSeed & {
+            parentTestId: string;
+            unit?: string | null;
+            refRange?: string | null;
+            refLow?: number | null;
+            refHigh?: number | null;
+          };
+          type SingleSeed = ParentSeed & {
+            unit?: string | null;
+            refRange?: string | null;
+            refLow?: number | null;
+            refHigh?: number | null;
+          };
+          const parentSeeds: ParentSeed[] = [];
+          const childSegments: ChildSeed[][] = [];
+          const singleSeeds: SingleSeed[] = [];
+
+          for (const t of tests) {
+            const profile = findProfile(t.code);
+            if (profile) {
+              parentSeeds.push({
                 tenantId,
                 orderId: order.id,
                 sampleId: sample.id,
-                parentTestId: '', // filled in after parents return
-                testCode: param.code,
-                testName: param.name,
-                isProfile: false,
-                rate: 0,
+                testCode: profile.code,
+                testName: profile.name,
+                isProfile: true,
+                rate: effectiveRates.get(profile.code) ?? profile.rate,
                 status: 'pending',
-                unit: param.unit,
-                refRange: param.refRange,
-                refLow: param.refLow,
-                refHigh: param.refHigh,
-                sortOrder: param.sortOrder,
-              })),
-            );
-          } else {
-            // Snapshot unit + ref range from the parameter master (the same
-            // source Result Entry renders read-only) so single tests show
-            // real values, not blanks.
-            const meta = parameterByCode.get(t.code);
-            singleSeeds.push({
-              tenantId,
-              orderId: order.id,
-              sampleId: sample.id,
-              testCode: t.code,
-              testName: t.name,
-              isProfile: false,
-              rate: effectiveRates.get(t.code) ?? t.rate,
-              status: 'pending',
-              sortOrder: 0,
-              unit: meta?.unit ?? null,
-              refRange: formatRefRange(
-                meta?.refLow ?? null,
-                meta?.refHigh ?? null,
-              ),
-              refLow: meta?.refLow ?? null,
-              refHigh: meta?.refHigh ?? null,
-            });
-          }
-        }
-
-        if (parentSeeds.length > 0) {
-          const parents = await tx.orderTest.createManyAndReturn({
-            data: parentSeeds,
-          });
-          for (let i = 0; i < parents.length && i < childSegments.length; i++) {
-            const parentId = parents[i].id;
-            for (const child of childSegments[i]) {
-              child.parentTestId = parentId;
+                sortOrder: 0,
+              });
+              childSegments.push(
+                profile.parameters.map((param) => ({
+                  tenantId,
+                  orderId: order.id,
+                  sampleId: sample.id,
+                  parentTestId: '', // filled in after parents return
+                  testCode: param.code,
+                  testName: param.name,
+                  isProfile: false,
+                  rate: 0,
+                  status: 'pending',
+                  unit: param.unit,
+                  refRange: param.refRange,
+                  refLow: param.refLow,
+                  refHigh: param.refHigh,
+                  sortOrder: param.sortOrder,
+                })),
+              );
+            } else {
+              // Snapshot unit + ref range from the parameter master (the
+              // same source Result Entry renders read-only) so single tests
+              // show real values, not blanks.
+              const meta = parameterByCode.get(t.code);
+              singleSeeds.push({
+                tenantId,
+                orderId: order.id,
+                sampleId: sample.id,
+                testCode: t.code,
+                testName: t.name,
+                isProfile: false,
+                rate: effectiveRates.get(t.code) ?? t.rate,
+                status: 'pending',
+                sortOrder: 0,
+                unit: meta?.unit ?? null,
+                refRange: formatRefRange(
+                  meta?.refLow ?? null,
+                  meta?.refHigh ?? null,
+                ),
+                refLow: meta?.refLow ?? null,
+                refHigh: meta?.refHigh ?? null,
+              });
             }
           }
-        }
-        const allChildren = childSegments.flat();
-        if (allChildren.length > 0) {
-          await tx.orderTest.createMany({ data: allChildren });
-        }
-        if (singleSeeds.length > 0) {
-          await tx.orderTest.createMany({ data: singleSeeds });
-        }
 
-        return {
-          message: 'Patient registered successfully',
-          patientId: patient.id,
-          orderId: order.id,
-          orderNumber,
-        };
-      },
-      { timeout: 30000 },
-    );
+          if (parentSeeds.length > 0) {
+            const parents = await tx.orderTest.createManyAndReturn({
+              data: parentSeeds,
+            });
+            for (
+              let i = 0;
+              i < parents.length && i < childSegments.length;
+              i++
+            ) {
+              const parentId = parents[i].id;
+              for (const child of childSegments[i]) {
+                child.parentTestId = parentId;
+              }
+            }
+          }
+          const allChildren = childSegments.flat();
+          if (allChildren.length > 0) {
+            await tx.orderTest.createMany({ data: allChildren });
+          }
+          if (singleSeeds.length > 0) {
+            await tx.orderTest.createMany({ data: singleSeeds });
+          }
+
+          return {
+            message: 'Patient registered successfully',
+            patientId: patient.id,
+            orderId: order.id,
+            orderNumber,
+          };
+        },
+        { timeout: 30000 },
+      );
+    };
+
+    // The global unique index on order_number is the ultimate backstop: if
+    // two registrations (possibly across different tenants) collide on the
+    // same number, regenerate and retry instead of failing the booking.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await runAttempt();
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        const rawTarget = (err as { meta?: { target?: unknown } })?.meta
+          ?.target;
+        let target = '';
+        if (Array.isArray(rawTarget)) target = rawTarget.join(',');
+        else if (typeof rawTarget === 'string') target = rawTarget;
+        const isOrderNumberCollision =
+          code === 'P2002' && target.includes('order_number');
+        if (isOrderNumberCollision && attempt < 2) continue;
+        throw err;
+      }
+    }
+    throw new Error('Failed to allocate a unique order number');
   }
 
   /**

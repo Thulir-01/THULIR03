@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import {
   TENANT_SCOPED_MODELS,
+  TENANT_FREE_OPERATIONS,
   applyTenantScoping,
+  resolveTenantEnforcement,
 } from './tenant-filter.extension';
 
 describe('applyTenantScoping', () => {
@@ -86,5 +88,77 @@ describe('applyTenantScoping', () => {
     expect(() =>
       applyTenantScoping('findMany', undefined, 'org-A'),
     ).not.toThrow();
+  });
+});
+
+describe('resolveTenantEnforcement (fail-closed policy)', () => {
+  it('scopes tenant models when a tenant context exists', () => {
+    expect(resolveTenantEnforcement('order', 'findMany', 'org-A')).toBe(
+      'scope',
+    );
+    expect(resolveTenantEnforcement('Patient', 'findUnique', 'org-A')).toBe(
+      'scope',
+    );
+  });
+
+  it('DENIES tenant-scoped models queried WITHOUT a tenant context', () => {
+    // The security fix: a background job / queue consumer / webhook that
+    // forgets runWithTenant must fail loudly instead of silently reading
+    // across ALL tenants.
+    expect(resolveTenantEnforcement('order', 'findMany', undefined)).toBe(
+      'deny',
+    );
+    expect(resolveTenantEnforcement('order', 'findFirst', undefined)).toBe(
+      'deny',
+    );
+    expect(resolveTenantEnforcement('order', 'create', undefined)).toBe('deny');
+    expect(resolveTenantEnforcement('patient', 'findUnique', undefined)).toBe(
+      'deny',
+    );
+    expect(resolveTenantEnforcement('ordertest', 'updateMany', undefined)).toBe(
+      'deny',
+    );
+    expect(resolveTenantEnforcement('auditlog', 'findMany', undefined)).toBe(
+      'deny',
+    );
+  });
+
+  it('allows ONLY the explicitly allowlisted tenant-free operations', () => {
+    // Public report verification by globally-unique orderNumber (the service
+    // scopes by order.tenantId itself) — must keep working without auth.
+    expect(resolveTenantEnforcement('order', 'findUnique', undefined)).toBe(
+      'allow-tenant-free',
+    );
+    expect(resolveTenantEnforcement('Order', 'FINDUNIQUE', undefined)).toBe(
+      'allow-tenant-free',
+    );
+    // Fire-and-forget audit writes (tenantId nullable by schema).
+    expect(resolveTenantEnforcement('auditlog', 'create', undefined)).toBe(
+      'allow-tenant-free',
+    );
+    // Same model, non-allowlisted op → still denied.
+    expect(resolveTenantEnforcement('order', 'findMany', undefined)).toBe(
+      'deny',
+    );
+  });
+
+  it('leaves non-tenant models untouched', () => {
+    expect(resolveTenantEnforcement('user', 'findMany', undefined)).toBe(
+      'not-scoped',
+    );
+    expect(resolveTenantEnforcement('organization', 'create', undefined)).toBe(
+      'not-scoped',
+    );
+    expect(resolveTenantEnforcement('role', 'findFirst', undefined)).toBe(
+      'not-scoped',
+    );
+  });
+
+  it('keeps the allowlist minimal and explicit', () => {
+    // Guard rails: if a future op gets added to the allowlist, these tests
+    // force a conscious review — the set must stay tiny.
+    expect(TENANT_FREE_OPERATIONS.size).toBe(2);
+    expect(TENANT_FREE_OPERATIONS.has('order:findunique')).toBe(true);
+    expect(TENANT_FREE_OPERATIONS.has('auditlog:create')).toBe(true);
   });
 });

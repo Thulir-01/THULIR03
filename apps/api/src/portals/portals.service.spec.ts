@@ -177,7 +177,7 @@ describe('PortalsService', () => {
     ).rejects.toThrow('Report is not yet available');
   });
 
-  it('verifyReport returns a valid payload for a known order number', async () => {
+  it('verifyReport returns a MINIMAL payload (no PHI) for a known order number', async () => {
     const mocks = baseMocks();
     mocks.order.findUnique = jest.fn().mockResolvedValue({
       orderNumber: 'ORD-VERIFY-1',
@@ -196,7 +196,11 @@ describe('PortalsService', () => {
     expect(result.valid).toBe(true);
     expect(result.orderNumber).toBe('ORD-VERIFY-1');
     expect(result.labName).toBe('THULIR03 Diagnostics');
-    expect(result.tests).toEqual(['CBC', 'ESR']);
+    expect(result.reportDate).toBeTruthy();
+    // Unauthenticated integrity check must never leak patient identity or
+    // the tests on the report (PHI) — those require portal login.
+    expect(result.patientName).toBeUndefined();
+    expect(result.tests).toBeUndefined();
     // uppercased + trimmed before lookup
     expect(mocks.order.findUnique.mock.calls[0][0].where.orderNumber).toBe(
       'ORD-VERIFY-1',

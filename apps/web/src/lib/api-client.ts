@@ -1665,8 +1665,6 @@ export interface ReportVerification {
   status?: string;
   labName?: string | null;
   reportDate?: string | null;
-  patientName?: string;
-  tests?: string[];
   message?: string;
 }
 
