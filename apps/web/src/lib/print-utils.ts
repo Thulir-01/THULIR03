@@ -22,3 +22,15 @@ export function getReportVerifyUrl(orderNumber: string): string {
     orderNumber,
   )}`;
 }
+
+/**
+ * wa.me deep-link — the no-API text fallback used when the browser cannot
+ * attach files to the native share sheet (desktop Chrome/Firefox/Safari).
+ */
+export function buildWaShareLink(
+  phone: string | null | undefined,
+  message: string,
+): string {
+  const digits = phone?.replace(/\D/g, "") ?? "";
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}

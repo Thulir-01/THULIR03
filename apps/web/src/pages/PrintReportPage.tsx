@@ -1,14 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { ArrowLeft, FlaskConical, Loader2, Printer, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  FlaskConical,
+  Loader2,
+  MessageCircle,
+  Printer,
+  AlertTriangle,
+} from "lucide-react";
 import { getOrderReport, type ClinicalReport } from "../lib/api-client";
 import ReportDocument from "../components/print/ReportDocument";
+import { generateDocumentPdf, sharePdfViaWhatsApp } from "../lib/report-pdf";
+import { buildWaShareLink, getReportVerifyUrl } from "../lib/print-utils";
+
+type WaState = "idle" | "generating" | "shared" | "error";
 
 /**
  * Print-optimized report route (/print/report/:orderId).
  * Renders the clinical report on a bare stage — no app shell, no sidebar —
  * so the PDF/paper output is clean A4. Opened by the in-app "Print / Save as
  * PDF" button with ?autoprint=1 to skip straight to the print dialog.
+ * Also the source of the PDF attached when staff send the report via WhatsApp.
  */
 export default function PrintReportPage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -18,7 +31,9 @@ export default function PrintReportPage() {
   const [report, setReport] = useState<ClinicalReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [waState, setWaState] = useState<WaState>("idle");
   const printedRef = useRef(false);
+  const docRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -59,6 +74,34 @@ export default function PrintReportPage() {
     };
   }, [report]);
 
+  // "Shared" confirmation resets after a moment.
+  useEffect(() => {
+    if (waState !== "shared") return;
+    const t = window.setTimeout(() => setWaState("idle"), 2200);
+    return () => window.clearTimeout(t);
+  }, [waState]);
+
+  async function handleSendPdf() {
+    const node = docRef.current;
+    if (!node || !report) return;
+    setWaState("generating");
+    try {
+      const blob = await generateDocumentPdf(node);
+      const fileName = `${report.orderNumber}_Report.pdf`;
+      const shareText = `Dear ${report.patient.firstName}${report.patient.lastName ? ` ${report.patient.lastName}` : ""}, your laboratory report (${report.orderNumber}) is ready — PDF attached.`;
+      const result = await sharePdfViaWhatsApp(blob, fileName, shareText);
+      if (result === "unsupported") {
+        // Browser can't attach files — fall back to the wa.me text link.
+        const verifyUrl = getReportVerifyUrl(report.orderNumber);
+        const message = `Dear ${report.patient.firstName}${report.patient.lastName ? ` ${report.patient.lastName}` : ""}, your laboratory report (${report.orderNumber}) from ${report.lab?.name ?? "our lab"} is ready. Verify it online: ${verifyUrl}`;
+        window.open(buildWaShareLink(report.patient.phone, message), "_blank", "noopener");
+      }
+      setWaState(result === "shared" ? "shared" : "idle");
+    } catch {
+      setWaState("error");
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface-100 print:bg-white">
       {/* Toolbar — screen only, never printed */}
@@ -77,11 +120,35 @@ export default function PrintReportPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {waState === "error" && (
+            <span className="hidden text-[11px] text-rose-600 sm:block">
+              Could not prepare the PDF — try the print button instead.
+            </span>
+          )}
           <button
             onClick={() => orderId && navigate(`/orders/${orderId}/report`)}
             className="inline-flex items-center gap-2 rounded-lg border border-line-200 bg-surface-0 px-3 py-1.5 text-sm font-medium text-ink-600 transition-colors duration-fast hover:bg-surface-100 hover:text-ink-950"
           >
             <ArrowLeft className="size-4" /> Back to app
+          </button>
+          <button
+            onClick={handleSendPdf}
+            disabled={!report || waState === "generating"}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors duration-fast hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {waState === "generating" ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Preparing PDF…
+              </>
+            ) : waState === "shared" ? (
+              <>
+                <Check className="size-4" /> PDF ready — pick WhatsApp
+              </>
+            ) : (
+              <>
+                <MessageCircle className="size-4" /> Send on WhatsApp
+              </>
+            )}
           </button>
           <button
             onClick={() => window.print()}
@@ -110,7 +177,11 @@ export default function PrintReportPage() {
           </div>
         )}
 
-        {report && !loading && <ReportDocument report={report} />}
+        {report && !loading && (
+          <div ref={docRef} className="print:contents">
+            <ReportDocument report={report} />
+          </div>
+        )}
       </main>
     </div>
   );

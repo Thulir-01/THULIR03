@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
   ArrowLeft,
@@ -15,7 +15,8 @@ import {
   type ClinicalReport,
 } from "../lib/api-client";
 import ReportDocument, { ReportQr } from "../components/print/ReportDocument";
-import { getReportVerifyUrl } from "../lib/print-utils";
+import { buildWaShareLink, getReportVerifyUrl } from "../lib/print-utils";
+import { generateDocumentPdf, sharePdfViaWhatsApp } from "../lib/report-pdf";
 
 export default function ReportPage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -25,6 +26,11 @@ export default function ReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [deliverOpen, setDeliverOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pdfState, setPdfState] = useState<
+    "idle" | "generating" | "shared" | "error"
+  >("idle");
+  const [shareUnsupported, setShareUnsupported] = useState(false);
+  const captureRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -54,8 +60,9 @@ export default function ReportPage() {
   const waMessage = report
     ? `Dear ${report.patient.firstName}${report.patient.lastName ? ` ${report.patient.lastName}` : ""}, your laboratory report (${report.orderNumber}) from ${report.lab?.name ?? "our lab"} is ready. Verify it online: ${verifyUrl}`
     : "";
-  const waPhone = report?.patient.phone?.replace(/[^\d]/g, "") ?? "";
-  const waLink = `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}`;
+  const waLink = report
+    ? buildWaShareLink(report.patient.phone, waMessage)
+    : "";
 
   async function copyVerifyLink() {
     try {
@@ -64,6 +71,25 @@ export default function ReportPage() {
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
       // Clipboard unavailable — the URL is visible next to the button.
+    }
+  }
+
+  // Rasterize the on-screen report and hand the PDF to the native share
+  // sheet — staff pick WhatsApp from it. Falls back to the wa.me link.
+  async function sendPdfViaWhatsApp() {
+    const node = captureRef.current;
+    if (!node || !report) return;
+    setPdfState("generating");
+    setShareUnsupported(false);
+    try {
+      const blob = await generateDocumentPdf(node);
+      const fileName = `${report.orderNumber}_Report.pdf`;
+      const shareText = `Dear ${report.patient.firstName}${report.patient.lastName ? ` ${report.patient.lastName}` : ""}, your laboratory report (${report.orderNumber}) is ready — PDF attached.`;
+      const result = await sharePdfViaWhatsApp(blob, fileName, shareText);
+      if (result === "unsupported") setShareUnsupported(true);
+      setPdfState(result === "shared" ? "shared" : "idle");
+    } catch {
+      setPdfState("error");
     }
   }
 
@@ -117,7 +143,11 @@ export default function ReportPage() {
         </div>
       )}
 
-      {report && !loading && <ReportDocument report={report} />}
+      {report && !loading && (
+        <div ref={captureRef}>
+          <ReportDocument report={report} />
+        </div>
+      )}
 
       {/* WhatsApp delivery modal — screen only, never printed */}
       {report && deliverOpen && (
@@ -154,13 +184,47 @@ export default function ReportPage() {
                 </span>
               </div>
 
+              {/* Primary: attach the real PDF via the native share sheet */}
+              <button
+                onClick={sendPdfViaWhatsApp}
+                disabled={pdfState === "generating"}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {pdfState === "generating" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Preparing PDF…
+                  </>
+                ) : pdfState === "shared" ? (
+                  <>
+                    <Check className="w-4 h-4" /> PDF ready — pick WhatsApp
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-4 h-4" /> Send PDF via WhatsApp
+                  </>
+                )}
+              </button>
+
+              {pdfState === "error" && (
+                <p className="text-[11px] text-rose-600">
+                  Could not prepare the PDF on this device — use the link
+                  instead.
+                </p>
+              )}
+              {shareUnsupported && (
+                <p className="text-[11px] text-amber-700">
+                  This browser can't attach files to WhatsApp — sending the
+                  report link instead.
+                </p>
+              )}
+
               <a
                 href={waLink}
                 target="_blank"
                 rel="noreferrer"
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
               >
-                <MessageCircle className="w-4 h-4" /> Open in WhatsApp
+                <MessageCircle className="w-4 h-4" /> Send report link instead
               </a>
 
               <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
